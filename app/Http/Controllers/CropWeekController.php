@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\CropYear;
 use App\Models\WeekNo;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class CropWeekController extends Controller
 {
@@ -42,75 +43,139 @@ class CropWeekController extends Controller
 }
 
     /**
-     * Update crop year
+     * Update crop year — always returns JSON so fetch().json() never receives HTML.
      */
-    public function updateCropYear(Request $request, CropYear $cropYear)
+    public function updateCropYear(Request $request, $cropYear)
     {
-        $request->validate([
-            'crop_year' => 'required|string|size:8|unique:crop_year,crop_year,' . $cropYear->id,
+        $model = $cropYear instanceof CropYear ? $cropYear : CropYear::find($request->route('cropYear'));
+
+        if (!$model) {
+            return response()->json(['message' => 'Crop year not found.'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'crop_year' => 'required|string|size:8|unique:crop_year,crop_year,' . $model->id,
         ]);
 
-        $cropYear->update(['crop_year' => $request->crop_year]);
-        
-        Log::info('Crop Year updated: ' . $cropYear->crop_year . ' by user: ' . auth()->user()->username);
-        
-        return response()->json(['message' => 'Crop Year updated successfully']);
-    }
-
-    /**
-     * Delete crop year
-     */
-    public function destroyCropYear(CropYear $cropYear)
-    {
-        // Check if crop year has weeks
-        $weekCount = WeekNo::where('crop_year', $cropYear->crop_year)->count();
-        
-        if ($weekCount > 0) {
+        if ($validator->fails()) {
             return response()->json([
-                'message' => 'Cannot delete crop year with ' . $weekCount . ' associated week(s). Delete the weeks first.'
-            ], 400);
+                'message' => $validator->errors()->first('crop_year'),
+                'errors' => $validator->errors(),
+            ], 422);
         }
-        
-        $cropYear->delete();
-        
-        Log::info('Crop Year deleted: ' . $cropYear->crop_year . ' by user: ' . auth()->user()->username);
-        
-        return response()->json(['message' => 'Crop Year deleted successfully']);
+
+        try {
+            $model->update(['crop_year' => $request->crop_year]);
+
+            $username = optional(auth()->user())->username ?? 'system';
+            Log::info('Crop Year updated: ' . $model->crop_year . ' by user: ' . $username);
+
+            return response()->json(['message' => 'Crop Year updated successfully']);
+        } catch (\Throwable $e) {
+            Log::error('Crop Year update failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Server error while updating crop year.'], 500);
+        }
     }
 
     /**
-     * Update week number
+     * Delete crop year — always returns JSON.
      */
-    public function updateWeek(Request $request, WeekNo $weekNo)
+    public function destroyCropYear(Request $request, $cropYear)
     {
-        $request->validate([
+        $model = $cropYear instanceof CropYear ? $cropYear : CropYear::find($request->route('cropYear'));
+
+        if (!$model) {
+            return response()->json(['message' => 'Crop year not found.'], 404);
+        }
+
+        try {
+            // Check if crop year has weeks
+            $weekCount = WeekNo::where('crop_year', $model->crop_year)->count();
+
+            if ($weekCount > 0) {
+                return response()->json([
+                    'message' => 'Cannot delete crop year with ' . $weekCount . ' associated week(s). Delete the weeks first.'
+                ], 400);
+            }
+
+            $deleted = $model->crop_year;
+            $model->delete();
+
+            $username = optional(auth()->user())->username ?? 'system';
+            Log::info('Crop Year deleted: ' . $deleted . ' by user: ' . $username);
+
+            return response()->json(['message' => 'Crop Year deleted successfully']);
+        } catch (\Throwable $e) {
+            Log::error('Crop Year delete failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Server error while deleting crop year.'], 500);
+        }
+    }
+
+    /**
+     * Update week number — always returns JSON.
+     */
+    public function updateWeek(Request $request, $weekNo)
+    {
+        $model = $weekNo instanceof WeekNo ? $weekNo : WeekNo::find($request->route('weekNo'));
+
+        if (!$model) {
+            return response()->json(['message' => 'Week not found.'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
             'crop_year' => 'required|string|size:8',
             'week_no' => 'required|integer|min:1|max:52',
             'week_start_date' => 'required|date',
             'week_end_date' => 'required|date|after:week_start_date',
         ]);
 
-        $weekNo->update([
-            'crop_year' => $request->crop_year,
-            'week_no' => $request->week_no,
-            'week_start_date' => $request->week_start_date,
-            'week_end_date' => $request->week_end_date,
-        ]);
-        
-        Log::info('Week updated: ' . $weekNo->id . ' by user: ' . auth()->user()->username);
-        
-        return response()->json(['message' => 'Week updated successfully']);
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $model->update([
+                'crop_year' => $request->crop_year,
+                'week_no' => $request->week_no,
+                'week_start_date' => $request->week_start_date,
+                'week_end_date' => $request->week_end_date,
+            ]);
+
+            $username = optional(auth()->user())->username ?? 'system';
+            Log::info('Week updated: ' . $model->id . ' by user: ' . $username);
+
+            return response()->json(['message' => 'Week updated successfully']);
+        } catch (\Throwable $e) {
+            Log::error('Week update failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Server error while updating week.'], 500);
+        }
     }
 
     /**
-     * Delete week number
+     * Delete week number — always returns JSON.
      */
-    public function destroyWeek(WeekNo $weekNo)
+    public function destroyWeek(Request $request, $weekNo)
     {
-        $weekNo->delete();
-        
-        Log::info('Week deleted: ' . $weekNo->id . ' by user: ' . auth()->user()->username);
-        
-        return response()->json(['message' => 'Week deleted successfully']);
+        $model = $weekNo instanceof WeekNo ? $weekNo : WeekNo::find($request->route('weekNo'));
+
+        if (!$model) {
+            return response()->json(['message' => 'Week not found.'], 404);
+        }
+
+        try {
+            $id = $model->id;
+            $model->delete();
+
+            $username = optional(auth()->user())->username ?? 'system';
+            Log::info('Week deleted: ' . $id . ' by user: ' . $username);
+
+            return response()->json(['message' => 'Week deleted successfully']);
+        } catch (\Throwable $e) {
+            Log::error('Week delete failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Server error while deleting week.'], 500);
+        }
     }
 }

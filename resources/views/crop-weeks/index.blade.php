@@ -327,6 +327,35 @@
 
                 filterWeeks() {},
 
+                cropYearBaseUrl: '{{ url('/crop-year') }}',
+                weekBaseUrl: '{{ url('/week') }}',
+
+                csrfToken() {
+                    return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+                },
+
+                async parseJsonResponse(response) {
+                    const text = await response.text();
+                    let data = {};
+                    try {
+                        data = text ? JSON.parse(text) : {};
+                    } catch (e) {
+                        if (response.status === 419) throw new Error(
+                            'Session expired (419). Please refresh the page and try again.');
+                        if (response.status === 401) throw new Error(
+                            'Unauthenticated. Please sign in again.');
+                        if (response.status === 403) throw new Error(
+                            'Forbidden. You do not have permission for this action.');
+                        if (response.status === 404) throw new Error(
+                            'Record not found (404). It may have been deleted or the URL is wrong.');
+                        throw new Error('Server returned a non-JSON response (HTTP ' + response
+                            .status + ').');
+                    }
+                    if (!response.ok) throw new Error(data.message || ('Request failed (HTTP ' +
+                        response.status + ')'));
+                    return data;
+                },
+
                 formatDate(dateString) {
                     if (!dateString) return 'N/A';
                     if (/^\d{4}-\d{4}$/.test(dateString)) return dateString;
@@ -356,22 +385,22 @@
                 },
 
                 async saveCropYear() {
-                    const url = '/crop-year/' + this.editingCropYearId;
+                    const url = this.cropYearBaseUrl + '/' + this.editingCropYearId;
                     try {
                         const response = await fetch(url, {
                             method: 'PUT',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Accept': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': this.csrfToken()
                             },
                             body: JSON.stringify({
                                 crop_year: this.cropYearForm.crop_year,
                                 user_id: '{{ auth()->id() }}'
                             })
                         });
-                        const data = await response.json();
-                        if (!response.ok) throw new Error(data.message || 'Failed');
+                        const data = await this.parseJsonResponse(response);
                         Swal.fire({
                             icon: 'success',
                             title: 'Success!',
@@ -401,15 +430,15 @@
                     });
                     if (!result.isConfirmed) return;
                     try {
-                        const response = await fetch('/crop-year/' + id, {
+                        const response = await fetch(this.cropYearBaseUrl + '/' + id, {
                             method: 'DELETE',
                             headers: {
                                 'Accept': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': this.csrfToken()
                             }
                         });
-                        const data = await response.json();
-                        if (!response.ok) throw new Error(data.message);
+                        const data = await this.parseJsonResponse(response);
                         Swal.fire({
                             icon: 'success',
                             title: 'Deleted!',
@@ -478,12 +507,13 @@
                         return;
                     }
                     try {
-                        const response = await fetch('/week/' + this.editingWeekId, {
+                        const response = await fetch(this.weekBaseUrl + '/' + this.editingWeekId, {
                             method: 'PUT',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Accept': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': this.csrfToken()
                             },
                             body: JSON.stringify({
                                 crop_year: this.weekForm.crop_year,
@@ -493,8 +523,7 @@
                                 user_id: '{{ auth()->id() }}'
                             })
                         });
-                        const data = await response.json();
-                        if (!response.ok) throw new Error(data.message || 'Failed');
+                        const data = await this.parseJsonResponse(response);
                         Swal.fire({
                             icon: 'success',
                             title: 'Success!',
@@ -524,15 +553,15 @@
                     });
                     if (!result.isConfirmed) return;
                     try {
-                        const response = await fetch('/week/' + id, {
+                        const response = await fetch(this.weekBaseUrl + '/' + id, {
                             method: 'DELETE',
                             headers: {
                                 'Accept': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': this.csrfToken()
                             }
                         });
-                        const data = await response.json();
-                        if (!response.ok) throw new Error(data.message);
+                        const data = await this.parseJsonResponse(response);
                         Swal.fire({
                             icon: 'success',
                             title: 'Deleted!',
