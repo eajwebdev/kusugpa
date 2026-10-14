@@ -208,6 +208,20 @@ Route::middleware(['login_auth:manage-crop-weeks'])->group(function () {
     Route::delete('/crop-year/{cropYear}', [CropWeekController::class, 'destroyCropYear'])->name('crop-year.destroy');
     Route::put('/week/{weekNo}', [CropWeekController::class, 'updateWeek'])->name('week.update');
     Route::delete('/week/{weekNo}', [CropWeekController::class, 'destroyWeek'])->name('week.destroy');
+    // POST fallbacks for shared hosts that block PUT/DELETE (JS sends POST + _method + X-HTTP-Method-Override).
+    // If header spoofing works this never fires; if not, it dispatches by _method so hosted still gets JSON.
+    Route::post('/crop-year/{cropYear}', function (Request $request, $cropYear) {
+        $controller = app(CropWeekController::class);
+        return strtoupper($request->input('_method', '')) === 'DELETE'
+            ? $controller->destroyCropYear($request, $cropYear)
+            : $controller->updateCropYear($request, $cropYear);
+    })->name('crop-year.spoofed');
+    Route::post('/week/{weekNo}', function (Request $request, $weekNo) {
+        $controller = app(CropWeekController::class);
+        return strtoupper($request->input('_method', '')) === 'DELETE'
+            ? $controller->destroyWeek($request, $weekNo)
+            : $controller->updateWeek($request, $weekNo);
+    })->name('week.spoofed');
 
     // Price Management
     Route::get('/prices', [PriceController::class, 'index'])->name('prices.index');

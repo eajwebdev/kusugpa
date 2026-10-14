@@ -20,22 +20,30 @@ class SystemLockMiddleware
             return $next($request);
         }
 
+        $wantsJson = $request->expectsJson() || $request->ajax() || $request->wantsJson();
+
+        $lockedResponse = function (string $message, string $type) use ($request, $wantsJson) {
+            // fetch() with Accept: application/json must never receive an HTML
+            // error view — that is the "<!DOCTYPE ... is not valid JSON" crash.
+            if ($wantsJson) {
+                return response()->json(['message' => $message], 503);
+            }
+            return response()->view('errors.system-locked', [
+                'message' => $message,
+                'type' => $type
+            ], 503);
+        };
+
         // Check if system is locked
         if (SystemSetting::get('system_locked', false)) {
             $lockReason = SystemSetting::get('lock_reason', 'System is currently locked.');
-            return response()->view('errors.system-locked', [
-                'message' => $lockReason,
-                'type' => 'locked'
-            ], 503);
+            return $lockedResponse($lockReason, 'locked');
         }
 
         // Check subscription status
         if (SystemSetting::get('subscription_status') === 'inactive') {
             $dueDate = SystemSetting::get('subscription_due_date', 'N/A');
-            return response()->view('errors.system-locked', [
-                'message' => "System access suspended due to unpaid subscription. Payment was due on {$dueDate}.",
-                'type' => 'payment'
-            ], 503);
+            return $lockedResponse("System access suspended due to unpaid subscription. Payment was due on {$dueDate}.", 'payment');
         }
 
         // Check date-range lock
@@ -49,20 +57,14 @@ class SystemLockMiddleware
             
             if ($now->between($start, $end)) {
                 $lockReason = SystemSetting::get('lock_reason', 'System is locked for maintenance.');
-                return response()->view('errors.system-locked', [
-                    'message' => $lockReason . " Locked from {$lockStart} to {$lockEnd}.",
-                    'type' => 'scheduled'
-                ], 503);
+                return $lockedResponse($lockReason . " Locked from {$lockStart} to {$lockEnd}.", 'scheduled');
             }
         }
 
         // Check maintenance mode
         if (SystemSetting::get('maintenance_mode', false)) {
             $maintenanceMessage = SystemSetting::get('maintenance_message', 'System is under maintenance.');
-            return response()->view('errors.system-locked', [
-                'message' => $maintenanceMessage,
-                'type' => 'maintenance'
-            ], 503);
+            return $lockedResponse($maintenanceMessage, 'maintenance');
         }
 
         return $next($request);

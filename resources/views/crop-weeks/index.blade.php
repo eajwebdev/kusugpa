@@ -334,22 +334,34 @@
                     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
                 },
 
-                async parseJsonResponse(response) {
+                async parseJsonResponse(response, url) {
                     const text = await response.text();
                     let data = {};
                     try {
                         data = text ? JSON.parse(text) : {};
                     } catch (e) {
+                        // Extract <title> from HTML error pages for a useful message
+                        const titleMatch = text.match(/<title[^>]*>([^<]*)<\/title>/i);
+                        const title = titleMatch ? titleMatch[1].trim() : '';
+                        const preview = (title ? title + ' — ' : '') + 'HTTP ' + response.status +
+                            ' on ' + (url || 'request');
                         if (response.status === 419) throw new Error(
                             'Session expired (419). Please refresh the page and try again.');
                         if (response.status === 401) throw new Error(
-                            'Unauthenticated. Please sign in again.');
+                            'Unauthenticated (401). Please sign in again.');
                         if (response.status === 403) throw new Error(
-                            'Forbidden. You do not have permission for this action.');
+                            'Forbidden (403). ' + (title || 'Blocked by server/WAF or missing permission.'));
                         if (response.status === 404) throw new Error(
-                            'Record not found (404). It may have been deleted or the URL is wrong.');
-                        throw new Error('Server returned a non-JSON response (HTTP ' + response
-                            .status + ').');
+                            'Not found (404) on ' + (url || 'request') + '. ' + (title ||
+                                'Route missing on hosted server.'));
+                        if (response.status === 405) throw new Error(
+                            'Method not allowed (405). Your host blocks PUT/DELETE — redeploy this fix which uses POST spoofing.');
+                        if (response.status === 500) throw new Error(
+                            'Server error (500). ' + (title || 'Check storage/logs/laravel.log on hosting.'));
+                        if (response.status === 503) throw new Error(
+                            'Service unavailable (503). ' + (title || 'System locked / maintenance.'));
+                        throw new Error('Server returned HTML instead of JSON. ' + preview +
+                            '. Check DevTools Network → Response tab.');
                     }
                     if (!response.ok) throw new Error(data.message || ('Request failed (HTTP ' +
                         response.status + ')'));
@@ -387,20 +399,24 @@
                 async saveCropYear() {
                     const url = this.cropYearBaseUrl + '/' + this.editingCropYearId;
                     try {
+                        // NOTE: POST + _method spoofing (not raw PUT) — many shared hosts
+                        // block PUT/DELETE and return an HTML 403/405 page instead.
                         const response = await fetch(url, {
-                            method: 'PUT',
+                            method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Accept': 'application/json',
                                 'X-Requested-With': 'XMLHttpRequest',
+                                'X-HTTP-Method-Override': 'PUT',
                                 'X-CSRF-TOKEN': this.csrfToken()
                             },
                             body: JSON.stringify({
+                                _method: 'PUT',
                                 crop_year: this.cropYearForm.crop_year,
                                 user_id: '{{ auth()->id() }}'
                             })
                         });
-                        const data = await this.parseJsonResponse(response);
+                        const data = await this.parseJsonResponse(response, url);
                         Swal.fire({
                             icon: 'success',
                             title: 'Success!',
@@ -430,15 +446,21 @@
                     });
                     if (!result.isConfirmed) return;
                     try {
-                        const response = await fetch(this.cropYearBaseUrl + '/' + id, {
-                            method: 'DELETE',
+                        const delCropUrl = this.cropYearBaseUrl + '/' + id;
+                        const response = await fetch(delCropUrl, {
+                            method: 'POST',
                             headers: {
+                                'Content-Type': 'application/json',
                                 'Accept': 'application/json',
                                 'X-Requested-With': 'XMLHttpRequest',
+                                'X-HTTP-Method-Override': 'DELETE',
                                 'X-CSRF-TOKEN': this.csrfToken()
-                            }
+                            },
+                            body: JSON.stringify({
+                                _method: 'DELETE'
+                            })
                         });
-                        const data = await this.parseJsonResponse(response);
+                        const data = await this.parseJsonResponse(response, delCropUrl);
                         Swal.fire({
                             icon: 'success',
                             title: 'Deleted!',
@@ -507,15 +529,18 @@
                         return;
                     }
                     try {
-                        const response = await fetch(this.weekBaseUrl + '/' + this.editingWeekId, {
-                            method: 'PUT',
+                        const saveWeekUrl = this.weekBaseUrl + '/' + this.editingWeekId;
+                        const response = await fetch(saveWeekUrl, {
+                            method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Accept': 'application/json',
                                 'X-Requested-With': 'XMLHttpRequest',
+                                'X-HTTP-Method-Override': 'PUT',
                                 'X-CSRF-TOKEN': this.csrfToken()
                             },
                             body: JSON.stringify({
+                                _method: 'PUT',
                                 crop_year: this.weekForm.crop_year,
                                 week_no: this.weekForm.week_no,
                                 week_start_date: weekStart,
@@ -523,7 +548,7 @@
                                 user_id: '{{ auth()->id() }}'
                             })
                         });
-                        const data = await this.parseJsonResponse(response);
+                        const data = await this.parseJsonResponse(response, saveWeekUrl);
                         Swal.fire({
                             icon: 'success',
                             title: 'Success!',
@@ -553,15 +578,21 @@
                     });
                     if (!result.isConfirmed) return;
                     try {
-                        const response = await fetch(this.weekBaseUrl + '/' + id, {
-                            method: 'DELETE',
+                        const delWeekUrl = this.weekBaseUrl + '/' + id;
+                        const response = await fetch(delWeekUrl, {
+                            method: 'POST',
                             headers: {
+                                'Content-Type': 'application/json',
                                 'Accept': 'application/json',
                                 'X-Requested-With': 'XMLHttpRequest',
+                                'X-HTTP-Method-Override': 'DELETE',
                                 'X-CSRF-TOKEN': this.csrfToken()
-                            }
+                            },
+                            body: JSON.stringify({
+                                _method: 'DELETE'
+                            })
                         });
-                        const data = await this.parseJsonResponse(response);
+                        const data = await this.parseJsonResponse(response, delWeekUrl);
                         Swal.fire({
                             icon: 'success',
                             title: 'Deleted!',
