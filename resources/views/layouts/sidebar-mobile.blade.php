@@ -1,19 +1,24 @@
 <!-- resources/views/layouts/sidebar-mobile.blade.php -->
-<div class="flex h-full flex-col bg-white shadow-xl">
-    <div class="flex h-16 items-center justify-between px-6 border-b border-gray-100">
-        <span class="text-xl font-bold text-primary-700 flex items-center">
-            <i class="fas fa-seedling text-primary-600 mr-2"></i>
-            KUSUG-PA
-        </span>
-        <button @click="sidebarOpen = false" class="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100">
-            <i class="fas fa-times text-lg"></i>
+<div class="kp-sidebar" style="box-shadow: 0 0 40px rgba(0,0,0,.35)">
+    <div class="flex items-center justify-between pr-3">
+        <a href="{{ route('dashboard') }}" class="kp-brand" aria-label="KUSUG-PA — go to dashboard">
+            <img src="{{ asset('img/logo-128.webp') }}" width="40" height="40" alt="" class="kp-brand-logo">
+            <span class="kp-brand-text">
+                <span class="kp-brand-name block">KUSUG-PA</span>
+                <span class="kp-brand-sub block">Planters Association</span>
+            </span>
+        </a>
+        <button type="button" @click="sidebarOpen = false" class="kp-icon-btn" style="color:#CFE5D6" aria-label="Close menu">
+            <i class="fas fa-times text-lg" aria-hidden="true"></i>
         </button>
     </div>
-    <div class="flex-1 overflow-y-auto px-4 py-6">
-        <nav class="flex flex-1 flex-col">
-            <ul role="list" class="flex flex-1 flex-col gap-y-7">
+    <div class="kp-nodes" aria-hidden="true"></div>
+
+    <div class="kp-nav-scroll">
+        <nav class="kp-nav" aria-label="Main">
+            <ul role="list">
                 <li>
-                    <ul role="list" class="-mx-2 space-y-1">
+                    <ul role="list">
                         @include('layouts.sidebar-items')
                     </ul>
                 </li>
@@ -21,96 +26,66 @@
         </nav>
     </div>
 
-    <!-- User Profile at Bottom for Mobile with Upward Dropdown -->
-    <div class="border-t border-gray-100 relative" x-data="profileDropdown()">
-        <!-- Dropdown Menu (opens upward) -->
-        <div x-show="profileOpen" @click.away="profileOpen = false"
-            x-transition:enter="transition ease-out duration-200"
-            x-transition:enter-start="opacity-0 translate-y-2 scale-95"
-            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-            x-transition:leave="transition ease-in duration-150"
-            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-            x-transition:leave-end="opacity-0 translate-y-2 scale-95"
-            class="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50"
-            style="display: none;">
+    <!-- User profile (menu opens upward) -->
+    <div class="kp-profile" x-data="profileDropdown()">
+        <div x-show="profileOpen" x-cloak @click.away="profileOpen = false" @keydown.escape.window="profileOpen = false"
+            x-transition:enter="transition ease-out duration-150"
+            x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+            x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0" class="kp-menu absolute bottom-full left-3 right-3 mb-2 z-50"
+            role="menu" style="display: none;">
 
-            <!-- User Info Header -->
-            <div class="px-4 py-3 bg-gray-50 border-b border-gray-100">
+            <div class="kp-menu-head">
                 <div class="flex items-center gap-3">
-                    <div
-                        class="h-10 w-10 rounded-xl bg-primary-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        {{ strtoupper(substr(auth()->user()->fname, 0, 1)) }}{{ strtoupper(substr(auth()->user()->lname, 0, 1)) }}
-                    </div>
+                    <span class="kp-avatar">{{ strtoupper(substr(auth()->user()->fname, 0, 1)) }}{{ strtoupper(substr(auth()->user()->lname, 0, 1)) }}</span>
                     <div>
-                        <p class="text-sm font-semibold text-gray-900">{{ auth()->user()->fname }}
-                            {{ auth()->user()->lname }}</p>
-                        <p class="text-xs text-gray-500 capitalize">{{ auth()->user()->role }}</p>
+                        <p class="text-sm font-semibold" style="color: var(--kp-text)">{{ auth()->user()->fname }} {{ auth()->user()->lname }}</p>
+                        <p class="text-xs capitalize" style="color: var(--kp-muted)">{{ auth()->user()->role }}</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Menu Items -->
-           <div class="py-1">
-    <!-- Admin Panel Link - Only visible to Administrator -->
-    @if(auth()->user()->role === 'Administrator')
-    <a href="{{ route('admin.dashboard') }}"
-        class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-        <i class="fas fa-shield-halved w-5 text-center text-indigo-500"></i>
-        <span>System Panel</span>
-    </a>
-    @endif
+            <div class="py-1">
+                @if (auth()->user()->role === 'Administrator')
+                    <a href="{{ route('admin.dashboard') }}" role="menuitem">
+                        <i class="fas fa-shield-halved w-5 text-center" style="color: var(--kp-emerald)"></i>
+                        <span>System Panel</span>
+                    </a>
+                @endif
 
-    <!-- Dark/Light Mode Toggle -->
-    <button @click="toggleTheme()"
-        class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-        <div class="flex items-center gap-3">
-            <i :class="isDark ? 'fas fa-sun text-amber-500 w-5 text-center' : 'fas fa-moon text-gray-400 w-5 text-center'"></i>
-            <span>Dark Mode</span>
-        </div>
-        <div class="relative">
-            <div :class="isDark ? 'bg-indigo-600' : 'bg-gray-300'"
-                class="w-12 h-6 rounded-full transition-colors duration-300 flex items-center justify-between px-1 cursor-pointer">
-                <i class="fas fa-moon text-white text-xs" x-show="!isDark"></i>
-                <i class="fas fa-sun text-white text-xs" x-show="isDark"></i>
-                <div :class="isDark ? 'translate-x-6' : 'translate-x-0'"
-                    class="absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 transform left-0.5">
-                </div>
+                <button type="button" @click="toggleTheme()" class="kp-menu-item justify-between" role="menuitemcheckbox"
+                    :aria-checked="isDark.toString()">
+                    <span class="flex items-center gap-3">
+                        <i :class="isDark ? 'fas fa-sun w-5 text-center' : 'fas fa-moon w-5 text-center'"
+                            :style="isDark ? 'color:#E7C469' : 'color:var(--kp-faint)'"></i>
+                        <span>Dark mode</span>
+                    </span>
+                    <span class="relative inline-block h-5 w-9 rounded-full transition-colors duration-200"
+                        :style="isDark ? 'background:var(--kp-emerald)' : 'background:var(--kp-border-strong)'">
+                        <span class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200"
+                            :class="isDark ? 'translate-x-4' : 'translate-x-0'"></span>
+                    </span>
+                </button>
+
+                <div class="my-1 border-t" style="border-color: var(--kp-border)"></div>
+
+                <a href="{{ route('logout') }}" class="kp-danger" role="menuitem">
+                    <i class="fas fa-sign-out-alt w-5 text-center"></i>
+                    <span>Sign out</span>
+                </a>
             </div>
         </div>
-    </button>
 
-    <!-- Divider -->
-    <div class="border-t border-gray-100 my-1"></div>
-
-    <!-- Logout -->
-    <a href="{{ route('logout') }}"
-        class="flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
-        <i class="fas fa-sign-out-alt w-5 text-center"></i>
-        Sign Out
-    </a>
-</div>
-        </div>
-
-
-        <!-- Profile Button -->
-        <div class="p-4">
-            <button @click="profileOpen = !profileOpen"
-                class="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors group">
-                <div
-                    class="h-10 w-10 rounded-xl bg-primary-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ring-2 ring-primary-100">
-                    {{ strtoupper(substr(auth()->user()->fname, 0, 1)) }}{{ strtoupper(substr(auth()->user()->lname, 0, 1)) }}
-                </div>
-                <div class="flex-1 min-w-0 text-left">
-                    <p class="text-sm font-semibold text-gray-900 truncate">{{ auth()->user()->fname }}
-                        {{ auth()->user()->lname }}</p>
-                    <p class="text-xs text-gray-500 truncate capitalize">{{ auth()->user()->role }}</p>
-                </div>
-                <!-- Clear toggle indicator -->
-                <div class="flex-shrink-0 flex items-center gap-1">
-
-                    <i class="fas fa-chevron-up text-gray-400 group-hover:text-gray-600 transition-all duration-300"
-                        :class="{ 'rotate-180': profileOpen }"></i>
-                </div>
+        <div class="p-3">
+            <button type="button" @click="profileOpen = !profileOpen" class="kp-profile-btn" aria-haspopup="menu"
+                :aria-expanded="profileOpen.toString()" aria-label="Account menu">
+                <span class="kp-avatar">{{ strtoupper(substr(auth()->user()->fname, 0, 1)) }}{{ strtoupper(substr(auth()->user()->lname, 0, 1)) }}</span>
+                <span class="kp-profile-text min-w-0 flex-1">
+                    <span class="kp-profile-name block truncate">{{ auth()->user()->fname }} {{ auth()->user()->lname }}</span>
+                    <span class="kp-profile-role block truncate">{{ auth()->user()->role }}</span>
+                </span>
+                <i class="fas fa-chevron-up text-xs transition-transform duration-200" style="color: #8FBBA0"
+                    :class="{ 'rotate-180': profileOpen }" aria-hidden="true"></i>
             </button>
         </div>
     </div>

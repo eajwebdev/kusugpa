@@ -28,17 +28,27 @@ use Illuminate\Http\Request;
 // Guest Routes
 Route::middleware(['guest'])->group(function () {
     Route::get('/', function () {
-        return view('login.login');
+        return view('landing');
     });
-    
+
+    Route::get('/landing', function () {
+        return view('landing');
+    });
+
     Route::get('/login', [LoginAuthController::class, 'getLogin'])->name('getLogin');
     Route::post('/login', [LoginAuthController::class, 'postLogin'])->name('postLogin');
+    Route::post('/login/demo', [LoginAuthController::class, 'demoLogin'])->name('demoLogin');
 });
 
 // Admin Login Routes
 Route::prefix('system/auth')->name('admin.')->group(function () {
     Route::get('/admin-login', [LoginAuthController::class, 'getAdminLogin'])->name('getLogin');
     Route::post('/admin-login', [LoginAuthController::class, 'postAdminLogin'])->name('postLogin');
+});
+
+// Public redirect shim
+Route::get('/home', function () {
+    return auth()->check() ? redirect('/dashboard') : redirect('/');
 });
 
 // Authenticated Routes
@@ -238,7 +248,10 @@ Route::middleware(['login_auth:manage-crop-weeks'])->group(function () {
     Route::put('/prices/molasses/{molassesPrice}', [PriceController::class, 'updateMolassesPrice'])->name('prices.molasses.update');
     Route::delete('/prices/molasses/{molassesPrice}', [PriceController::class, 'destroyMolassesPrice'])->name('prices.molasses.destroy');
 
-    Route::get('/quedan-molasses-registry', [PriceController::class, 'registry'])->name('quedan-molasses-registry');
+    Route::get('/quedan-molasses-registry', [PriceController::class, 'registry'])->name('prices.registry');
+    Route::get('/prices/registry', function () {
+        return redirect()->route('prices.registry');
+    })->name('quedan-molasses-registry');
     // Buy Quedan
     Route::get('/buy-quedan', [PriceController::class, 'buyQuedan'])->name('quedan-buy.index');
     Route::post('/quedans/bulk-update', [PriceController::class, 'bulkUpdateQuedan'])->name('quedans.bulk-update');

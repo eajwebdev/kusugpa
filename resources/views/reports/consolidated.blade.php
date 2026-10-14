@@ -4,245 +4,231 @@
 @section('title', 'Consolidated Report')
 
 @section('content')
-    <div x-data="consolidatedData()" class="space-y-6">
+    <div x-data="consolidatedData()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
-        <div
-            class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <header>
+            <div class="kp-page-header">
                 <div>
-                    <h1 class="text-2xl font-bold">Consolidated Report</h1>
-                    <p class="text-primary-100 text-sm mt-1">Summary of consolidated upload data</p>
+                    <p class="kp-eyebrow">Production Accounting</p>
+                    <h1 class="kp-page-title mt-1">Consolidated Report</h1>
+                    <p class="kp-page-sub">Comprehensive ledger statement of weekly cane production, hauling allowances, and deduction charges.</p>
                 </div>
-                <div class="mt-4 sm:mt-0 flex items-center gap-2">
-                    <button @click="showDeleteModal = true"
-                        class="bg-red-500/80 backdrop-blur-sm rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-red-600/80 transition">
-                        <i class="fas fa-trash mr-2"></i> Delete Records
+                <div class="flex items-center gap-2">
+                    <button @click="showDeleteModal = true" class="kp-btn kp-btn-danger">
+                        <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Manage / Delete Records
                     </button>
-                    <a href="{{ route('consolidated-report.export') }}"
-                        class="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-white/30 transition">
-                        <i class="fas fa-file-pdf mr-2"></i> Export PDF
+                    <a href="{{ route('consolidated-report.export') }}" class="kp-btn kp-btn-secondary">
+                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Export PDF
                     </a>
                 </div>
             </div>
-        </div>
+            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+        </header>
 
         <!-- Totals Cards -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-                <p class="text-xs text-gray-500">Total Records</p>
-                <p class="text-xl font-bold text-gray-900" x-text="formatNum(totalRecords, 0)">
-                    {{ number_format($totals['total_records']) }}</p>
+        <section aria-label="Consolidated aggregate metrics" class="kp-kpis">
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-list-ol" aria-hidden="true"></i> Total Records</p>
+                <p class="kp-kpi-value kp-num" x-text="formatNum(totalRecords, 0)">{{ number_format($totals['total_records']) }}</p>
+                <p class="kp-kpi-sub">Total upload entries</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-                <p class="text-xs text-gray-500">TA Amount</p>
-                <p class="text-xl font-bold text-green-600">₱{{ number_format($totals['total_ta_amount'], 0) }}</p>
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-truck-moving" aria-hidden="true"></i> Trucking Allowance</p>
+                <p class="kp-kpi-value kp-num" style="color: var(--kp-emerald)">₱{{ number_format($totals['total_ta_amount'], 0) }}</p>
+                <p class="kp-kpi-sub">Gross TA subsidy</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-                <p class="text-xs text-gray-500">EMI Amount</p>
-                <p class="text-xl font-bold text-blue-600">₱{{ number_format($totals['total_emi_amount'], 0) }}</p>
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-weight-hanging" aria-hidden="true"></i> EMI Amount</p>
+                <p class="kp-kpi-value kp-num" style="color: var(--kp-forest)">₱{{ number_format($totals['total_emi_amount'], 0) }}</p>
+                <p class="kp-kpi-sub">EMI gross proceeds</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-                <p class="text-xs text-gray-500">Fuel Amount</p>
-                <p class="text-xl font-bold text-amber-600">₱{{ number_format($totals['total_fuel'], 0) }}</p>
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-gas-pump" aria-hidden="true"></i> Fuel Deductions</p>
+                <p class="kp-kpi-value kp-num" style="color: var(--kp-cane)">₱{{ number_format($totals['total_fuel'], 0) }}</p>
+                <p class="kp-kpi-sub">Issuance charges</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-                <p class="text-xs text-gray-500">Total Summary</p>
-                <p class="text-xl font-bold text-primary-600">₱{{ number_format($totals['total_summary'] ?? 0, 0) }}</p>
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-coins" aria-hidden="true"></i> Total Summary</p>
+                <p class="kp-kpi-value kp-num" style="color: var(--kp-forest)">₱{{ number_format($totals['total_summary'] ?? 0, 0) }}</p>
+                <p class="kp-kpi-sub">Net consolidated sum</p>
             </div>
-        </div>
+        </section>
 
-        <!-- Action Bar -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-            <div class="flex flex-wrap gap-3 items-center justify-between">
-                <div class="flex flex-wrap gap-3 items-center">
-                    <div class="flex-1 min-w-[200px]">
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Search</label>
-                        <input type="text" x-model="search" @input="applyFilters()"
-                            placeholder="Search planter name or code..."
-                            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        <!-- Action / Filter Bar -->
+        <div class="kp-card p-4">
+            <div class="flex flex-wrap gap-4 items-end justify-between">
+                <div class="flex flex-wrap gap-4 items-end flex-1">
+                    <div class="min-w-[240px] flex-1">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Search Planter</label>
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style="color: var(--kp-faint)"></i>
+                            <input type="text" x-model="search" @input="applyFilters()"
+                                placeholder="Search by planter name or code..."
+                                class="kp-input w-full pl-9">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Per Page</label>
-                        <select x-model="perPage" @change="loadPage(1)"
-                            class="border border-gray-200 rounded-xl px-3 py-2 text-sm">
-                            <option value="15">15</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
+                    <div class="w-36">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Per Page</label>
+                        <select x-model="perPage" @change="loadPage(1)" class="kp-select w-full">
+                            <option value="15">15 rows</option>
+                            <option value="25">25 rows</option>
+                            <option value="50">50 rows</option>
+                            <option value="100">100 rows</option>
                         </select>
                     </div>
-                    <button @click="clearFilters()" class="text-gray-500 hover:text-gray-700 text-sm py-2">
-                        <i class="fas fa-times mr-1"></i> Clear
+                    <button @click="clearFilters()" class="kp-btn kp-btn-secondary h-[38px]">
+                        <i class="fas fa-times mr-1"></i> Reset
                     </button>
                 </div>
                 <div class="flex items-center gap-3">
-                    <span class="text-xs text-gray-400"
+                    <span class="text-xs font-mono" style="color: var(--kp-muted)"
                         x-text="'Showing ' + allData.length + ' of ' + totalRecords + ' records'"></span>
                     <button x-show="selectedIds.length > 0" @click="deleteSelected()"
-                        class="bg-red-500 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-red-600 transition">
-                        <i class="fas fa-trash mr-2"></i> Delete Selected (<span x-text="selectedIds.length"></span>)
+                        class="kp-btn kp-btn-danger">
+                        <i class="fas fa-trash mr-1.5"></i> Delete Selected (<span x-text="selectedIds.length"></span>)
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Data Table -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="overflow-x-auto" style="max-height: 600px; overflow-y: auto;">
-                <table class="min-w-full divide-y divide-gray-100">
-                    <thead class="bg-gray-50 sticky top-0 z-10">
+        <!-- Data Table Card -->
+        <div class="kp-card overflow-hidden">
+            <div class="kp-table-wrap" style="max-height: 640px; overflow-y: auto;">
+                <table class="kp-table text-xs">
+                    <thead>
                         <tr>
-                            <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">
+                            <th class="w-10 text-center">
                                 <input type="checkbox" @click="toggleSelectAll" :checked="isAllSelected"
-                                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                                    class="rounded accent-emerald-700">
                             </th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                @click="sortBy('crop_year')">CRP YR</th>
-                            <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                @click="sortBy('week_no')">WK No</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                @click="sortBy('planter_code')">Code</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                @click="sortBy('planter_name')">Planter Name</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Assn</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                @click="sortBy('ta_wt')">TA Wt</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                @click="sortBy('ta_amount')">TA Amt</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">EMI Wt</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">EMI Amt</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">PAT Wt</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">PAT Amt</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">CCI FA</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">CCI FB</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">CCI FC</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Fuel</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Rental</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Underload</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Mudpress</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Adj</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                @click="sortBy('total_summary')">Total</th>
+                            <th class="cursor-pointer select-none text-center" @click="sortBy('crop_year')">Season</th>
+                            <th class="cursor-pointer select-none text-center" @click="sortBy('week_no')">Wk</th>
+                            <th class="cursor-pointer select-none" @click="sortBy('planter_code')">Code</th>
+                            <th class="cursor-pointer select-none" @click="sortBy('planter_name')">Planter Name</th>
+                            <th>Assn</th>
+                            <th class="text-right cursor-pointer select-none" @click="sortBy('ta_wt')">TA Wt</th>
+                            <th class="text-right cursor-pointer select-none" @click="sortBy('ta_amount')">TA Amt</th>
+                            <th class="text-right">EMI Wt</th>
+                            <th class="text-right">EMI Amt</th>
+                            <th class="text-right">PAT Wt</th>
+                            <th class="text-right">PAT Amt</th>
+                            <th class="text-right">CCI FA</th>
+                            <th class="text-right">CCI FB</th>
+                            <th class="text-right">CCI FC</th>
+                            <th class="text-right">Fuel</th>
+                            <th class="text-right">Rental</th>
+                            <th class="text-right">Underload</th>
+                            <th class="text-right">Mudpress</th>
+                            <th class="text-right">Adj</th>
+                            <th class="text-right cursor-pointer select-none" @click="sortBy('total_summary')">Total</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-50">
+                    <tbody>
                         <template x-for="row in allData" :key="row.id">
-                            <tr class="hover:bg-gray-50/50 transition-colors"
-                                :class="{ 'bg-primary-50': selectedIds.includes(row.id) }">
-                                <td class="px-3 py-2 text-center">
+                            <tr class="hover:bg-[var(--kp-hover)] transition-colors"
+                                :style="selectedIds.includes(row.id) ? 'background-color: var(--kp-soft)' : ''">
+                                <td class="text-center">
                                     <input type="checkbox" :value="row.id" x-model="selectedIds"
-                                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                                        class="rounded accent-emerald-700">
                                 </td>
-                                <td class="px-3 py-2 text-xs text-center font-semibold" x-text="row.crop_year || '—'">
-                                </td>
-                                <td class="px-3 py-2 text-xs text-center font-semibold" x-text="row.week_no || '—'"></td>
-                                <td class="px-3 py-2 text-xs font-mono text-gray-900" x-text="row.planter_code"></td>
-                                <td class="px-3 py-2 text-sm font-medium text-gray-900" x-text="row.planter_name"></td>
-                                <td class="px-3 py-2 text-xs text-gray-600" x-text="row.assn_name || '—'"></td>
-                                <td class="px-3 py-2 text-xs text-right text-gray-700" x-text="formatNum(row.ta_wt, 3)">
-                                </td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.ta_amount)"></td>
-                                <td class="px-3 py-2 text-xs text-right text-gray-700" x-text="formatNum(row.emi_wt, 3)">
-                                </td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.emi_amount)"></td>
-                                <td class="px-3 py-2 text-xs text-right text-gray-700" x-text="formatNum(row.pat_wt, 3)">
-                                </td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.pat_amount)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.cci_fa_amt)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.cci_fb_amt)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.cci_fc_amt)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.fuel_issuance_amt)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.rental_amt)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.underload_amt)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-gray-900"
-                                    x-text="'₱' + formatNum(row.mudpress_amt)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold"
-                                    :class="parseFloat(row.adj_amt) < 0 ? 'text-red-600' : 'text-gray-900'"
+                                <td class="text-center font-mono" style="color: var(--kp-muted)" x-text="row.crop_year || '—'"></td>
+                                <td class="text-center font-mono font-semibold" style="color: var(--kp-text)" x-text="row.week_no || '—'"></td>
+                                <td class="font-mono font-semibold" style="color: var(--kp-text)" x-text="row.planter_code"></td>
+                                <td class="font-medium whitespace-nowrap" style="color: var(--kp-text)" x-text="row.planter_name"></td>
+                                <td style="color: var(--kp-muted)" x-text="row.assn_name || '—'"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-muted)" x-text="formatNum(row.ta_wt, 3)"></td>
+                                <td class="text-right font-mono font-semibold tabular" style="color: var(--kp-text)" x-text="'₱' + formatNum(row.ta_amount)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-muted)" x-text="formatNum(row.emi_wt, 3)"></td>
+                                <td class="text-right font-mono font-semibold tabular" style="color: var(--kp-text)" x-text="'₱' + formatNum(row.emi_amount)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-muted)" x-text="formatNum(row.pat_wt, 3)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="'₱' + formatNum(row.pat_amount)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="'₱' + formatNum(row.cci_fa_amt)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="'₱' + formatNum(row.cci_fb_amt)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="'₱' + formatNum(row.cci_fc_amt)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-cane)" x-text="'₱' + formatNum(row.fuel_issuance_amt)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="'₱' + formatNum(row.rental_amt)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="'₱' + formatNum(row.underload_amt)"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="'₱' + formatNum(row.mudpress_amt)"></td>
+                                <td class="text-right font-mono tabular font-semibold"
+                                    :style="parseFloat(row.adj_amt) < 0 ? 'color: #A32F2F' : 'color: var(--kp-text)'"
                                     x-text="'₱' + formatNum(row.adj_amt)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-bold"
-                                    :class="parseFloat(row.total_summary) < 0 ? 'text-red-600' : 'text-primary-700'"
+                                <td class="text-right font-mono font-bold tabular whitespace-nowrap"
+                                    :style="parseFloat(row.total_summary) < 0 ? 'color: #A32F2F' : 'color: var(--kp-forest)'"
                                     x-text="'₱' + formatNum(row.total_summary)"></td>
                             </tr>
                         </template>
                         <tr x-show="loading">
-                            <td colspan="22" class="px-4 py-8 text-center text-gray-500">
-                                <i class="fas fa-spinner fa-spin text-2xl text-gray-300 mb-2"></i>
-                                <p>Loading data...</p>
+                            <td colspan="21" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                <i class="fas fa-circle-notch fa-spin text-2xl mb-2 block" style="color: var(--kp-forest)"></i>
+                                Fetching consolidated records...
                             </td>
                         </tr>
                         <tr x-show="!loading && allData.length === 0">
-                            <td colspan="22" class="px-4 py-12 text-center text-gray-500">No records found</td>
+                            <td colspan="21" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                <i class="fas fa-folder-open text-3xl mb-2 block opacity-30"></i>
+                                No consolidated ledger records found.
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- Pagination -->
-            <div class="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
+            <!-- Pagination Container -->
+            <div class="px-4 py-3 border-t flex flex-wrap items-center justify-between gap-3"
+                style="border-color: var(--kp-border); background: var(--kp-surface-2)">
                 <div class="flex items-center gap-2">
-                    <span class="text-xs text-gray-400"
+                    <span class="text-xs font-mono" style="color: var(--kp-muted)"
                         x-text="'Page ' + currentPage + ' of ' + totalPages + ' (' + totalRecords + ' records)'"></span>
                 </div>
-                <div class="flex items-center gap-1" x-show="totalPages > 1">
+                <div class="flex items-center gap-1.5" x-show="totalPages > 1">
                     <button @click="loadPage(1)" :disabled="currentPage === 1"
-                        class="px-2.5 py-1.5 text-xs border rounded-lg disabled:opacity-50 hover:bg-gray-50 transition">First</button>
+                        class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs disabled:opacity-50">First</button>
                     <button @click="loadPage(currentPage - 1)" :disabled="currentPage === 1"
-                        class="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 transition">Previous</button>
+                        class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
+                        <i class="fas fa-chevron-left mr-1"></i> Prev
+                    </button>
 
                     <template x-for="page in visiblePages" :key="page">
                         <button @click="loadPage(page)"
-                            :class="page === currentPage ? 'bg-primary-600 text-white shadow-sm' : 'hover:bg-gray-50'"
-                            class="px-3 py-1.5 text-sm border rounded-lg transition" x-text="page"></button>
+                            :class="page === currentPage ? 'kp-btn kp-btn-primary' : 'kp-btn kp-btn-secondary'"
+                            class="py-1 px-3 text-xs font-mono tabular" x-text="page"></button>
                     </template>
 
                     <button @click="loadPage(currentPage + 1)" :disabled="currentPage >= totalPages"
-                        class="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 transition">Next</button>
+                        class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
+                        Next <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
                     <button @click="loadPage(totalPages)" :disabled="currentPage >= totalPages"
-                        class="px-2.5 py-1.5 text-xs border rounded-lg disabled:opacity-50 hover:bg-gray-50 transition">Last</button>
+                        class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs disabled:opacity-50">Last</button>
                 </div>
-                <div></div>
             </div>
         </div>
 
         <!-- Delete Modal -->
-        <div x-show="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center" style="display: none;">
-            <div class="fixed inset-0 bg-black/50" @click="showDeleteModal = false"></div>
-            <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 mx-4">
-                <h3 class="text-lg font-bold text-gray-900 mb-4">
-                    <i class="fas fa-trash text-red-500 mr-2"></i> Delete Consolidated Records
-                </h3>
+        <div x-show="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showDeleteModal = false"></div>
+            <div class="relative rounded-xl border max-w-lg w-full p-6 shadow-2xl max-h-[85vh] overflow-y-auto"
+                style="background: var(--kp-surface); border-color: var(--kp-border); color: var(--kp-text)">
+                <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--kp-border)">
+                    <h3 class="font-display text-lg font-semibold flex items-center gap-2" style="color: #A32F2F">
+                        <i class="fas fa-trash text-base"></i>
+                        <span>Manage / Delete Consolidated Records</span>
+                    </h3>
+                    <button @click="showDeleteModal = false" class="p-1 rounded text-xs hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
 
                 <!-- Delete Options -->
                 <div class="space-y-4">
-                    <!-- Delete All -->
-                    <div class="border border-red-200 rounded-xl p-4 bg-red-50">
-                        <h4 class="font-semibold text-red-700 mb-2">Delete ALL Records</h4>
-                        <p class="text-xs text-red-600 mb-3">This will permanently delete all consolidated upload records.
-                        </p>
-                        <button @click="confirmDeleteAll()"
-                            class="bg-red-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-red-700 transition">
-                            <i class="fas fa-exclamation-triangle mr-2"></i> Delete All Records
-                        </button>
-                    </div>
-
                     <!-- Delete by Crop Year & Week -->
-                    <div class="border border-amber-200 rounded-xl p-4 bg-amber-50">
-                        <h4 class="font-semibold text-amber-700 mb-2">Delete by Crop Year & Week</h4>
-                        <p class="text-xs text-amber-600 mb-3">Delete records for a specific crop year and week number.</p>
+                    <div class="rounded-xl p-4 border" style="background: var(--kp-surface-2); border-color: var(--kp-border)">
+                        <h4 class="font-semibold text-sm mb-1" style="color: var(--kp-text)">Delete by Crop Year & Week</h4>
+                        <p class="text-xs mb-3" style="color: var(--kp-muted)">Targeted removal of uploads for a specific milling cycle.</p>
                         <div class="grid grid-cols-2 gap-3 mb-3">
                             <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Crop Year</label>
-                                <select x-model="deleteForm.crop_year" @change="updateWeekOptions()"
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                                <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Crop Year</label>
+                                <select x-model="deleteForm.crop_year" @change="updateWeekOptions()" class="kp-select w-full">
                                     <option value="">Select Crop Year</option>
                                     <template x-for="cy in availableCropYears" :key="cy">
                                         <option :value="cy" x-text="cy"></option>
@@ -250,9 +236,8 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Week No</label>
-                                <select x-model="deleteForm.week_no" :disabled="!deleteForm.crop_year"
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm disabled:opacity-50">
+                                <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Week No</label>
+                                <select x-model="deleteForm.week_no" :disabled="!deleteForm.crop_year" class="kp-select w-full disabled:opacity-50">
                                     <option value="">Select Week</option>
                                     <template x-for="wk in availableWeeks" :key="wk">
                                         <option :value="wk" x-text="'Week ' + wk"></option>
@@ -261,33 +246,39 @@
                             </div>
                         </div>
                         <div x-show="deleteForm.crop_year && deleteForm.week_no" class="mb-3">
-                            <p class="text-xs text-amber-600">
+                            <p class="text-xs font-mono" style="color: var(--kp-forest)">
                                 <i class="fas fa-info-circle mr-1"></i>
-                                <span
-                                    x-text="'Will delete ' + getWeekRecordCount() + ' record(s) for ' + deleteForm.crop_year + ' Week ' + deleteForm.week_no"></span>
+                                <span x-text="'Will delete ' + getWeekRecordCount() + ' record(s) for ' + deleteForm.crop_year + ' Week ' + deleteForm.week_no"></span>
                             </p>
                         </div>
                         <button @click="confirmDeleteByWeek()" :disabled="!deleteForm.crop_year || !deleteForm.week_no"
-                            class="bg-amber-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-amber-700 transition disabled:opacity-50">
-                            <i class="fas fa-trash mr-2"></i> Delete by Week
+                            class="kp-btn kp-btn-danger text-xs py-1.5 px-3 disabled:opacity-50">
+                            <i class="fas fa-trash mr-1.5"></i> Delete by Week
                         </button>
                     </div>
 
                     <!-- Delete Selected -->
-                    <div class="border border-blue-200 rounded-xl p-4 bg-blue-50">
-                        <h4 class="font-semibold text-blue-700 mb-2">Delete Selected Records</h4>
-                        <p class="text-xs text-blue-600 mb-3">Select records using checkboxes in the table, then delete
-                            them.</p>
+                    <div class="rounded-xl p-4 border" style="background: var(--kp-surface-2); border-color: var(--kp-border)">
+                        <h4 class="font-semibold text-sm mb-1" style="color: var(--kp-text)">Delete Checked Records</h4>
+                        <p class="text-xs mb-3" style="color: var(--kp-muted)">Delete specific records currently selected in the table.</p>
                         <button @click="confirmDeleteSelected()" :disabled="selectedIds.length === 0"
-                            class="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50">
-                            <i class="fas fa-trash mr-2"></i> Delete Selected (<span x-text="selectedIds.length"></span>)
+                            class="kp-btn kp-btn-secondary text-xs py-1.5 px-3 disabled:opacity-50">
+                            <i class="fas fa-trash mr-1.5"></i> Delete Selected (<span x-text="selectedIds.length"></span>)
+                        </button>
+                    </div>
+
+                    <!-- Delete All -->
+                    <div class="rounded-xl p-4 border border-red-200 dark:border-red-900" style="background: rgba(163, 47, 47, 0.05)">
+                        <h4 class="font-semibold text-sm text-red-700 dark:text-red-400 mb-1">Delete ALL Consolidated Data</h4>
+                        <p class="text-xs text-red-600 dark:text-red-300 mb-3">Irreversible wipe of all consolidated upload batches.</p>
+                        <button @click="confirmDeleteAll()" class="kp-btn kp-btn-danger text-xs py-1.5 px-3">
+                            <i class="fas fa-exclamation-triangle mr-1.5"></i> Delete All Records
                         </button>
                     </div>
                 </div>
 
-                <div class="mt-4 pt-4 border-t border-gray-200">
-                    <button @click="showDeleteModal = false"
-                        class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                <div class="mt-4 pt-4 border-t flex justify-end" style="border-color: var(--kp-border)">
+                    <button @click="showDeleteModal = false" class="kp-btn kp-btn-secondary">
                         Cancel
                     </button>
                 </div>
@@ -314,10 +305,9 @@
                         crop_year: '',
                         week_no: ''
                     },
-                    // Get unique crop years from all data (not just current page)
                     availableCropYears: [],
                     availableWeeks: [],
-                    allWeeksData: [], // Store all weeks data for record count
+                    allWeeksData: [],
 
                     init() {
                         this.fetchAvailableFilters();
@@ -325,7 +315,6 @@
 
                     async fetchAvailableFilters() {
                         try {
-                            // Fetch all distinct crop years and weeks
                             const response = await fetch('{{ route('consolidated-report.filters') }}', {
                                 headers: {
                                     'Accept': 'application/json',
@@ -337,16 +326,13 @@
                             this.allWeeksData = data.weeks_data || [];
                         } catch (error) {
                             console.error('Error fetching filters:', error);
-                            // Fallback: use data from current page
-                            this.availableCropYears = [...new Set(this.allData.map(row => row.crop_year))].filter(Boolean)
-                                .sort();
+                            this.availableCropYears = [...new Set(this.allData.map(row => row.crop_year))].filter(Boolean).sort();
                         }
                     },
 
                     updateWeekOptions() {
                         this.deleteForm.week_no = '';
                         if (this.deleteForm.crop_year && this.allWeeksData.length > 0) {
-                            // Filter weeks for selected crop year
                             this.availableWeeks = this.allWeeksData
                                 .filter(w => w.crop_year === this.deleteForm.crop_year)
                                 .map(w => w.week_no)
@@ -358,7 +344,6 @@
 
                     getWeekRecordCount() {
                         if (!this.deleteForm.crop_year || !this.deleteForm.week_no) return 0;
-                        // Count from allWeeksData
                         const weekData = this.allWeeksData.find(
                             w => w.crop_year === this.deleteForm.crop_year && w.week_no == this.deleteForm.week_no
                         );
@@ -435,7 +420,6 @@
                         this.loadPage(1);
                     },
 
-                    // Delete All
                     async confirmDeleteAll() {
                         const result = await Swal.fire({
                             title: 'Delete ALL Records?',
@@ -443,7 +427,7 @@
                             icon: 'warning',
                             showCancelButton: true,
                             confirmButtonText: 'Yes, delete all',
-                            confirmButtonColor: '#dc2626',
+                            confirmButtonColor: '#832727',
                             cancelButtonText: 'Cancel'
                         });
 
@@ -480,7 +464,6 @@
                         }
                     },
 
-                    // Delete by Week
                     async confirmDeleteByWeek() {
                         if (!this.deleteForm.crop_year || !this.deleteForm.week_no) {
                             Swal.fire({
@@ -498,7 +481,7 @@
                             icon: 'warning',
                             showCancelButton: true,
                             confirmButtonText: 'Yes, delete',
-                            confirmButtonColor: '#dc2626',
+                            confirmButtonColor: '#832727',
                             cancelButtonText: 'Cancel'
                         });
 
@@ -526,10 +509,7 @@
                                 showConfirmButton: false
                             });
 
-                            this.deleteForm = {
-                                crop_year: '',
-                                week_no: ''
-                            };
+                            this.deleteForm = { crop_year: '', week_no: '' };
                             this.availableWeeks = [];
                             this.showDeleteModal = false;
                             setTimeout(() => location.reload(), 1500);
@@ -542,7 +522,6 @@
                         }
                     },
 
-                    // Delete Selected
                     async confirmDeleteSelected() {
                         if (this.selectedIds.length === 0) {
                             Swal.fire({
@@ -559,7 +538,7 @@
                             icon: 'warning',
                             showCancelButton: true,
                             confirmButtonText: 'Yes, delete',
-                            confirmButtonColor: '#dc2626',
+                            confirmButtonColor: '#832727',
                             cancelButtonText: 'Cancel'
                         });
 
@@ -573,9 +552,7 @@
                                     'Accept': 'application/json',
                                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                                 },
-                                body: JSON.stringify({
-                                    ids: this.selectedIds
-                                })
+                                body: JSON.stringify({ ids: this.selectedIds })
                             });
                             const data = await response.json();
 

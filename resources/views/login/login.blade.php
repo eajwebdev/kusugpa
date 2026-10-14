@@ -5,237 +5,178 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>KUSUG-PA | Sign In</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: {
-                            50: '#f0fdf4',
-                            100: '#dcfce7',
-                            200: '#bbf7d0',
-                            300: '#86efac',
-                            400: '#4ade80',
-                            500: '#22c55e',
-                            600: '#16a34a',
-                            700: '#15803d',
-                            800: '#166534',
-                            900: '#14532d',
-                        }
-                    },
-                    animation: {
-                        'float': 'float 6s ease-in-out infinite',
-                        'float-delayed': 'float 6s ease-in-out 3s infinite',
-                    },
-                    keyframes: {
-                        float: {
-                            '0%, 100%': { transform: 'translateY(0px)' },
-                            '50%': { transform: 'translateY(-20px)' },
-                        }
-                    }
+        (function() {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
                 }
-            }
-        }
+            } catch (e) {}
+        })();
     </script>
+    @include('layouts.partials.assets')
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .bg-pattern {
-            background-color: #f0fdf4;
-            background-image: radial-gradient(circle at 10% 20%, rgba(22, 163, 74, 0.05) 0%, transparent 50%),
-                              radial-gradient(circle at 90% 80%, rgba(22, 163, 74, 0.08) 0%, transparent 50%),
-                              radial-gradient(circle at 50% 50%, rgba(22, 163, 74, 0.03) 0%, transparent 70%);
-        }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-        }
-    </style>
 </head>
-<body class="h-full bg-pattern" x-data="{ showPassword: false, loading: false }">
-    <div class="min-h-full flex">
-        <!-- Left Side - Decorative -->
-        <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-700 via-primary-600 to-primary-800 relative overflow-hidden">
-            <!-- Animated Background Elements -->
-            <div class="absolute inset-0">
-                <div class="absolute top-20 left-10 w-72 h-72 bg-white/5 rounded-full animate-float"></div>
-                <div class="absolute bottom-20 right-10 w-96 h-96 bg-white/5 rounded-full animate-float-delayed"></div>
-                <div class="absolute top-1/2 left-1/2 w-48 h-48 bg-white/5 rounded-full animate-float"></div>
-            </div>
-            
-            <!-- Content -->
-            <div class="relative flex flex-col justify-center px-12 w-full">
-                <div class="mb-8">
-                    <div class="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl mb-6">
-                        <i class="fas fa-seedling text-3xl text-white"></i>
-                    </div>
-                    <h1 class="text-4xl font-bold text-white mb-4">KUSUG-PA</h1>
-                    <p class="text-primary-100 text-lg leading-relaxed max-w-md">
-                        Sugarcane Crop Management & Recording System for Planters Association
-                    </p>
+<body class="h-full" x-data="{ showPassword: false, loading: false }">
+    <div class="kp-auth">
+        <aside class="kp-auth-aside">
+            <div>
+                <div class="kp-auth-seal grid place-items-center overflow-hidden mb-7">
+                    <picture>
+                        <source srcset="{{ asset('img/logo-128.webp') }}" type="image/webp">
+                        <img src="{{ asset('img/logo-128.png') }}" alt="KUSUG-PA logo" width="64" height="64" class="w-16 h-16 object-contain">
+                    </picture>
                 </div>
+                <h1 class="kp-auth-h1">KUSUG-PA</h1>
+                <p class="text-sm mt-3" style="color:#CFE5D6; max-width:34ch;">
+                    Sugarcane Crop Management &amp; Recording System for the Planters Association.
+                </p>
 
-                <!-- Features -->
-                <div class="space-y-4 mt-8">
-                    <div class="flex items-center space-x-3 text-white/90">
-                        <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-chart-line text-sm"></i>
+                <div class="mt-8">
+                    <div class="kp-auth-fact">
+                        <i class="fas fa-chart-line"></i>
+                        <div>
+                            <strong class="block text-sm text-white">Real-time crop tracking</strong>
+                            <span class="text-xs" style="color:#CFE5D6;">Monitor production, cane tons and weekly throughput.</span>
                         </div>
-                        <span class="text-sm">Real-time crop production tracking</span>
                     </div>
-                    <div class="flex items-center space-x-3 text-white/90">
-                        <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-file-invoice text-sm"></i>
+                    <div class="kp-auth-fact">
+                        <i class="fas fa-file-invoice"></i>
+                        <div>
+                            <strong class="block text-sm text-white">Automated vouchers</strong>
+                            <span class="text-xs" style="color:#CFE5D6;">Generate, print and audit delivery vouchers end-to-end.</span>
                         </div>
-                        <span class="text-sm">Automated voucher generation</span>
                     </div>
-                    <div class="flex items-center space-x-3 text-white/90">
-                        <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-users text-sm"></i>
+                    <div class="kp-auth-fact">
+                        <i class="fas fa-users"></i>
+                        <div>
+                            <strong class="block text-sm text-white">Planter management</strong>
+                            <span class="text-xs" style="color:#CFE5D6;">Profiles, cash advances, loans and associations.</span>
                         </div>
-                        <span class="text-sm">Planter member management</span>
-                    </div>
-                </div>
-
-                <!-- Footer Info -->
-                <div class="absolute bottom-8 left-12 right-12">
-                    <div class="flex items-center justify-between text-white/60 text-xs">
-                        <span>&copy; {{ date('Y') }} KUSUG-PA</span>
-                        <span>v1.0</span>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Right Side - Login Form -->
-        <div class="w-full lg:w-1/2 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-            <div class="max-w-md w-full">
-                <!-- Mobile Logo -->
-                <div class="lg:hidden text-center mb-8">
-                    <div class="inline-flex items-center justify-center w-20 h-20 bg-primary-100 rounded-2xl mb-4">
-                        <i class="fas fa-seedling text-3xl text-primary-600"></i>
-                    </div>
-                    <h2 class="text-3xl font-bold text-gray-900">KUSUG-PA</h2>
-                    <p class="mt-2 text-sm text-gray-500">Sugarcane Management System</p>
-                </div>
+            <p class="text-xs" style="color:#8AA895;">
+                &copy; {{ date('Y') }} KUSUG-PA Planters Association &middot; v1.0
+            </p>
+        </aside>
 
-                <!-- Desktop Title -->
-                <div class="hidden lg:block mb-8">
-                    <h2 class="text-2xl font-bold text-gray-900">Welcome back!</h2>
-                    <p class="mt-1 text-sm text-gray-500">Please sign in to your account to continue</p>
-                </div>
+        <main class="kp-auth-main">
+            <div class="kp-auth-panel">
+                <p class="text-sm font-medium" style="color:var(--kp-muted);">Planter / Staff Portal</p>
+                <h2 class="kp-auth-title mt-1">Welcome back</h2>
+                <p class="text-sm mt-2" style="color:var(--kp-muted);">Sign in to continue to your account.</p>
 
-                <!-- Alert Messages -->
                 @if(session('error'))
-                <div class="mb-6 bg-red-50 border border-red-100 rounded-xl p-4" x-data="{ show: true }" x-show="show">
-                    <div class="flex">
-                        <div class="flex-shrink-0">
-                            <i class="fas fa-exclamation-circle text-red-400 mt-0.5"></i>
-                        </div>
-                        <div class="ml-3 flex-1">
-                            <p class="text-sm text-red-700">{{ session('error') }}</p>
-                        </div>
-                        <button @click="show = false" class="text-red-400 hover:text-red-600">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
+                <div class="mt-5 bg-red-50 border border-red-100 rounded-lg p-3.5 flex items-start gap-3" x-data="{ show: true }" x-show="show">
+                    <i class="fas fa-exclamation-circle text-red-400 mt-0.5"></i>
+                    <p class="text-sm text-red-700 flex-1">{{ session('error') }}</p>
+                    <button @click="show = false" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
                 </div>
                 @endif
 
                 @if(session('success'))
-                <div class="mb-6 bg-green-50 border border-green-100 rounded-xl p-4" x-data="{ show: true }" x-show="show">
-                    <div class="flex">
-                        <div class="flex-shrink-0">
-                            <i class="fas fa-check-circle text-green-400 mt-0.5"></i>
-                        </div>
-                        <div class="ml-3 flex-1">
-                            <p class="text-sm text-green-700">{{ session('success') }}</p>
-                        </div>
-                        <button @click="show = false" class="text-green-400 hover:text-green-600">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
+                <div class="mt-5 bg-green-50 border border-green-100 rounded-lg p-3.5 flex items-start gap-3" x-data="{ show: true }" x-show="show">
+                    <i class="fas fa-check-circle text-green-400 mt-0.5"></i>
+                    <p class="text-sm text-green-700 flex-1">{{ session('success') }}</p>
+                    <button @click="show = false" class="text-green-400 hover:text-red-600"><i class="fas fa-times"></i></button>
                 </div>
                 @endif
 
-                <!-- Login Form -->
-                <form class="space-y-5" action="{{ route('postLogin') }}" method="POST" @submit="loading = true">
+                <form class="mt-6 space-y-5" action="{{ route('postLogin') }}" method="POST" @submit="loading = true">
                     @csrf
 
-                    <!-- Username -->
-                    <div>
-                        <label for="username" class="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
-                        <div class="relative group">
-                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                <i class="fas fa-user text-gray-400 group-focus-within:text-primary-500 transition-colors"></i>
-                            </div>
+                    <div class="kp-field">
+                        <label for="username" class="kp-label">Username</label>
+                        <div class="kp-control">
+                            <i class="fas fa-user kp-lead"></i>
                             <input id="username" name="username" type="text" required
-                                   class="block w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 bg-gray-50 hover:bg-white focus:bg-white"
-                                   placeholder="Enter your username" value="{{ old('username') }}" autocomplete="username">
+                                   placeholder="Enter your username"
+                                   value="{{ old('username') }}"
+                                   autocomplete="username">
                         </div>
                         @error('username')
-                            <p class="mt-1.5 text-xs text-red-500 flex items-center"><i class="fas fa-info-circle mr-1"></i>{{ $message }}</p>
+                            <p class="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                                <i class="fas fa-info-circle"></i>{{ $message }}
+                            </p>
                         @enderror
                     </div>
 
-                    <!-- Password -->
-                    <div>
-                        <label for="password" class="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-                        <div class="relative group">
-                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                <i class="fas fa-lock text-gray-400 group-focus-within:text-primary-500 transition-colors"></i>
-                            </div>
-                            <input id="password" name="password" 
+                    <div class="kp-field">
+                        <label for="password" class="kp-label">Password</label>
+                        <div class="kp-control">
+                            <i class="fas fa-lock kp-lead"></i>
+                            <input id="password" name="password"
                                    :type="showPassword ? 'text' : 'password'"
                                    required
-                                   class="block w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 bg-gray-50 hover:bg-white focus:bg-white"
-                                   placeholder="Enter your password" autocomplete="current-password">
-                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
-                                <button type="button" @click="showPassword = !showPassword" 
-                                        class="text-gray-400 hover:text-gray-600 transition-colors p-1">
+                                   placeholder="Enter your password"
+                                   autocomplete="current-password"
+                                   class="has-trail">
+                            <span class="kp-trail">
+                                <button type="button" @click="showPassword = !showPassword"
+                                        class="w-9 h-9 grid place-items-center rounded text-gray-400 hover:text-gray-600"
+                                        :aria-label="showPassword ? 'Hide password' : 'Show password'">
                                     <i class="fas text-sm" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
                                 </button>
-                            </div>
+                            </span>
                         </div>
                         @error('password')
-                            <p class="mt-1.5 text-xs text-red-500 flex items-center"><i class="fas fa-info-circle mr-1"></i>{{ $message }}</p>
+                            <p class="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                                <i class="fas fa-info-circle"></i>{{ $message }}
+                            </p>
                         @enderror
                     </div>
 
-                    <!-- Remember Me -->
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center">
+                    <div class="flex items-center justify-between text-sm">
+                        <label class="flex items-center gap-2 cursor-pointer select-none" style="color:var(--kp-muted);">
                             <input id="remember-me" name="remember-me" type="checkbox"
-                                   class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded cursor-pointer">
-                            <label for="remember-me" class="ml-2 block text-sm text-gray-600 cursor-pointer select-none">
-                                Remember me
-                            </label>
-                        </div>
+                                   class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                            Remember me
+                        </label>
                     </div>
 
-                    <!-- Submit Button -->
-                    <button type="submit" 
-                            :disabled="loading"
-                            class="w-full flex items-center justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <i class="fas fa-sign-in-alt mr-2"></i>
+                    <button type="submit" class="kp-submit" :disabled="loading">
+                        <i class="fas fa-sign-in-alt"></i>
                         <span x-show="!loading">Sign in</span>
-                        <span x-show="loading" class="flex items-center">
-                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
-                            Signing in...
+                        <span x-show="loading" x-cloak class="flex items-center gap-2">
+                            <i class="fas fa-circle-notch fa-spin"></i> Signing in...
                         </span>
                     </button>
                 </form>
 
-                <!-- Bottom Text -->
-                <p class="mt-8 text-center text-xs text-gray-400">
+                @if(config('demo.enabled'))
+                <div class="kp-demo">
+                    <div class="relative text-center">
+                        <span class="text-xs font-semibold uppercase tracking-wide rounded-full px-3 py-1"
+                              style="color:var(--kp-forest); background:var(--kp-soft);">
+                            <i class="fas fa-flask mr-1"></i> Demo mode &mdash; one-click sign in
+                        </span>
+                    </div>
+                    <div class="kp-demo-grid">
+                        @foreach(config('demo.accounts') as $demo)
+                        <form action="{{ route('demoLogin') }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="username" value="{{ $demo['username'] }}">
+                            <button type="submit" class="kp-demo-btn">
+                                <span class="kp-demo-ic"><i class="fas fa-user-shield"></i></span>
+                                <span class="min-w-0">
+                                    <span class="kp-demo-name block truncate">{{ $demo['lname'] }}</span>
+                                    <span class="kp-demo-role block truncate">{{ $demo['role'] }}</span>
+                                </span>
+                            </button>
+                        </form>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
+                <p class="mt-8 text-center text-xs" style="color:var(--kp-faint);">
                     KUSUG-PA Check and Voucher System &copy; {{ date('Y') }}
                 </p>
             </div>
-        </div>
+        </main>
     </div>
 </body>
 </html>

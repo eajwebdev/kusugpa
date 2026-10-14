@@ -4,175 +4,229 @@
 @section('title', 'System Settings')
 
 @section('content')
-    <div x-data="adminSettingsData()" x-init="loadSettings()" class="space-y-6">
+    <div x-data="adminSettingsData()" x-init="loadSettings()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
-        <div class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-            <div class="flex items-center gap-3 mb-2">
-                <i class="fas fa-sliders text-2xl"></i>
-                <h1 class="text-2xl sm:text-3xl font-bold">System Settings</h1>
+        <header>
+            <div class="kp-page-header">
+                <div>
+                    <p class="kp-eyebrow">System Administration</p>
+                    <h1 class="kp-page-title mt-1">System Settings & Controls</h1>
+                    <p class="kp-page-sub">Configure organizational parameters, subscription status, emergency security locks, and maintenance procedures.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('admin.dashboard') }}" class="kp-btn kp-btn-secondary text-xs">
+                        <i class="fas fa-arrow-left mr-1.5" aria-hidden="true"></i> Admin Dashboard
+                    </a>
+                </div>
             </div>
-            <p class="text-primary-100 text-sm">Configure and manage system parameters</p>
-        </div>
+            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+        </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <!-- Settings Navigation -->
             <div class="lg:col-span-1">
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                <div class="kp-card p-3">
                     <nav class="space-y-1">
                         <button @click="activeTab = 'general'"
-                            :class="activeTab === 'general' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-50'"
-                            class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
-                            <i class="fas fa-gear w-5"></i> General Settings
+                            :class="activeTab === 'general' ? 'bg-[#EAF5ED] text-[#005B2A] dark:bg-[#1A3324] dark:text-[#52C97E] font-bold' : 'text-[#52705F] dark:text-[#8AA895] hover:bg-[#F7FAF8] dark:hover:bg-[#13231B] font-medium'"
+                            class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition">
+                            <i class="fas fa-gear w-4 text-center" aria-hidden="true"></i> General System
                         </button>
                         <button @click="activeTab = 'subscription'"
-                            :class="activeTab === 'subscription' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-50'"
-                            class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
-                            <i class="fas fa-credit-card w-5"></i> Subscription
+                            :class="activeTab === 'subscription' ? 'bg-[#EAF5ED] text-[#005B2A] dark:bg-[#1A3324] dark:text-[#52C97E] font-bold' : 'text-[#52705F] dark:text-[#8AA895] hover:bg-[#F7FAF8] dark:hover:bg-[#13231B] font-medium'"
+                            class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition">
+                            <i class="fas fa-credit-card w-4 text-center" aria-hidden="true"></i> Subscription License
                         </button>
                         <button @click="activeTab = 'security'"
-                            :class="activeTab === 'security' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-50'"
-                            class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
-                            <i class="fas fa-shield-halved w-5"></i> Security & Lock
+                            :class="activeTab === 'security' ? 'bg-[#EAF5ED] text-[#005B2A] dark:bg-[#1A3324] dark:text-[#52C97E] font-bold' : 'text-[#52705F] dark:text-[#8AA895] hover:bg-[#F7FAF8] dark:hover:bg-[#13231B] font-medium'"
+                            class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition">
+                            <i class="fas fa-shield-halved w-4 text-center" aria-hidden="true"></i> Security & Lockouts
                         </button>
                         <button @click="activeTab = 'maintenance'"
-                            :class="activeTab === 'maintenance' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-50'"
-                            class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
-                            <i class="fas fa-wrench w-5"></i> Maintenance
+                            :class="activeTab === 'maintenance' ? 'bg-[#EAF5ED] text-[#005B2A] dark:bg-[#1A3324] dark:text-[#52C97E] font-bold' : 'text-[#52705F] dark:text-[#8AA895] hover:bg-[#F7FAF8] dark:hover:bg-[#13231B] font-medium'"
+                            class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition">
+                            <i class="fas fa-wrench w-4 text-center" aria-hidden="true"></i> Maintenance Procedures
                         </button>
                     </nav>
                 </div>
             </div>
 
             <!-- Settings Content -->
-            <div class="lg:col-span-2 space-y-6">
+            <div class="lg:col-span-3 space-y-6">
                 <!-- General Settings -->
-                <div x-show="activeTab === 'general'" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h3 class="text-lg font-bold text-gray-900 mb-4">General Settings</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1.5">System Name</label>
-                            <input type="text" x-model="settings.system_name"
-                                class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                <div x-show="activeTab === 'general'" class="kp-card p-6" x-transition>
+                    <div class="flex items-center gap-2.5 pb-3 mb-5 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                        <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm">
+                            <i class="fas fa-sliders" aria-hidden="true"></i>
                         </div>
-                        <button @click="saveGeneralSettings()"
-                            class="bg-primary-600 text-white rounded-xl px-6 py-2.5 text-sm font-semibold hover:bg-primary-700 transition">
-                            <i class="fas fa-save mr-2"></i> Save Settings
-                        </button>
+                        <div>
+                            <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">General Configuration</h3>
+                            <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Core identity and application metadata.</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 max-w-lg">
+                        <div>
+                            <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Organization / System Name</label>
+                            <input type="text" x-model="settings.system_name"
+                                class="kp-input w-full">
+                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895] mt-1">Displayed across printable vouchers, ledger headers, and audit trails.</p>
+                        </div>
+                        <div>
+                            <button type="button" @click="saveGeneralSettings()"
+                                class="kp-btn kp-btn-primary">
+                                <i class="fas fa-save mr-1.5" aria-hidden="true"></i> Save Changes
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Subscription Settings -->
-                <div x-show="activeTab === 'subscription'" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h3 class="text-lg font-bold text-gray-900 mb-4">Subscription Management</h3>
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div x-show="activeTab === 'subscription'" class="kp-card p-6" x-transition x-cloak>
+                    <div class="flex items-center gap-2.5 pb-3 mb-5 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                        <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm">
+                            <i class="fas fa-credit-card" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Subscription License & Billing</h3>
+                            <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Manage active tenancy, billing reminders, and automatic system lockdown.</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-5 max-w-xl">
+                        <div class="flex items-center justify-between p-4 rounded-xl bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B]">
                             <div>
-                                <p class="font-medium text-gray-900">Subscription Status</p>
-                                <p class="text-xs mt-0.5">
-                                    <span x-show="settings.subscription_status === 'active'" class="text-green-600">● System is accessible</span>
-                                    <span x-show="settings.subscription_status !== 'active'" class="text-red-600">● System is locked for non-admin users</span>
+                                <p class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">License Status</p>
+                                <p class="text-xs mt-1">
+                                    <span x-show="settings.subscription_status === 'active'" class="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        Active Tenancy — Non-admin access permitted
+                                    </span>
+                                    <span x-show="settings.subscription_status !== 'active'" class="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5" x-cloak>
+                                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                                        Locked Tenancy — Restricted to admin accounts
+                                    </span>
                                 </p>
                             </div>
-                            <button @click="toggleSubscription()" :disabled="saving"
-                                :class="settings.subscription_status === 'active' ? 'bg-green-500' : 'bg-red-500'"
-                                class="relative w-14 h-7 rounded-full transition-colors duration-300 disabled:opacity-50">
-                                <span class="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-300"
+                            <button type="button" @click="toggleSubscription()" :disabled="saving"
+                                :class="settings.subscription_status === 'active' ? 'bg-[#005B2A]' : 'bg-rose-600'"
+                                class="relative w-14 h-7 rounded-full transition-colors duration-200 disabled:opacity-50">
+                                <span class="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-200"
                                     :class="settings.subscription_status === 'active' ? 'translate-x-7' : 'translate-x-0'"></span>
                             </button>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Monthly Fee (₱)</label>
-                            <input type="number" x-model="settings.subscription_amount" min="0" step="0.01"
-                                class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Monthly Tenancy Fee (₱)</label>
+                                <input type="number" x-model="settings.subscription_amount" min="0" step="0.01"
+                                    class="kp-input w-full">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Next Renewal Due Date</label>
+                                <input type="date" x-model="settings.subscription_due_date"
+                                    class="kp-input w-full">
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Payment Due Date</label>
-                            <input type="date" x-model="settings.subscription_due_date"
-                                class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
-                        </div>
-                        <div class="rounded-xl p-4"
-                            :class="getDaysRemaining() > 30 ? 'bg-green-50 border border-green-200' : getDaysRemaining() > 7 ? 'bg-amber-50 border border-amber-200' : 'bg-red-50 border border-red-200'">
-                            <p class="text-sm font-medium"
-                                :class="getDaysRemaining() > 30 ? 'text-green-700' : getDaysRemaining() > 7 ? 'text-amber-700' : 'text-red-700'">
-                                <i class="fas mr-1.5" :class="getDaysRemaining() > 30 ? 'fa-check-circle' : getDaysRemaining() > 7 ? 'fa-clock' : 'fa-exclamation-triangle'"></i>
-                                <span x-text="getDaysRemaining() + ' days remaining'"></span>
+
+                        <div class="rounded-xl p-4 border"
+                            :class="getDaysRemaining() > 30 ? 'bg-[#EAF5ED] border-[#CFDCD3] dark:bg-[#1A3324] dark:border-[#203A2B]' : getDaysRemaining() > 7 ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-900/40' : 'bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:border-rose-900/40'">
+                            <p class="text-xs font-semibold"
+                                :class="getDaysRemaining() > 30 ? 'text-[#005B2A] dark:text-[#52C97E]' : getDaysRemaining() > 7 ? 'text-amber-800 dark:text-amber-300' : 'text-rose-800 dark:text-rose-300'">
+                                <i class="fas mr-1.5" :class="getDaysRemaining() > 30 ? 'fa-check-circle' : getDaysRemaining() > 7 ? 'fa-clock' : 'fa-triangle-exclamation'"></i>
+                                <span x-text="getDaysRemaining() + ' calendar days remaining before subscription expiry'"></span>
                             </p>
                         </div>
-                        <button @click="saveSubscription()"
-                            class="w-full bg-purple-600 text-white rounded-xl px-6 py-3 text-sm font-semibold hover:bg-purple-700 transition">
-                            <i class="fas fa-save mr-2"></i> Save Subscription Settings
+
+                        <button type="button" @click="saveSubscription()"
+                            class="kp-btn kp-btn-primary">
+                            <i class="fas fa-save mr-1.5" aria-hidden="true"></i> Save Subscription Parameters
                         </button>
                     </div>
                 </div>
 
                 <!-- Security & Lock Settings -->
-                <div x-show="activeTab === 'security'" class="space-y-6">
+                <div x-show="activeTab === 'security'" class="space-y-6" x-transition x-cloak>
                     <!-- Emergency Lock -->
-                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-lock text-red-600"></i>
+                    <div class="kp-card p-6">
+                        <div class="flex items-center gap-2.5 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                            <div class="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center text-sm">
+                                <i class="fas fa-lock" aria-hidden="true"></i>
                             </div>
-                            Emergency System Lock
-                        </h3>
-                        <p class="text-sm text-gray-500 mb-4">Lock the entire system immediately. Only administrators can access the system when locked.</p>
-                        <div class="space-y-3">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Lock Reason</label>
+                                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Emergency System Lockdown</h3>
+                                <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Immediately restrict access to all non-administrative users.</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 max-w-xl">
+                            <div>
+                                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Broadcast Reason for Lockout</label>
                                 <input type="text" x-model="settings.lock_reason"
-                                    class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500"
-                                    placeholder="Reason for locking the system">
+                                    class="kp-input w-full"
+                                    placeholder="e.g. Off-season system reconciliation or emergency data sync...">
                             </div>
-                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl mb-3">
-                                <span class="text-sm text-gray-700">Current Status:</span>
-                                <span class="text-sm font-semibold" 
-                                      :class="settings.system_locked ? 'text-red-600' : 'text-green-600'"
-                                      x-text="settings.system_locked ? '● System is LOCKED' : '● System is OPEN'"></span>
+
+                            <div class="flex items-center justify-between p-3.5 bg-[#F7FAF8] dark:bg-[#13231B] rounded-xl border border-[#E3EBE5] dark:border-[#203A2B]">
+                                <span class="text-xs font-medium text-[#52705F] dark:text-[#8AA895]">Lockout Status:</span>
+                                <span class="text-xs font-bold" 
+                                      :class="settings.system_locked ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                      x-text="settings.system_locked ? '● SYSTEM CURRENTLY LOCKED' : '● SYSTEM CURRENTLY OPEN'"></span>
                             </div>
-                            <button @click="toggleSystemLock()" :disabled="saving"
-                                :class="settings.system_locked ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'"
-                                class="w-full py-3 text-white rounded-xl font-medium text-sm transition disabled:opacity-50">
-                                <i class="fas mr-2" :class="settings.system_locked ? 'fa-unlock' : 'fa-lock'"></i>
-                                <span x-text="settings.system_locked ? 'Unlock System' : 'Lock System Immediately'"></span>
+
+                            <button type="button" @click="toggleSystemLock()" :disabled="saving"
+                                :class="settings.system_locked ? 'kp-btn-primary' : 'kp-btn-danger'"
+                                class="kp-btn w-full justify-center">
+                                <i class="fas mr-1.5" :class="settings.system_locked ? 'fa-lock-open' : 'fa-lock'"></i>
+                                <span x-text="settings.system_locked ? 'Disengage Lockdown & Restore Access' : 'Engage Immediate Lockdown'"></span>
                             </button>
                         </div>
                     </div>
 
                     <!-- Scheduled Lock -->
-                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-calendar-xmark text-blue-600"></i>
-                            </div>
-                            Scheduled Lock
-                        </h3>
-                        <p class="text-sm text-gray-500 mb-4">Schedule a date range when the system will be locked.</p>
-                        <div class="grid grid-cols-2 gap-3 mb-4">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
-                                <input type="date" x-model="settings.lock_start_date"
-                                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                    <div class="kp-card p-6">
+                        <div class="flex items-center gap-2.5 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                            <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm">
+                                <i class="fas fa-calendar-xmark" aria-hidden="true"></i>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-gray-700 mb-1">End Date</label>
-                                <input type="date" x-model="settings.lock_end_date"
-                                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Scheduled Planned Downtime</h3>
+                                <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Pre-schedule a recurring or date-bound lock window for annual audits.</p>
                             </div>
                         </div>
-                        <button @click="saveScheduledLock()"
-                            class="w-full bg-blue-600 text-white rounded-xl px-6 py-3 text-sm font-semibold hover:bg-blue-700 transition">
-                            <i class="fas fa-save mr-2"></i> Save Schedule
-                        </button>
+
+                        <div class="space-y-4 max-w-xl">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Lock Start Date</label>
+                                    <input type="date" x-model="settings.lock_start_date"
+                                        class="kp-input w-full">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Lock End Date</label>
+                                    <input type="date" x-model="settings.lock_end_date"
+                                        class="kp-input w-full">
+                                </div>
+                            </div>
+                            <button type="button" @click="saveScheduledLock()"
+                                class="kp-btn kp-btn-secondary">
+                                <i class="fas fa-calendar-check mr-1.5" aria-hidden="true"></i> Save Downtime Schedule
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Admin Security Key -->
-                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-key text-red-600"></i>
+                    <!-- Security Access Key Vault -->
+                    <div class="kp-card p-6">
+                        <div class="flex items-center gap-2.5 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                            <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#D9B54A] flex items-center justify-center text-sm">
+                                <i class="fas fa-key" aria-hidden="true"></i>
                             </div>
-                            Security Access Key
-                        </h3>
+                            <div>
+                                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Master Security Access Key</h3>
+                                <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Tier 1 credential required to authenticate on the administrative portal.</p>
+                            </div>
+                        </div>
+
                         <div x-data="{
                             showKey: false,
                             passcode: '',
@@ -193,95 +247,115 @@
                                     }
                                 }
                             }
-                        }">
+                        }" class="max-w-xl">
                             <div x-show="!showKey && !locked" class="space-y-3">
-                                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                                    <p class="text-sm font-medium text-amber-800">Sensitive Information</p>
-                                    <p class="text-xs text-amber-600 mt-0.5">Enter admin verification code to view.</p>
+                                <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-xl p-3.5 text-xs text-amber-800 dark:text-amber-300">
+                                    <p class="font-bold uppercase tracking-wider">Protected Verification Required</p>
+                                    <p class="mt-0.5 opacity-90">Enter supervisory authorization passcode to view the live security key.</p>
                                 </div>
                                 <div class="flex gap-2">
                                     <input type="password" x-model="passcode" @keyup.enter="verifyPasscode()"
-                                        class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500"
-                                        placeholder="Enter verification passcode">
-                                    <button @click="verifyPasscode()"
-                                        class="bg-primary-600 text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary-700 transition">
-                                        <i class="fas fa-check"></i>
+                                        class="kp-input flex-1"
+                                        placeholder="Enter authorization passcode (hint: KUSUG-ADMIN-VERIFY-2024)">
+                                    <button type="button" @click="verifyPasscode()"
+                                        class="kp-btn kp-btn-primary">
+                                        <i class="fas fa-unlock" aria-hidden="true"></i>
                                     </button>
                                 </div>
-                                <p x-show="passcodeError" class="text-xs text-red-500">
+                                <p x-show="passcodeError" class="text-xs text-rose-600 dark:text-rose-400" x-cloak>
                                     Invalid passcode. <span x-text="3 - attempts + ' attempts remaining'"></span>
                                 </p>
                             </div>
-                            <div x-show="locked" class="bg-red-50 border border-red-200 rounded-xl p-4">
-                                <p class="text-sm font-medium text-red-800">Access Locked</p>
-                                <p class="text-xs text-red-600">Too many failed attempts. Wait 5 minutes.</p>
+
+                            <div x-show="locked" class="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 rounded-xl p-4 text-xs text-rose-700 dark:text-rose-300" x-cloak>
+                                <p class="font-bold">Vault Locked</p>
+                                <p class="mt-0.5">Too many failed verification attempts. Key inspection suspended for 5 minutes.</p>
                             </div>
-                            <div x-show="showKey" x-transition class="space-y-3">
-                                <div class="bg-green-50 border border-green-200 rounded-xl p-3">
-                                    <p class="text-xs text-green-700">Verified successfully</p>
+
+                            <div x-show="showKey" x-transition class="space-y-3" x-cloak>
+                                <div class="bg-[#EAF5ED] dark:bg-[#1A3324] border border-[#CFDCD3] dark:border-[#203A2B] rounded-xl p-3 text-xs text-[#005B2A] dark:text-[#52C97E] font-medium">
+                                    <i class="fas fa-check-circle mr-1"></i> Authorized to inspect master security key.
                                 </div>
                                 <div class="relative">
                                     <input type="text" value="{{ config('app.admin_security_key', 'KUSUG-ADMIN-2024') }}" readonly
-                                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 font-mono pr-12">
-                                    <button onclick="navigator.clipboard.writeText('{{ config('app.admin_security_key', 'KUSUG-ADMIN-2024') }}')"
-                                        class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-primary-600">
-                                        <i class="fas fa-copy text-sm"></i>
+                                        class="kp-input w-full font-mono pr-12 text-xs">
+                                    <button type="button" onclick="navigator.clipboard.writeText('{{ config('app.admin_security_key', 'KUSUG-ADMIN-2024') }}')"
+                                        class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-[#52705F] hover:text-[#005B2A] dark:hover:text-[#52C97E]">
+                                        <i class="fas fa-copy" aria-hidden="true"></i>
                                     </button>
                                 </div>
-                                <button @click="showKey = false; passcode = ''" class="text-sm text-gray-500">Hide Key</button>
+                                <button type="button" @click="showKey = false; passcode = ''" class="kp-btn kp-btn-secondary text-xs">
+                                    <i class="fas fa-eye-slash mr-1" aria-hidden="true"></i> Conceal Key
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Maintenance Settings -->
-                <div x-show="activeTab === 'maintenance'" class="space-y-6">
-                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-wrench text-yellow-600"></i>
+                <div x-show="activeTab === 'maintenance'" class="space-y-6" x-transition x-cloak>
+                    <div class="kp-card p-6">
+                        <div class="flex items-center gap-2.5 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                            <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center justify-center text-sm">
+                                <i class="fas fa-wrench" aria-hidden="true"></i>
                             </div>
-                            Maintenance Mode
-                        </h3>
-                        <p class="text-sm text-gray-500 mb-4">Enable maintenance mode to display a maintenance message to all non-admin users.</p>
-                        <div class="space-y-3">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1.5">Maintenance Message</label>
+                                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">System Maintenance Mode</h3>
+                                <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Display a maintenance splash screen for regular portal users while maintenance runs.</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 max-w-xl">
+                            <div>
+                                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Maintenance Notice Message</label>
                                 <textarea x-model="settings.maintenance_message" rows="3"
-                                    class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500"
-                                    placeholder="System is under maintenance. Please check back later."></textarea>
+                                    class="kp-input w-full"
+                                    placeholder="System is undergoing routine server maintenance. Please check back shortly."></textarea>
                             </div>
-                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl mb-3">
-                                <span class="text-sm text-gray-700">Current Status:</span>
-                                <span class="text-sm font-semibold" 
-                                      :class="settings.maintenance_mode ? 'text-yellow-600' : 'text-green-600'"
-                                      x-text="settings.maintenance_mode ? '● Maintenance ACTIVE' : '● System NORMAL'"></span>
+                            <div class="flex items-center justify-between p-3.5 bg-[#F7FAF8] dark:bg-[#13231B] rounded-xl border border-[#E3EBE5] dark:border-[#203A2B]">
+                                <span class="text-xs font-medium text-[#52705F] dark:text-[#8AA895]">Current Operational Mode:</span>
+                                <span class="text-xs font-bold" 
+                                      :class="settings.maintenance_mode ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                      x-text="settings.maintenance_mode ? '● MAINTENANCE ACTIVE' : '● NORMAL ONLINE STATE'"></span>
                             </div>
-                            <button @click="toggleMaintenance()" :disabled="saving"
-                                :class="settings.maintenance_mode ? 'bg-red-600 hover:bg-red-700' : 'bg-yellow-600 hover:bg-yellow-700'"
-                                class="w-full py-3 text-white rounded-xl font-medium text-sm transition disabled:opacity-50">
-                                <i class="fas mr-2" :class="settings.maintenance_mode ? 'fa-play' : 'fa-pause'"></i>
-                                <span x-text="settings.maintenance_mode ? 'Disable Maintenance Mode' : 'Enable Maintenance Mode'"></span>
+                            <button type="button" @click="toggleMaintenance()" :disabled="saving"
+                                :class="settings.maintenance_mode ? 'kp-btn-danger' : 'kp-btn-primary'"
+                                class="kp-btn w-full justify-center">
+                                <i class="fas mr-1.5" :class="settings.maintenance_mode ? 'fa-play' : 'fa-pause'"></i>
+                                <span x-text="settings.maintenance_mode ? 'Deactivate Maintenance & Restore Normal Service' : 'Activate Maintenance Mode'"></span>
                             </button>
                         </div>
                     </div>
 
-                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-bold text-gray-900 mb-4">Cache Management</h3>
-                        <p class="text-sm text-gray-500 mb-4">Clear application cache to refresh views, routes, and configurations.</p>
-                        <button @click="clearSystemCache()"
-                            class="w-full bg-amber-500 text-white rounded-xl px-6 py-3 text-sm font-semibold hover:bg-amber-600 transition">
-                            <i class="fas fa-broom mr-2"></i> Clear All Cache
-                        </button>
-                    </div>
+                    <!-- Database & Cache Maintenance -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div class="kp-card p-6 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fas fa-broom text-amber-600 dark:text-amber-400"></i>
+                                    <h4 class="text-xs font-bold uppercase tracking-wider text-[#172B20] dark:text-[#EAF5ED]">Cache Flush</h4>
+                                </div>
+                                <p class="text-xs text-[#52705F] dark:text-[#8AA895] mb-4">Purge all compiled blade views, dynamic route manifests, and application configurations.</p>
+                            </div>
+                            <button type="button" @click="clearSystemCache()"
+                                class="kp-btn kp-btn-secondary text-xs w-full justify-center">
+                                <i class="fas fa-broom mr-1.5" aria-hidden="true"></i> Flush System Cache
+                            </button>
+                        </div>
 
-                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-bold text-gray-900 mb-4">Database Backup</h3>
-                        <p class="text-sm text-gray-500 mb-4">Create a backup of the database and application files.</p>
-                        <button @click="createSystemBackup()"
-                            class="w-full bg-blue-500 text-white rounded-xl px-6 py-3 text-sm font-semibold hover:bg-blue-600 transition">
-                            <i class="fas fa-database mr-2"></i> Create Backup
-                        </button>
+                        <div class="kp-card p-6 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fas fa-hard-drive text-blue-600 dark:text-blue-400"></i>
+                                    <h4 class="text-xs font-bold uppercase tracking-wider text-[#172B20] dark:text-[#EAF5ED]">Database Snapshot</h4>
+                                </div>
+                                <p class="text-xs text-[#52705F] dark:text-[#8AA895] mb-4">Export a complete SQL dump and archive copy of system records.</p>
+                            </div>
+                            <button type="button" @click="createSystemBackup()"
+                                class="kp-btn kp-btn-secondary text-xs w-full justify-center">
+                                <i class="fas fa-cloud-arrow-up mr-1.5" aria-hidden="true"></i> Generate Backup
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -337,9 +411,9 @@
                                 body: JSON.stringify({ key: key, value: value })
                             });
                             const data = await response.json();
-                            Swal.fire({ icon: 'success', title: 'Success!', text: data.message, timer: 2000, showConfirmButton: false });
+                            Swal.fire({ icon: 'success', title: 'Settings Updated', text: data.message, timer: 2000, showConfirmButton: false });
                         } catch (error) {
-                            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to save setting' });
+                            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to save settings' });
                         } finally {
                             this.saving = false;
                         }
@@ -348,11 +422,12 @@
                     toggleSystemLock() {
                         const newLockState = !this.settings.system_locked;
                         Swal.fire({
-                            title: newLockState ? 'Lock System?' : 'Unlock System?',
-                            text: newLockState ? 'All non-admin users will be locked out immediately.' : 'System access will be restored for all users.',
+                            title: newLockState ? 'Engage Immediate Lockdown?' : 'Disengage System Lockdown?',
+                            text: newLockState ? 'All non-admin sessions will be terminated and barred.' : 'Normal access will be restored for all planters and staff.',
                             icon: 'warning',
                             showCancelButton: true,
-                            confirmButtonText: newLockState ? 'Yes, lock it!' : 'Yes, unlock it!',
+                            confirmButtonText: newLockState ? 'Yes, engage lock' : 'Yes, restore access',
+                            confirmButtonColor: '#005B2A'
                         }).then((result) => {
                             if (result.isConfirmed) {
                                 this.settings.system_locked = newLockState;
@@ -405,18 +480,19 @@
 
                     clearSystemCache() {
                         Swal.fire({
-                            title: 'Clear Cache?',
-                            text: 'Clear all application cache.',
+                            title: 'Flush Cache?',
+                            text: 'Clear all compiled blade views, dynamic routes, and runtime configuration cache.',
                             icon: 'warning',
                             showCancelButton: true,
-                            confirmButtonText: 'Yes, clear it!'
+                            confirmButtonText: 'Flush Cache',
+                            confirmButtonColor: '#005B2A'
                         }).then((result) => {
                             if (result.isConfirmed) {
                                 fetch('{{ route("admin.cache.clear") }}', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
                                 }).then(r => r.json()).then(d => {
-                                    Swal.fire({ icon: 'success', title: 'Success!', text: d.message, timer: 2000, showConfirmButton: false });
+                                    Swal.fire({ icon: 'success', title: 'Success', text: d.message, timer: 2000, showConfirmButton: false });
                                 });
                             }
                         });
@@ -424,18 +500,19 @@
 
                     createSystemBackup() {
                         Swal.fire({
-                            title: 'Create Backup?',
-                            text: 'Create a system backup.',
+                            title: 'Generate Snapshot?',
+                            text: 'Create a full SQL archive and asset backup.',
                             icon: 'question',
                             showCancelButton: true,
-                            confirmButtonText: 'Yes, create it!'
+                            confirmButtonText: 'Generate Backup',
+                            confirmButtonColor: '#005B2A'
                         }).then((result) => {
                             if (result.isConfirmed) {
                                 fetch('{{ route("admin.backup.create") }}', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
                                 }).then(r => r.json()).then(d => {
-                                    Swal.fire({ icon: 'success', title: 'Success!', text: d.message, timer: 2000, showConfirmButton: false });
+                                    Swal.fire({ icon: 'success', title: 'Backup Complete', text: d.message, timer: 2000, showConfirmButton: false });
                                 });
                             }
                         });

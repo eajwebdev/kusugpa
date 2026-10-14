@@ -4,168 +4,145 @@
 @section('title', 'Admin Panel')
 
 @section('content')
-<div x-data="adminDashboardData()" class="space-y-6">
+<div x-data="adminDashboardData()" class="space-y-6 kp-fade-in">
     <!-- Admin Header -->
-    <div class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+    <header>
+        <div class="kp-page-header">
             <div>
-                <div class="flex items-center gap-3 mb-2">
-                    <i class="fas fa-shield-halved text-2xl"></i>
-                    <h1 class="text-2xl sm:text-3xl font-bold">Admin Control Panel</h1>
-                </div>
-                <p class="text-admin-300 text-sm">System Administration & Management</p>
+                <p class="kp-eyebrow">System Administration</p>
+                <h1 class="kp-page-title mt-1">Admin Control Panel</h1>
+                <p class="kp-page-sub">Supervisory controls, health diagnostics, data retention, and administrative operations.</p>
             </div>
-            <div class="mt-4 sm:mt-0 flex items-center space-x-3">
-                <span class="bg-green-500/20 text-green-400 text-xs px-3 py-1 rounded-full flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-                    System Active
+            <div class="flex items-center gap-2">
+                <span class="kp-badge kp-badge--forest text-xs py-1.5 px-3">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5"></span>
+                    System Core Active
                 </span>
+                <a href="{{ route('admin.settings') }}" class="kp-btn kp-btn-secondary text-xs">
+                    <i class="fas fa-sliders mr-1.5" aria-hidden="true"></i> Settings
+                </a>
             </div>
         </div>
-    </div>
+        <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+    </header>
 
-    <!-- Quick Stats -->
-    <div class="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div class="flex items-center justify-between mb-3">
-                <div class="bg-blue-100 rounded-xl p-2.5">
-                    <i class="fas fa-users text-blue-600 text-lg"></i>
-                </div>
-            </div>
-            <p class="text-sm text-gray-500 font-medium">Total Users</p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['totalUsers'] }}</p>
+    <!-- KPI Metric Cards -->
+    <section aria-label="Administrative system overview" class="kp-kpis">
+        <div class="kp-kpi">
+            <p class="kp-kpi-label"><i class="fas fa-users" aria-hidden="true"></i> Registered Users</p>
+            <p class="kp-kpi-value kp-num">{{ $stats['totalUsers'] }}</p>
+            <p class="kp-kpi-sub">Active staff accounts</p>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div class="flex items-center justify-between mb-3">
-                <div class="bg-green-100 rounded-xl p-2.5">
-                    <i class="fas fa-seedling text-green-600 text-lg"></i>
-                </div>
-            </div>
-            <p class="text-sm text-gray-500 font-medium">Total Planters</p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['totalPlanters'] }}</p>
+        <div class="kp-kpi">
+            <p class="kp-kpi-label"><i class="fas fa-seedling" aria-hidden="true"></i> Planter Roster</p>
+            <p class="kp-kpi-value kp-num" style="color: var(--kp-emerald)">{{ $stats['totalPlanters'] }}</p>
+            <p class="kp-kpi-sub">Registered cane planters</p>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div class="flex items-center justify-between mb-3">
-                <div class="bg-purple-100 rounded-xl p-2.5">
-                    <i class="fas fa-database text-purple-600 text-lg"></i>
-                </div>
-            </div>
-            <p class="text-sm text-gray-500 font-medium">Total Records</p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['totalRecords'] }}</p>
+        <div class="kp-kpi">
+            <p class="kp-kpi-label"><i class="fas fa-database" aria-hidden="true"></i> Total Production Records</p>
+            <p class="kp-kpi-value kp-num" style="color: var(--kp-forest)">{{ $stats['totalRecords'] }}</p>
+            <p class="kp-kpi-sub">Ledger transactions</p>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div class="flex items-center justify-between mb-3">
-                <div class="bg-amber-100 rounded-xl p-2.5">
-                    <i class="fas fa-cloud-upload-alt text-amber-600 text-lg"></i>
-                </div>
-            </div>
-            <p class="text-sm text-gray-500 font-medium">Latest Backup</p>
-            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $stats['latestBackup'] }}</p>
+        <div class="kp-kpi">
+            <p class="kp-kpi-label"><i class="fas fa-cloud-arrow-up" aria-hidden="true"></i> Disaster Backup</p>
+            <p class="kp-kpi-value text-base font-semibold truncate mt-1 text-[#172B20] dark:text-[#EAF5ED]">{{ $stats['latestBackup'] }}</p>
+            <p class="kp-kpi-sub">Last backup timestamp</p>
         </div>
-    </div>
+    </section>
 
-    <!-- Admin Menu Grid -->
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <!-- Settings -->
-        <a href="{{ route('admin.settings') }}" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 group">
-            <div class="flex items-start gap-4">
-                <div class="bg-primary-100 rounded-xl p-3 group-hover:bg-primary-200 transition-colors">
-                    <i class="fas fa-sliders text-primary-600 text-xl"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-gray-900">System Settings</h3>
-                    <p class="text-sm text-gray-500 mt-1">Configure application parameters and preferences</p>
-                </div>
+    <!-- Admin Operations Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <!-- System Settings -->
+        <a href="{{ route('admin.settings') }}" class="kp-card p-6 hover:border-[#005B2A] dark:hover:border-[#52C97E] transition-all duration-200 group flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-xl flex-shrink-0 group-hover:bg-[#005B2A] group-hover:text-white transition-colors duration-200">
+                <i class="fas fa-sliders" aria-hidden="true"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider group-hover:text-[#005B2A] dark:group-hover:text-[#52C97E] transition-colors">System Settings</h3>
+                <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-1 leading-relaxed">Configure system parameters, lockout schedule, and maintenance toggles.</p>
             </div>
         </a>
 
         <!-- User Management -->
-        <a href="{{ route('user-management') }}" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 group">
-            <div class="flex items-start gap-4">
-                <div class="bg-blue-100 rounded-xl p-3 group-hover:bg-blue-200 transition-colors">
-                    <i class="fas fa-users-gear text-blue-600 text-xl"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-gray-900">User Management</h3>
-                    <p class="text-sm text-gray-500 mt-1">Manage users, roles, and permissions</p>
-                </div>
+        <a href="{{ route('user-management') }}" class="kp-card p-6 hover:border-[#005B2A] dark:hover:border-[#52C97E] transition-all duration-200 group flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-xl flex-shrink-0 group-hover:bg-[#005B2A] group-hover:text-white transition-colors duration-200">
+                <i class="fas fa-users-gear" aria-hidden="true"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider group-hover:text-[#005B2A] dark:group-hover:text-[#52C97E] transition-colors">User Management</h3>
+                <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-1 leading-relaxed">Manage system operators, assign permission scopes, and reset credentials.</p>
             </div>
         </a>
 
-        <!-- Cache Clear -->
-        <button onclick="clearSystemCache()" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 group text-left">
-            <div class="flex items-start gap-4">
-                <div class="bg-orange-100 rounded-xl p-3 group-hover:bg-orange-200 transition-colors">
-                    <i class="fas fa-broom text-orange-600 text-xl"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-gray-900">Clear Cache</h3>
-                    <p class="text-sm text-gray-500 mt-1">Clear application, view, and route cache</p>
-                </div>
+        <!-- Activity Logs -->
+        <a href="{{ route('audit-logs.index') }}" class="kp-card p-6 hover:border-[#005B2A] dark:hover:border-[#52C97E] transition-all duration-200 group flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-xl flex-shrink-0 group-hover:bg-[#005B2A] group-hover:text-white transition-colors duration-200">
+                <i class="fas fa-file-shield" aria-hidden="true"></i>
             </div>
-        </button>
-
-        <!-- Backup -->
-        <button onclick="createSystemBackup()" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 group text-left">
-            <div class="flex items-start gap-4">
-                <div class="bg-green-100 rounded-xl p-3 group-hover:bg-green-200 transition-colors">
-                    <i class="fas fa-database text-green-600 text-xl"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-gray-900">Create Backup</h3>
-                    <p class="text-sm text-gray-500 mt-1">Backup database and application files</p>
-                </div>
-            </div>
-        </button>
-
-        <!-- System Info -->
-        <a href="#" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 group">
-            <div class="flex items-start gap-4">
-                <div class="bg-purple-100 rounded-xl p-3 group-hover:bg-purple-200 transition-colors">
-                    <i class="fas fa-circle-info text-purple-600 text-xl"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-gray-900">System Info</h3>
-                    <p class="text-sm text-gray-500 mt-1">View PHP version, Laravel version, and server info</p>
-                </div>
+            <div>
+                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider group-hover:text-[#005B2A] dark:group-hover:text-[#52C97E] transition-colors">Activity Compliance Logs</h3>
+                <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-1 leading-relaxed">Immutable chronological audit trail of all staff logins and record modifications.</p>
             </div>
         </a>
 
-        <!-- Logs -->
-        <a href="#" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 group">
-            <div class="flex items-start gap-4">
-                <div class="bg-red-100 rounded-xl p-3 group-hover:bg-red-200 transition-colors">
-                    <i class="fas fa-file-lines text-red-600 text-xl"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-gray-900">Activity Logs</h3>
-                    <p class="text-sm text-gray-500 mt-1">View system activity and access logs</p>
-                </div>
+        <!-- Clear Cache -->
+        <button type="button" onclick="clearSystemCache()" class="kp-card p-6 hover:border-[#005B2A] dark:hover:border-[#52C97E] transition-all duration-200 group flex items-start gap-4 text-left w-full">
+            <div class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center justify-center text-xl flex-shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors duration-200">
+                <i class="fas fa-broom" aria-hidden="true"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Flush System Cache</h3>
+                <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-1 leading-relaxed">Clear compiled views, configuration states, and route cache for immediate sync.</p>
+            </div>
+        </button>
+
+        <!-- Create Backup -->
+        <button type="button" onclick="createSystemBackup()" class="kp-card p-6 hover:border-[#005B2A] dark:hover:border-[#52C97E] transition-all duration-200 group flex items-start gap-4 text-left w-full">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 flex items-center justify-center text-xl flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-200">
+                <i class="fas fa-hard-drive" aria-hidden="true"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Create Snapshot Backup</h3>
+                <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-1 leading-relaxed">Trigger an immediate archival snapshot of production databases and files.</p>
+            </div>
+        </button>
+
+        <!-- Price Registry Shortcut -->
+        <a href="{{ route('prices.registry') }}" class="kp-card p-6 hover:border-[#005B2A] dark:hover:border-[#52C97E] transition-all duration-200 group flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-xl flex-shrink-0 group-hover:bg-[#005B2A] group-hover:text-white transition-colors duration-200">
+                <i class="fas fa-tags" aria-hidden="true"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider group-hover:text-[#005B2A] dark:group-hover:text-[#52C97E] transition-colors">Quedan & Molasses Registry</h3>
+                <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-1 leading-relaxed">Manage sugar quedan procurement prices, liens, and molasses market postings.</p>
             </div>
         </a>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
-        <div class="flex flex-wrap gap-3">
-            <a href="{{ route('updates.addCropYear') }}" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors" onclick="event.preventDefault(); openCropYearModal();">
-                <i class="fas fa-plus-circle text-green-600"></i> Add Crop Year
+    <!-- Quick Shortcuts Toolbar -->
+    <div class="kp-card p-5">
+        <div class="flex items-center gap-2 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+            <i class="fas fa-bolt text-[#D9B54A]" aria-hidden="true"></i>
+            <h3 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Administrative Shortcuts</h3>
+        </div>
+        <div class="flex flex-wrap gap-2.5">
+            <a href="{{ route('crop-weeks.index') }}" class="kp-btn kp-btn-secondary text-xs">
+                <i class="fas fa-calendar-plus mr-1.5 text-[#005B2A] dark:text-[#52C97E]" aria-hidden="true"></i> Manage Crop Years & Weeks
             </a>
-            <a href="#" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors" onclick="event.preventDefault(); openQuedanPriceModal();">
-                <i class="fas fa-tag text-blue-600"></i> Set Quedan Price
+            <a href="{{ route('prices.index') }}" class="kp-btn kp-btn-secondary text-xs">
+                <i class="fas fa-tag mr-1.5 text-blue-600 dark:text-blue-400" aria-hidden="true"></i> Update Market Prices
             </a>
-            <a href="#" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors" onclick="event.preventDefault(); openMolassesPriceModal();">
-                <i class="fas fa-flask text-purple-600"></i> Set Molasses Price
+            <a href="{{ route('loans.index') }}" class="kp-btn kp-btn-secondary text-xs">
+                <i class="fas fa-hand-holding-dollar mr-1.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true"></i> Loan Portfolio
             </a>
-            <a href="{{ route('summaryReport') }}" class="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors">
-                <i class="fas fa-chart-bar text-orange-600"></i> View Reports
+            <a href="{{ route('summaryReport') }}" class="kp-btn kp-btn-secondary text-xs">
+                <i class="fas fa-chart-simple mr-1.5 text-[#D9B54A]" aria-hidden="true"></i> Production Reports
             </a>
         </div>
     </div>
 </div>
 
-
+@push('scripts')
 <script>
     function adminDashboardData() {
         return {};
@@ -174,11 +151,12 @@
     function clearSystemCache() {
         Swal.fire({
             title: 'Clear System Cache?',
-            text: 'This will clear all application cache including views, routes, and configurations.',
+            text: 'This will flush all application cache including compiled views, route tables, and configuration states.',
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Yes, clear it!',
-            cancelButtonText: 'Cancel'
+            confirmButtonText: 'Yes, flush cache',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#005B2A'
         }).then((result) => {
             if (result.isConfirmed) {
                 fetch('{{ route("admin.cache.clear") }}', {
@@ -193,8 +171,8 @@
                 .then(data => {
                     Swal.fire({
                         icon: 'success',
-                        title: 'Success!',
-                        text: data.message || 'Cache cleared successfully',
+                        title: 'Cache Flushed',
+                        text: data.message || 'System cache cleared successfully.',
                         timer: 2000,
                         showConfirmButton: false
                     });
@@ -202,8 +180,8 @@
                 .catch(error => {
                     Swal.fire({
                         icon: 'error',
-                        title: 'Error',
-                        text: 'Failed to clear cache'
+                        title: 'Operation Failed',
+                        text: 'Failed to flush system cache.'
                     });
                 });
             }
@@ -212,17 +190,18 @@
 
     function createSystemBackup() {
         Swal.fire({
-            title: 'Create System Backup?',
-            text: 'This will create a backup of the database and application files.',
+            title: 'Generate System Snapshot?',
+            text: 'This creates an immediate backup archive of the database and runtime assets.',
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Yes, create backup!',
-            cancelButtonText: 'Cancel'
+            confirmButtonText: 'Create Backup',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#005B2A'
         }).then((result) => {
             if (result.isConfirmed) {
                 Swal.fire({
-                    title: 'Creating backup...',
-                    text: 'Please wait',
+                    title: 'Creating snapshot...',
+                    text: 'Archiving production database, please wait.',
                     allowOutsideClick: false,
                     didOpen: () => {
                         Swal.showLoading();
@@ -241,8 +220,8 @@
                 .then(data => {
                     Swal.fire({
                         icon: 'success',
-                        title: 'Success!',
-                        text: data.message || 'Backup created successfully',
+                        title: 'Backup Successful',
+                        text: data.message || 'Backup archive created successfully.',
                         timer: 2000,
                         showConfirmButton: false
                     });
@@ -250,13 +229,13 @@
                 .catch(error => {
                     Swal.fire({
                         icon: 'error',
-                        title: 'Error',
-                        text: 'Failed to create backup'
+                        title: 'Backup Failed',
+                        text: 'Could not create system backup.'
                     });
                 });
             }
         });
     }
 </script>
-
+@endpush
 @endsection

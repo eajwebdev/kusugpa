@@ -1,93 +1,93 @@
 <!-- resources/views/layouts/navigation.blade.php -->
-<nav class="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm">
-    <div class="px-4 sm:px-6 lg:px-8">
-        <div class="flex h-16 items-center justify-between">
-            <!-- Left: Mobile Menu + Logo -->
-            <div class="flex items-center">
-                <button @click="sidebarOpen = !sidebarOpen" type="button"
-                    class="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 lg:hidden">
-                    <span class="sr-only">Open sidebar</span>
-                    <i class="fas fa-bars text-lg"></i>
-                </button>
+<header class="kp-topbar">
+    <div class="kp-topbar-inner">
+        <!-- Left: menu toggles + page identity -->
+        <div class="flex min-w-0 items-center gap-2">
+            <button @click="sidebarOpen = !sidebarOpen" type="button" class="kp-icon-btn lg:hidden"
+                :aria-expanded="sidebarOpen.toString()" aria-controls="main-content">
+                <span class="sr-only">Open sidebar</span>
+                <i class="fas fa-bars text-lg" aria-hidden="true"></i>
+            </button>
+            <button @click="collapsed = !collapsed" type="button" class="kp-icon-btn hidden lg:inline-grid"
+                :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+                :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+                <i class="fas fa-angles-left text-sm transition-transform duration-200"
+                    :class="{ 'rotate-180': collapsed }" aria-hidden="true"></i>
+            </button>
 
-                <div class="flex items-center ml-2 lg:ml-0">
-                    <span class="text-lg sm:text-xl font-bold text-primary-700 flex items-center">
-                       Sugarcane Crop Management & Recording System Dashboard
-                    </span>
-                </div>
+            <div class="ml-1 min-w-0 border-l pl-4" style="border-color: var(--kp-border)">
+                <p class="kp-crumb-eyebrow hidden sm:block">Sugarcane Crop Management &amp; Recording System</p>
+                <p class="kp-crumb-title truncate">@hasSection('title')@yield('title')@else Dashboard @endif</p>
             </div>
+        </div>
 
-            <!-- Right: Crop Year & Week Filters + User Menu -->
-            <div class="flex items-center space-x-3">
-                <!-- Crop Year & Week Filters -->
-                <div class="hidden md:flex items-center space-x-2" x-data="filterData()">
-                    <!-- Crop Year Dropdown -->
-                    <div class="relative" x-data="{ open: false }">
-                        <button @click="open = !open"
-                            class="flex items-center space-x-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-all duration-200">
-                            <i class="fas fa-calendar-alt text-primary-600 text-xs"></i>
-                            <span x-text="selectedCropYear || 'Crop Year'"></span>
-                            <i class="fas fa-chevron-down text-xs text-gray-400"></i>
-                        </button>
-                        <div x-show="open" @click.away="open = false"
-                            x-transition:enter="transition ease-out duration-200"
-                            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-                            class="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50 max-h-52 overflow-y-auto">
-                            <div class="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase">Crop Year</div>
-                            <template x-for="year in cropYears" :key="year">
-                                <button @click="selectCropYear(year); open = false"
-                                    :class="selectedCropYear === year ? 'bg-primary-50 text-primary-700 font-medium' :
-                                        'text-gray-700 hover:bg-gray-50'"
-                                    class="w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between">
-                                    <span x-text="year"></span>
-                                    <i x-show="selectedCropYear === year"
-                                        class="fas fa-check text-primary-600 text-xs"></i>
-                                </button>
-                            </template>
-                            <div x-show="cropYears.length === 0" class="px-4 py-2 text-sm text-gray-400">Loading...
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Week Number Dropdown -->
-                    <div class="relative" x-data="{ open: false }">
-                        <button @click="open = !open"
-                            class="flex items-center space-x-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-all duration-200">
-                            <i class="fas fa-calendar-week text-primary-600 text-xs"></i>
-                            <span x-text="selectedWeek ? 'Week ' + selectedWeek : 'Week No'"></span>
-                            <i class="fas fa-chevron-down text-xs text-gray-400"></i>
-                        </button>
-                        <div x-show="open" @click.away="open = false"
-                            x-transition:enter="transition ease-out duration-200"
-                            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-                            class="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50 max-h-52 overflow-y-auto">
-                            <div class="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase">Week Number</div>
-                            <button @click="selectWeek(''); open = false"
-                                :class="!selectedWeek ? 'bg-primary-50 text-primary-700 font-medium' :
-                                    'text-gray-700 hover:bg-gray-50'"
-                                class="w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between">
-                                <span>All Weeks</span>
-                                <i x-show="!selectedWeek" class="fas fa-check text-primary-600 text-xs"></i>
+        <!-- Right: Crop Year & Week filters -->
+        <div class="flex items-center gap-3">
+            <div class="hidden items-center gap-2 md:flex" x-data="filterData()">
+                <!-- Crop Year Dropdown -->
+                <div class="relative" x-data="{ open: false }" @keydown.escape="open = false">
+                    <button @click="open = !open" type="button" class="kp-filter-btn" aria-haspopup="listbox"
+                        :aria-expanded="open.toString()" aria-label="Select crop year">
+                        <i class="fas fa-calendar-alt kp-lead" aria-hidden="true"></i>
+                        <span x-text="selectedCropYear || 'Crop Year'"></span>
+                        <i class="fas fa-chevron-down text-[10px]" style="color: var(--kp-faint)" aria-hidden="true"></i>
+                    </button>
+                    <div x-show="open" x-cloak @click.away="open = false" x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                        class="kp-menu absolute right-0 z-50 mt-2 max-h-60 w-44 overflow-y-auto py-1" role="listbox">
+                        <div class="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider"
+                            style="color: var(--kp-faint)">Crop Year</div>
+                        <template x-for="year in cropYears" :key="year">
+                            <button @click="selectCropYear(year); open = false" type="button" role="option"
+                                :aria-selected="(selectedCropYear === year).toString()"
+                                :class="selectedCropYear === year ? 'bg-primary-50 text-primary-700 font-semibold' : ''"
+                                class="kp-menu-item flex w-full items-center justify-between px-4 py-2 text-left text-sm">
+                                <span x-text="year"></span>
+                                <i x-show="selectedCropYear === year" class="fas fa-check text-xs" style="color: var(--kp-emerald)"
+                                    aria-hidden="true"></i>
                             </button>
-                            <template x-for="week in weeks" :key="week">
-                                <button @click="selectWeek(week); open = false"
-                                    :class="selectedWeek == week ? 'bg-primary-50 text-primary-700 font-medium' :
-                                        'text-gray-700 hover:bg-gray-50'"
-                                    class="w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between">
-                                    <span x-text="'Week ' + week"></span>
-                                    <i x-show="selectedWeek == week" class="fas fa-check text-primary-600 text-xs"></i>
-                                </button>
-                            </template>
-                            <div x-show="weeks.length === 0" class="px-4 py-2 text-sm text-gray-400">Loading...</div>
-                        </div>
+                        </template>
+                        <div x-show="cropYears.length === 0" class="px-4 py-2 text-sm" style="color: var(--kp-faint)">Loading...</div>
                     </div>
                 </div>
 
-
+                <!-- Week Number Dropdown -->
+                <div class="relative" x-data="{ open: false }" @keydown.escape="open = false">
+                    <button @click="open = !open" type="button" class="kp-filter-btn" aria-haspopup="listbox"
+                        :aria-expanded="open.toString()" aria-label="Select week number">
+                        <i class="fas fa-calendar-week kp-lead" aria-hidden="true"></i>
+                        <span x-text="selectedWeek ? 'Week ' + selectedWeek : 'Week No'"></span>
+                        <i class="fas fa-chevron-down text-[10px]" style="color: var(--kp-faint)" aria-hidden="true"></i>
+                    </button>
+                    <div x-show="open" x-cloak @click.away="open = false" x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                        class="kp-menu absolute right-0 z-50 mt-2 max-h-60 w-44 overflow-y-auto py-1" role="listbox">
+                        <div class="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider"
+                            style="color: var(--kp-faint)">Week Number</div>
+                        <button @click="selectWeek(''); open = false" type="button" role="option"
+                            :aria-selected="(!selectedWeek).toString()"
+                            :class="!selectedWeek ? 'bg-primary-50 text-primary-700 font-semibold' : ''"
+                            class="kp-menu-item flex w-full items-center justify-between px-4 py-2 text-left text-sm">
+                            <span>All Weeks</span>
+                            <i x-show="!selectedWeek" class="fas fa-check text-xs" style="color: var(--kp-emerald)" aria-hidden="true"></i>
+                        </button>
+                        <template x-for="week in weeks" :key="week">
+                            <button @click="selectWeek(week); open = false" type="button" role="option"
+                                :aria-selected="(selectedWeek == week).toString()"
+                                :class="selectedWeek == week ? 'bg-primary-50 text-primary-700 font-semibold' : ''"
+                                class="kp-menu-item flex w-full items-center justify-between px-4 py-2 text-left text-sm">
+                                <span x-text="'Week ' + week"></span>
+                                <i x-show="selectedWeek == week" class="fas fa-check text-xs" style="color: var(--kp-emerald)"
+                                    aria-hidden="true"></i>
+                            </button>
+                        </template>
+                        <div x-show="weeks.length === 0" class="px-4 py-2 text-sm" style="color: var(--kp-faint)">Loading...</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-</nav>
+</header>
 
 <script>
     function filterData() {

@@ -1,355 +1,92 @@
 <!-- resources/views/layouts/main.blade.php -->
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-50">
+<html lang="en" class="h-full">
 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" href="{{ asset('template/img/kusug.png') }}">
-    <title>KUSUG-PA {{ isset($title) ? '| ' . $title : '' }}</title>
+    <meta name="theme-color" content="#003F20">
+    <link rel="icon" type="image/png" href="{{ asset('img/logo-64.png') }}">
+    <title>KUSUG-PA @hasSection('title')| @yield('title')@elseif(isset($title))| {{ $title }}@endif</title>
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Apply saved theme / sidebar state before first paint (prevents flash) -->
     <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        primary: {
-                            50: '#f0fdf4',
-                            100: '#dcfce7',
-                            200: '#bbf7d0',
-                            300: '#86efac',
-                            400: '#4ade80',
-                            500: '#22c55e',
-                            600: '#16a34a',
-                            700: '#15803d',
-                            800: '#166534',
-                            900: '#14532d',
-                        }
-                    }
+        (function() {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
                 }
-            }
-        }
+                if (localStorage.getItem('kp.sidebar') === '1') {
+                    document.documentElement.classList.add('kp-collapsed');
+                }
+            } catch (e) {}
+        })();
     </script>
 
-    <!-- Dark Mode Styles -->
-    <style>
-        /* Light mode (default) variables */
-        :root {
-            --bg-main: #f9fafb;
-            --bg-card: #ffffff;
-            --bg-sidebar: #ffffff;
-            --bg-nav: #ffffff;
-            --bg-hover: #f9fafb;
-            --text-primary: #111827;
-            --text-secondary: #6b7280;
-            --text-muted: #9ca3af;
-            --border-color: #e5e7eb;
-            --border-light: #f3f4f6;
-            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
-        }
-
-        /* Dark mode variables */
-        .dark {
-            --bg-main: #111827;
-            --bg-card: #1f2937;
-            --bg-sidebar: #1f2937;
-            --bg-nav: #1f2937;
-            --bg-hover: #374151;
-            --text-primary: #f9fafb;
-            --text-secondary: #d1d5db;
-            --text-muted: #6b7280;
-            --border-color: #374151;
-            --border-light: #1f2937;
-            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-        }
-
-        /* Apply variables to common elements */
-        body {
-            background-color: var(--bg-main);
-            color: var(--text-primary);
-        }
-
-        .dark body {
-            background-color: #111827;
-        }
-
-        /* Cards */
-        .bg-white {
-            background-color: var(--bg-card) !important;
-        }
-
-        .dark .bg-white {
-            background-color: #1f2937 !important;
-        }
-
-        /* Borders */
-        .border-gray-100 {
-            border-color: var(--border-light) !important;
-        }
-
-        .border-gray-200 {
-            border-color: var(--border-color) !important;
-        }
-
-        .dark .border-gray-100 {
-            border-color: #374151 !important;
-        }
-
-        .dark .border-gray-200 {
-            border-color: #4b5563 !important;
-        }
-
-        /* Text colors */
-        .text-gray-900 {
-            color: var(--text-primary) !important;
-        }
-
-        .text-gray-700 {
-            color: var(--text-secondary) !important;
-        }
-
-        .text-gray-500 {
-            color: var(--text-muted) !important;
-        }
-
-        .text-gray-400 {
-            color: var(--text-muted) !important;
-        }
-
-        .dark .text-gray-900 {
-            color: #f9fafb !important;
-        }
-
-        .dark .text-gray-700 {
-            color: #d1d5db !important;
-        }
-
-        .dark .text-gray-500 {
-            color: #9ca3af !important;
-        }
-
-        .dark .text-gray-400 {
-            color: #6b7280 !important;
-        }
-
-        /* Backgrounds */
-        .bg-gray-50 {
-            background-color: var(--bg-main) !important;
-        }
-
-        .dark .bg-gray-50 {
-            background-color: #111827 !important;
-        }
-
-        .dark .bg-gray-50\/50 {
-            background-color: rgba(17, 24, 39, 0.5) !important;
-        }
-
-        /* Hover states */
-        .hover\:bg-gray-50:hover {
-            background-color: var(--bg-hover) !important;
-        }
-
-        .dark .hover\:bg-gray-50:hover {
-            background-color: #374151 !important;
-        }
-
-        .dark .hover\:bg-gray-50\/50:hover {
-            background-color: rgba(55, 65, 81, 0.5) !important;
-        }
-
-        /* Navigation */
-        .dark nav.bg-white {
-            background-color: #1f2937 !important;
-        }
-
-        .dark nav .text-gray-700 {
-            color: #d1d5db !important;
-        }
-
-        .dark nav .bg-gray-50 {
-            background-color: #374151 !important;
-        }
-
-        .dark nav .border-gray-100 {
-            border-color: #374151 !important;
-        }
-
-        /* Sidebar */
-        .dark .lg\:fixed.bg-white,
-        .dark .fixed.bg-white {
-            background-color: #1f2937 !important;
-        }
-
-        .dark .border-gray-200 {
-            border-color: #374151 !important;
-        }
-
-        /* Dividers */
-        .divide-gray-50> :not([hidden])~ :not([hidden]) {
-            border-color: var(--border-light) !important;
-        }
-
-        .dark .divide-gray-50> :not([hidden])~ :not([hidden]) {
-            border-color: #374151 !important;
-        }
-
-        .divide-gray-100> :not([hidden])~ :not([hidden]) {
-            border-color: var(--border-color) !important;
-        }
-
-        .dark .divide-gray-100> :not([hidden])~ :not([hidden]) {
-            border-color: #4b5563 !important;
-        }
-
-        /* Tables */
-        .dark table thead {
-            background-color: #374151 !important;
-        }
-
-        .dark .bg-gray-50\/50 {
-            background-color: rgba(55, 65, 81, 0.3) !important;
-        }
-
-        /* Shadows */
-        .shadow-sm {
-            box-shadow: var(--shadow-sm) !important;
-        }
-
-        .dark .shadow-sm {
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
-        }
-
-        /* Inputs & Selects */
-        .dark input,
-        .dark select {
-            background-color: #374151 !important;
-            color: #f9fafb !important;
-            border-color: #4b5563 !important;
-        }
-
-        .dark input::placeholder {
-            color: #6b7280 !important;
-        }
-
-        /* Keep gradient backgrounds unchanged */
-        .dark .bg-gradient-to-r,
-        .dark .bg-gradient-to-br {
-            /* Gradients stay the same for brand consistency */
-        }
-
-        /* Stats cards colored backgrounds stay */
-        .dark .bg-green-50 {
-            background-color: rgba(22, 163, 74, 0.15) !important;
-        }
-
-        .dark .bg-blue-50 {
-            background-color: rgba(59, 130, 246, 0.15) !important;
-        }
-
-        .dark .bg-amber-50 {
-            background-color: rgba(245, 158, 11, 0.15) !important;
-        }
-
-        .dark .bg-purple-50 {
-            background-color: rgba(139, 92, 246, 0.15) !important;
-        }
-
-        .dark .bg-green-100 {
-            background-color: rgba(22, 163, 74, 0.25) !important;
-        }
-
-        .dark .bg-blue-100 {
-            background-color: rgba(59, 130, 246, 0.25) !important;
-        }
-
-        .dark .bg-amber-100 {
-            background-color: rgba(245, 158, 11, 0.25) !important;
-        }
-
-        .dark .bg-purple-100 {
-            background-color: rgba(139, 92, 246, 0.25) !important;
-        }
-
-        /* Preserve green text on dark backgrounds */
-        .dark .text-green-600 {
-            color: #4ade80 !important;
-        }
-
-        .dark .text-green-700 {
-            color: #4ade80 !important;
-        }
-
-        .dark .text-blue-600 {
-            color: #60a5fa !important;
-        }
-
-        .dark .text-blue-700 {
-            color: #60a5fa !important;
-        }
-
-        .dark .text-amber-600 {
-            color: #fbbf24 !important;
-        }
-
-        .dark .text-amber-700 {
-            color: #fbbf24 !important;
-        }
-
-        .dark .text-purple-600 {
-            color: #a78bfa !important;
-        }
-
-        .dark .text-purple-700 {
-            color: #a78bfa !important;
-        }
-    </style>
+    @include('layouts.partials.assets')
 
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     @stack('styles')
 </head>
 
-<body class="h-full" x-data="{ sidebarOpen: window.innerWidth >= 1024 }" @resize.window="sidebarOpen = window.innerWidth >= 1024">
-    <div class="min-h-full">
+<body class="h-full" x-data="{ sidebarOpen: window.innerWidth >= 1024, collapsed: document.documentElement.classList.contains('kp-collapsed') }"
+    x-init="$watch('collapsed', v => { document.documentElement.classList.toggle('kp-collapsed', v); try { localStorage.setItem('kp.sidebar', v ? '1' : '0'); } catch (e) {} })"
+    @resize.window="sidebarOpen = window.innerWidth >= 1024" @kp-expand-sidebar.window="collapsed = false">
+    <a href="#main-content" class="kp-skip">Skip to main content</a>
+
+    <div class="kp-shell min-h-full">
         <!-- Mobile Overlay -->
-        <div x-show="sidebarOpen" @click="sidebarOpen = false"
-            x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300"
-            x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-            class="fixed inset-0 z-30 bg-gray-600 bg-opacity-75 lg:hidden">
+        <div x-show="sidebarOpen" x-cloak @click="sidebarOpen = false" x-transition:enter="transition-opacity ease-out duration-200"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+            x-transition:leave="transition-opacity ease-in duration-150" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0" class="kp-overlay" aria-hidden="true">
         </div>
 
-        <!-- Desktop Sidebar (always visible on lg+) -->
-        <div class="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-64 lg:flex-col">
+        <!-- Desktop Sidebar (lg+, collapsible) -->
+        <aside class="kp-sidebar-desktop" aria-label="Primary">
             @include('layouts.sidebar-desktop')
-        </div>
+        </aside>
 
-        <!-- Mobile Sidebar (toggles with sidebarOpen) -->
-        <div x-show="sidebarOpen" x-transition:enter="transition ease-in-out duration-300 transform"
-            x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0"
-            x-transition:leave="transition ease-in-out duration-300 transform" x-transition:leave-start="translate-x-0"
-            x-transition:leave-end="-translate-x-full" class="fixed inset-y-0 left-0 z-40 w-64 lg:hidden">
+        <!-- Mobile Sidebar (drawer, toggles with sidebarOpen) -->
+        <aside x-show="sidebarOpen" x-cloak @keydown.escape.window="if (window.innerWidth < 1024) sidebarOpen = false"
+            x-transition:enter="transition ease-out duration-200 transform" x-transition:enter-start="-translate-x-full"
+            x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-150 transform"
+            x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full"
+            class="kp-sidebar-mobile" aria-label="Primary">
             @include('layouts.sidebar-mobile')
-        </div>
+        </aside>
 
-        <div class="lg:pl-64">
+        <div class="kp-content-wrap">
             @include('layouts.navigation')
 
-            <main class="py-6 sm:py-8">
-                <div class="px-4 sm:px-6 lg:px-8">
-                    @yield('content')
-                </div>
+            <main id="main-content" class="kp-content" tabindex="-1">
+                @yield('content')
             </main>
         </div>
     </div>
+
+    <script>
+        // Give every sidebar control an accessible name / tooltip (needed when the rail is collapsed)
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.kp-nav > ul > li > ul > li > a, .kp-nav > ul > li > ul > li > button').forEach(el => {
+                const label = (el.querySelector('span') || el).textContent.trim().replace(/\s+/g, ' ');
+                if (label && !el.getAttribute('aria-label')) { el.setAttribute('aria-label', label); }
+                if (label && !el.getAttribute('title')) { el.setAttribute('title', label); }
+            });
+            // In the collapsed rail, dropdown groups can't show their children: expand the rail first
+            document.querySelectorAll('.kp-sidebar-desktop .kp-nav button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (document.documentElement.classList.contains('kp-collapsed') && btn.querySelector('.fa-chevron-down')) {
+                        window.dispatchEvent(new CustomEvent('kp-expand-sidebar'));
+                    }
+                });
+            });
+        });
+    </script>
 
     <!-- Dark Mode & Profile Dropdown Script -->
     <script>
@@ -406,34 +143,30 @@
         const swalCustomStyles = `
     <style>
     .swal2-popup {
-        border-radius: 16px !important;
-        padding: 2rem !important;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+        border-radius: 14px !important;
+        padding: 1.75rem !important;
     }
     .swal2-title {
-        font-size: 1.5rem !important;
-        font-weight: 700 !important;
-        color: #1f2937 !important;
-        margin-bottom: 1.5rem !important;
+        margin-bottom: 1.25rem !important;
     }
     .swal2-input {
-        border: 2px solid #e5e7eb !important;
-        border-radius: 10px !important;
-        padding: 0.75rem 1rem !important;
+        border: 1px solid #BCCBC2 !important;
+        border-radius: 8px !important;
+        padding: 0.7rem 1rem !important;
         font-size: 0.95rem !important;
         transition: all 0.3s ease !important;
         margin: 0.5rem 0 !important;
         width: 100% !important;
     }
     .swal2-input:focus {
-        border-color: #16a34a !important;
-        box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1) !important;
+        border-color: #087A3D !important;
+        box-shadow: 0 0 0 3px rgba(8, 122, 61, 0.28) !important;
         outline: none !important;
     }
     .swal2-select {
-        border: 2px solid #e5e7eb !important;
-        border-radius: 10px !important;
-        padding: 0.75rem 1rem !important;
+        border: 1px solid #BCCBC2 !important;
+        border-radius: 8px !important;
+        padding: 0.7rem 1rem !important;
         font-size: 0.95rem !important;
         transition: all 0.3s ease !important;
         margin: 0.5rem 0 !important;
@@ -441,49 +174,29 @@
         background-color: white !important;
     }
     .swal2-select:focus {
-        border-color: #16a34a !important;
-        box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1) !important;
+        border-color: #087A3D !important;
+        box-shadow: 0 0 0 3px rgba(8, 122, 61, 0.28) !important;
         outline: none !important;
     }
     .swal2-confirm {
-        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
-        border-radius: 10px !important;
-        padding: 0.75rem 2rem !important;
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-        letter-spacing: 0.025em !important;
-        box-shadow: 0 4px 15px rgba(22, 163, 74, 0.3) !important;
-        transition: all 0.3s ease !important;
-    }
-    .swal2-confirm:hover {
-        transform: translateY(-1px) !important;
-        box-shadow: 0 6px 20px rgba(22, 163, 74, 0.4) !important;
+        padding: 0.65rem 1.6rem !important;
+        font-size: 0.9rem !important;
     }
     .swal2-cancel {
-        border-radius: 10px !important;
-        padding: 0.75rem 2rem !important;
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-        letter-spacing: 0.025em !important;
-        border: 2px solid #e5e7eb !important;
-        color: #6b7280 !important;
-        background-color: #f9fafb !important;
-        transition: all 0.3s ease !important;
-    }
-    .swal2-cancel:hover {
-        background-color: #e5e7eb !important;
+        padding: 0.65rem 1.6rem !important;
+        font-size: 0.9rem !important;
     }
     .form-label {
         display: flex;
         align-items: center;
         gap: 0.5rem;
         font-weight: 600;
-        color: #374151;
+        color: #172B20;
         margin-bottom: 0.25rem;
     }
     .form-label i {
         width: 20px;
-        color: #16a34a;
+        color: #087A3D;
         font-size: 0.9rem;
     }
     .input-group {
@@ -498,7 +211,7 @@
         left: 1rem;
         top: 50%;
         transform: translateY(-50%);
-        color: #9ca3af;
+        color: #66786C;
         z-index: 1;
     }
     .input-icon-wrapper input,

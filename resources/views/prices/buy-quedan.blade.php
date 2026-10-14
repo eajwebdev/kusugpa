@@ -4,21 +4,30 @@
 @section('title', 'Buy Quedan')
 
 @section('content')
-<div x-data="buyQuedanData()" class="space-y-6">
-    <div class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-        <div class="flex items-center gap-3 mb-2">
-            <i class="fas fa-cart-shopping text-2xl"></i>
-            <h1 class="text-2xl sm:text-3xl font-bold">Buy Quedan</h1>
+<div x-data="buyQuedanData()" class="space-y-6 kp-fade-in">
+    <!-- Page Header -->
+    <header>
+        <div class="kp-page-header">
+            <div>
+                <p class="kp-eyebrow">Commodity Procurement</p>
+                <h1 class="kp-page-title mt-1">Buy Sugar Quedans</h1>
+                <p class="kp-page-sub">Select and flag planter sugar quedans as purchased for cooperative or mill settlement.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('prices.registry') }}" class="kp-btn kp-btn-secondary text-xs">
+                    <i class="fas fa-list-ul mr-1.5" aria-hidden="true"></i> Quedan Registry
+                </a>
+            </div>
         </div>
-        <p class="text-primary-100 text-sm">Select quedans to mark as bought for the season</p>
-    </div>
+        <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+    </header>
 
-    <!-- Filters -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+    <!-- Filters Bar -->
+    <div class="kp-card p-4">
         <div class="flex flex-wrap gap-3 items-end">
             <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">Crop Year</label>
-                <select x-model="filters.cropYear" @change="onCropYearChange()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Crop Year</label>
+                <select x-model="filters.cropYear" @change="onCropYearChange()" class="kp-input py-1.5 text-xs">
                     <option value="">Select Crop Year</option>
                     @foreach($cropYears as $cy)
                         <option value="{{ $cy }}">{{ $cy }}</option>
@@ -26,82 +35,94 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">Week No</label>
-                <select x-model="filters.weekNo" @change="loadData()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Week No</label>
+                <select x-model="filters.weekNo" @change="loadData()" class="kp-input py-1.5 text-xs">
                     <option value="">All Weeks</option>
                     <template x-for="w in availableWeeks" :key="w">
                         <option :value="w" x-text="'Week ' + w"></option>
                     </template>
                 </select>
             </div>
-            <button @click="loadData()" :disabled="!filters.cropYear" 
-                class="bg-primary-600 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-primary-700 disabled:opacity-50">
-                <i class="fas fa-search mr-1"></i> Load Quedans
+            <button type="button" @click="loadData()" :disabled="!filters.cropYear" 
+                class="kp-btn kp-btn-primary text-xs py-2 disabled:opacity-40">
+                <i class="fas fa-search mr-1.5" aria-hidden="true"></i> Load Quedans
             </button>
             <div class="flex-1"></div>
-            <div class="flex items-center gap-2" x-show="stats.total > 0">
-                <span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600" x-text="'Total: ' + stats.total"></span>
-                <span class="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700" x-text="'Bought: ' + stats.bought"></span>
-                <span class="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700" x-text="'Pending: ' + stats.pending"></span>
+            <div class="flex items-center gap-2" x-show="stats.total > 0" x-cloak>
+                <span class="kp-badge text-xs py-1 px-2.5">Total: <strong class="ml-1" x-text="stats.total"></strong></span>
+                <span class="kp-badge kp-badge--forest text-xs py-1 px-2.5">Bought: <strong class="ml-1" x-text="stats.bought"></strong></span>
+                <span class="kp-badge kp-badge--amber text-xs py-1 px-2.5">Pending: <strong class="ml-1" x-text="stats.pending"></strong></span>
             </div>
         </div>
     </div>
 
-    <!-- Bulk Actions -->
-    <div x-show="selectedIds.length > 0" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
-        <span class="text-sm text-gray-600" x-text="selectedIds.length + ' selected'"></span>
-        <button @click="bulkUpdate('bought')" class="bg-green-600 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-green-700">
-            <i class="fas fa-check mr-1"></i> Mark as Bought
+    <!-- Bulk Actions Strip -->
+    <div x-show="selectedIds.length > 0" x-transition x-cloak 
+        class="p-3.5 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] border border-[#CFDCD3] dark:border-[#203A2B] flex flex-wrap items-center gap-3">
+        <span class="text-xs font-bold text-[#005B2A] dark:text-[#52C97E]" x-text="selectedIds.length + ' record(s) selected'"></span>
+        <button type="button" @click="bulkUpdate('bought')" class="kp-btn kp-btn-primary text-xs py-1.5">
+            <i class="fas fa-check mr-1.5" aria-hidden="true"></i> Mark as Bought
         </button>
-        <button @click="bulkUpdate('pending')" class="bg-yellow-600 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-yellow-700">
-            <i class="fas fa-undo mr-1"></i> Reset to Pending
+        <button type="button" @click="bulkUpdate('pending')" class="kp-btn kp-btn-secondary text-xs py-1.5">
+            <i class="fas fa-undo mr-1.5" aria-hidden="true"></i> Reset to Pending
         </button>
-        <button @click="selectedIds = []" class="text-gray-500 hover:text-gray-700 text-sm">Clear</button>
+        <button type="button" @click="selectedIds = []" class="text-xs text-[#52705F] dark:text-[#8AA895] hover:underline ml-auto">
+            Clear Selection
+        </button>
     </div>
 
-    <!-- Table -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="overflow-x-auto" style="max-height: 500px; overflow-y: auto;">
-            <table class="min-w-full divide-y divide-gray-100">
-                <thead class="bg-gray-50 sticky top-0 z-10">
+    <!-- Table Card -->
+    <div class="kp-card overflow-hidden">
+        <div class="kp-table-wrap overflow-x-auto" style="max-height: 560px; overflow-y: auto;">
+            <table class="kp-table w-full">
+                <thead>
                     <tr>
-                        <th class="px-3 py-2.5 w-10"><input type="checkbox" @change="toggleAll($event)" :checked="isAllSelected" class="rounded border-gray-300"></th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Crop Year</th>
-                        <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Week</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Code</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Planter Name</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">QDN No</th>
-                        <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Total Liens</th>
-                        <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">Status</th>
+                        <th class="w-10 text-center">
+                            <input type="checkbox" @change="toggleAll($event)" :checked="isAllSelected" class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A]">
+                        </th>
+                        <th>Crop Year</th>
+                        <th class="text-center">Week</th>
+                        <th>Planter Code</th>
+                        <th>Planter Name</th>
+                        <th>QDN No</th>
+                        <th class="text-right">Total Liens</th>
+                        <th class="text-center">Procurement Status</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-50">
+                <tbody>
                     <template x-for="row in paginatedData" :key="row.id">
-                        <tr :class="row.status === 'bought' ? 'bg-green-50/50' : ''" class="hover:bg-gray-50/50 transition-colors">
-                            <td class="px-3 py-2"><input type="checkbox" :checked="selectedIds.includes(row.id)" @change="toggleSelect(row.id)" class="rounded border-gray-300"></td>
-                            <td class="px-3 py-2 text-xs"><span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium" x-text="row.crop_year"></span></td>
-                            <td class="px-3 py-2 text-xs text-center" x-text="row.week_no"></td>
-                            <td class="px-3 py-2 text-xs font-mono" x-text="row.planter_code"></td>
-                            <td class="px-3 py-2 text-sm font-medium" x-text="row.planter_name"></td>
-                            <td class="px-3 py-2 text-xs" x-text="row.qdn_no || '—'"></td>
-                            <td class="px-3 py-2 text-xs text-right" x-text="formatNum(row.total_liens, 3)"></td>
-                            <td class="px-3 py-2 text-center">
-                                <span class="px-2 py-0.5 text-xs font-medium rounded-full"
-                                    :class="row.status === 'bought' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'"
-                                    x-text="row.status"></span>
+                        <tr :class="row.status === 'bought' ? 'bg-[#EAF5ED]/50 dark:bg-[#1A3324]/40' : ''" class="hover:bg-[#EAF5ED]/30 dark:hover:bg-[#1A3324]/30 transition-colors">
+                            <td class="text-center">
+                                <input type="checkbox" :checked="selectedIds.includes(row.id)" @change="toggleSelect(row.id)" class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A]">
+                            </td>
+                            <td><span class="kp-badge kp-badge--forest text-xs font-mono" x-text="row.crop_year"></span></td>
+                            <td class="text-center font-mono text-xs" x-text="row.week_no"></td>
+                            <td class="font-mono text-xs text-[#52705F] dark:text-[#8AA895]" x-text="row.planter_code"></td>
+                            <td class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]" x-text="row.planter_name"></td>
+                            <td class="font-mono text-xs text-[#52705F] dark:text-[#8AA895]" x-text="row.qdn_no || '—'"></td>
+                            <td class="text-xs text-right kp-num font-semibold text-[#172B20] dark:text-[#EAF5ED]" x-text="formatNum(row.total_liens, 3)"></td>
+                            <td class="text-center">
+                                <span class="kp-badge text-xs"
+                                    :class="row.status === 'bought' ? 'kp-badge--forest' : 'kp-badge--amber'"
+                                    x-text="row.status === 'bought' ? 'Bought' : 'Pending'"></span>
                             </td>
                         </tr>
                     </template>
-                    <tr x-show="data.length === 0">
-                        <td colspan="8" class="px-4 py-12 text-center text-gray-500">Select crop year and click Load Quedans</td>
+                    <tr x-show="data.length === 0" x-cloak>
+                        <td colspan="8" class="py-12 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
+                            <i class="fas fa-filter text-2xl mb-2 text-[#8AA895] block"></i>
+                            Select a crop year and click <strong>"Load Quedans"</strong> to view records.
+                        </td>
                     </tr>
                 </tbody>
             </table>
         </div>
-        <div class="px-4 py-3 border-t border-gray-100 flex items-center justify-between" x-show="totalPages > 1">
-            <button @click="currentPage--" :disabled="currentPage === 1" class="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50">Previous</button>
-            <span class="text-sm text-gray-500" x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
-            <button @click="currentPage++" :disabled="currentPage >= totalPages" class="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50">Next</button>
+        <div class="px-5 py-3 border-t border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324] flex items-center justify-between" x-show="totalPages > 1" x-cloak>
+            <button type="button" @click="currentPage--" :disabled="currentPage === 1" class="kp-btn kp-btn-secondary text-xs px-3 py-1 disabled:opacity-40">Previous</button>
+            <span class="text-xs text-[#52705F] dark:text-[#8AA895]">
+                Page <strong class="text-[#172B20] dark:text-[#EAF5ED]" x-text="currentPage"></strong> of <strong class="text-[#172B20] dark:text-[#EAF5ED]" x-text="totalPages"></strong>
+            </span>
+            <button type="button" @click="currentPage++" :disabled="currentPage >= totalPages" class="kp-btn kp-btn-secondary text-xs px-3 py-1 disabled:opacity-40">Next</button>
         </div>
     </div>
 </div>
@@ -167,7 +188,7 @@
                     body: JSON.stringify({ ids: this.selectedIds, status })
                 });
                 const d = await r.json();
-                Swal.fire({ icon: 'success', title: 'Updated!', text: d.message, timer: 2000, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: 'Status Updated', text: d.message, timer: 2000, showConfirmButton: false });
                 this.selectedIds = [];
                 await this.loadData();
             },
