@@ -131,14 +131,22 @@ Route::middleware(['login_auth'])->group(function () {
    
     Route::get('/get-weeks-by-crop-year', [UpdatesController::class, 'getWeeksByCropYear'])->name('weeks.by-crop-year');
     Route::get('/get-weeks', function(Request $request) {
-    $cropYear = $request->get('crop_year');
-    $weeks = \App\Models\WeekNo::where('crop_year', $cropYear)
-        ->select('week_no')
-        ->distinct()
-        ->orderByRaw('CAST(week_no AS UNSIGNED) ASC')
-        ->pluck('week_no');
-    
-    return response()->json(['weeks' => $weeks]);
+    try {
+        $cropYear = $request->get('crop_year');
+        if (!$cropYear) {
+            return response()->json(['message' => 'crop_year is required.', 'weeks' => []], 422);
+        }
+        $weeks = \App\Models\WeekNo::where('crop_year', $cropYear)
+            ->select('week_no')
+            ->distinct()
+            ->orderByRaw('CAST(week_no AS UNSIGNED) ASC')
+            ->pluck('week_no');
+
+        return response()->json(['weeks' => $weeks]);
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('get-weeks failed: ' . $e->getMessage());
+        return response()->json(['message' => 'Server error loading weeks.', 'weeks' => []], 500);
+    }
 })->name('get.weeks');
 
     // Dashboard API endpoints

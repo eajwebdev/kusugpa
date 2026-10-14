@@ -512,6 +512,13 @@
             window.dispatchEvent(new CustomEvent('refresh-dashboard'));
         }
 
+        // Base URLs rendered by Blade so fetch() works on hosted subdirectories /
+        // HTTPS too. Hardcoded '/get-weeks' or '/upload/...' hits the domain root
+        // on hosting and returns an HTML 404 page -> "Error loading weeks".
+        const APP_BASE_URL = '{{ url('/') }}'.replace(/\/$/, '');
+        const GET_WEEKS_URL = '{{ url('/get-weeks') }}';
+        const UPLOAD_BASE_URL = '{{ url('/upload') }}';
+
         function openQuedanPriceModal() {
             Swal.fire({
                 title: 'Add Quedan Price',
@@ -967,20 +974,34 @@
                         formData.append('week_no', weekNo);
                     }
 
-                    return fetch('/upload/' + type, {
+                    return fetch(UPLOAD_BASE_URL + '/' + type, {
                             method: 'POST',
                             headers: {
                                 'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                             },
                             body: formData
                         })
-                        .then(response => {
+                        .then(async response => {
                             if (response.redirected) {
                                 window.location.reload();
                                 return;
                             }
-                            return response.json();
+                            const text = await response.text();
+                            let data;
+                            try {
+                                data = text ? JSON.parse(text) : {};
+                            } catch (e) {
+                                throw new Error('Upload failed: server returned HTML (HTTP ' +
+                                    response.status + '). URL: ' + UPLOAD_BASE_URL + '/' +
+                                    type);
+                            }
+                            if (!response.ok) {
+                                throw new Error(data.message || data.error ||
+                                    ('Upload failed (HTTP ' + response.status + ')'));
+                            }
+                            return data;
                         })
                         .then(data => {
                             if (data && data.error) {
@@ -1021,13 +1042,30 @@
             weekSelect.style.opacity = '1';
 
             // Fetch weeks from WeekNo model - already sorted
-            fetch('/get-weeks?crop_year=' + cropYear, {
+            fetch(GET_WEEKS_URL + '?crop_year=' + encodeURIComponent(cropYear), {
                     headers: {
                         'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                     }
                 })
-                .then(response => response.json())
+                .then(async response => {
+                    const text = await response.text();
+                    let data;
+                    try {
+                        data = text ? JSON.parse(text) : {};
+                    } catch (e) {
+                        const titleMatch = text.match(/<title[^>]*>([^<]*)<\/title>/i);
+                        const title = titleMatch ? titleMatch[1].trim() : '';
+                        throw new Error('Server returned HTML (HTTP ' + response.status + ')' +
+                            (title ? ': ' + title : '') + ' for ' + GET_WEEKS_URL);
+                    }
+                    if (!response.ok) {
+                        throw new Error(data.message || ('Request failed (HTTP ' + response
+                            .status + ') for ' + GET_WEEKS_URL));
+                    }
+                    return data;
+                })
                 .then(data => {
                     let weeks = data.weeks || [];
 
@@ -1042,7 +1080,9 @@
                 })
                 .catch(error => {
                     console.error('Error fetching weeks:', error);
+                    const msg = error && error.message ? error.message : 'network error';
                     weekSelect.innerHTML = '<option value="">Error loading weeks</option>';
+                    weekSelect.title = msg;
                 });
         }
 
