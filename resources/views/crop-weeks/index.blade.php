@@ -334,6 +334,8 @@
                     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
                 },
 
+                //updated today
+
                 async parseJsonResponse(response, url) {
                     const text = await response.text();
                     let data = {};
