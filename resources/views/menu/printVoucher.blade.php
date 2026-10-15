@@ -176,18 +176,19 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button type="button" @click="window.KusugpaPdfPreview.open(pdfUrl, 'Voucher Ledger')"
+                        class="kp-btn kp-btn-secondary text-xs">
+                        <i class="fas fa-eye mr-1.5" aria-hidden="true"></i> Preview PDF
+                    </button>
                     <button type="button" @click="downloadPDF"
                         class="kp-btn kp-btn-secondary text-xs">
                         <i class="fas fa-download mr-1.5 text-blue-600 dark:text-blue-400" aria-hidden="true"></i> Download PDF
                     </button>
                     <button type="button" @click="printVoucher"
                         class="kp-btn kp-btn-primary text-xs">
-                        <i class="fas fa-print mr-1.5" aria-hidden="true"></i> Print Document
+                        <i class="fas fa-print mr-1.5" aria-hidden="true"></i> Preview &amp; Print
                     </button>
                 </div>
-            </div>
-            <div class="p-0 bg-[#E8EDE9] dark:bg-[#0D1812]">
-                <iframe :src="pdfUrl" class="w-full" style="height: 820px; border: none;"></iframe>
             </div>
         </div>
 
@@ -306,6 +307,7 @@
 
                         this.pdfUrl = '{{ route('voucher.pdf') }}?' + params.toString();
                         this.showPreview = true;
+                        window.KusugpaPdfPreview.open(this.pdfUrl, 'Voucher Ledger');
                     },
 
                     resetFilters() {
@@ -323,17 +325,14 @@
 
                     downloadPDF() {
                         if (this.pdfUrl) {
-                            const downloadUrl = this.pdfUrl.replace('pdf-preview', 'download-pdf');
-                            window.open(downloadUrl, '_blank');
+                            const url = new URL(this.pdfUrl, window.location.origin);
+                            url.searchParams.set('download', '1');
+                            window.location.assign(url.toString());
                         }
                     },
 
                     printVoucher() {
-                        const iframe = document.querySelector('iframe');
-                        if (iframe && iframe.contentWindow) {
-                            iframe.contentWindow.focus();
-                            iframe.contentWindow.print();
-                        }
+                        if (this.pdfUrl) window.KusugpaPdfPreview.open(this.pdfUrl, 'Voucher Ledger');
                     }
                 }
             }

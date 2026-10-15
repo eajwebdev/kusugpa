@@ -22,14 +22,6 @@ return [
     // Administrator / super_admin always have full access regardless of this list.
     'accounts' => [
         [
-            'username'    => 'admin',
-            'fname'       => 'Demo',
-            'mname'       => null,
-            'lname'       => 'Administrator',
-            'role'        => 'Administrator',
-            'permissions' => '*',
-        ],
-        [
             'username'    => 'superadmin',
             'fname'       => 'Demo',
             'mname'       => null,

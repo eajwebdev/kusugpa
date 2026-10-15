@@ -240,10 +240,10 @@
     </div>
 
     <!-- Payment Modal -->
-    <div id="paymentModal" style="display:none;" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-        <div class="kp-modal max-w-md w-full p-6 mx-4">
+    <div id="paymentModal" style="display:none;" class="fixed inset-0 bg-black/60 backdrop-blur-sm items-center justify-center z-50 overflow-y-auto p-4">
+        <div class="kp-modal kp-viewport-modal-panel max-w-md w-full p-4 sm:p-6 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="advance-payment-modal-title">
             <div class="flex items-center justify-between pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
-                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Record Advance Payment</h3>
+                <h3 id="advance-payment-modal-title" class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Record Advance Payment</h3>
                 <button type="button" onclick="closePaymentModal()" class="text-[#52705F] hover:text-[#172B20] dark:text-[#8AA895]">
                     <i class="fas fa-times text-sm"></i>
                 </button>

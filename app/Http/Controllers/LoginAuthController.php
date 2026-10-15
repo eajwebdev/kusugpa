@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log; 
+use App\Models\User;
 
 class LoginAuthController extends Controller
 {
@@ -33,7 +34,8 @@ class LoginAuthController extends Controller
             // Check if user has a valid role
             $validRoles = ['Administrator', 'super_admin', 'manager', 'loan_officer', 'User', 'Viewer'];
             
-            if (in_array($user->role, $validRoles)) {
+            if (in_array($user->role, $validRoles, true)) {
+                $request->session()->regenerate();
                 return redirect()->route('dashboard')->with('success', 'You have successfully logged in.');
             }
             
@@ -42,7 +44,8 @@ class LoginAuthController extends Controller
             return redirect()->back()->with('error', 'Your account does not have a valid role.');
         }
 
-        return redirect()->back()->with('error', 'Invalid Credentials');
+        return redirect()->back()->with('error', 'Invalid username or password. Please try again.')
+            ->withInput($request->only('username'));
     }
 
     /**
@@ -54,14 +57,13 @@ class LoginAuthController extends Controller
         abort_unless(config('demo.enabled'), 404);
 
         $request->validate(['username' => 'required|string']);
+        $account = collect(config('demo.accounts'))->firstWhere('username', $request->username);
+        abort_unless($account, 403);
 
-        $allowed = collect(config('demo.accounts'))->pluck('username');
-        abort_unless($allowed->contains($request->username), 403);
+        $user = User::where('username', $account['username'])->first();
 
-        $user = \App\Models\User::where('username', $request->username)->first();
-
-        if (!$user) {
-            return redirect()->back()->with('error', 'Demo user not found. Run: php artisan db:seed');
+        if (!$user || $user->fname !== $account['fname'] || $user->lname !== $account['lname'] || $user->role !== $account['role']) {
+            return redirect()->route('getLogin')->with('error', 'This demo account is unavailable. Ask an administrator to seed the demo users.');
         }
 
         auth()->guard('web')->login($user);
@@ -70,9 +72,11 @@ class LoginAuthController extends Controller
         return redirect()->route('dashboard')->with('success', 'Signed in as demo ' . $user->role . '.');
     }
 
-    public function logout()
+    public function logout(Request $request)
     {
-        auth()->logout();
+        auth()->guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
         return redirect('/')->with('success', 'You have successfully logged out.');
     }
 

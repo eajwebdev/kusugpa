@@ -1,16 +1,16 @@
 <!-- resources/views/modal/cashAdvanceModal.blade.php -->
 <div x-data="newCAForm()" x-show="showModal" x-on:open-ca-modal.window="showModal = true"
     x-on:close-ca-modal.window="showModal = false" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" x-cloak>
-    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+    <div class="kp-viewport-modal-layout flex items-center justify-center">
         <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showModal = false"></div>
-        <div class="kp-modal relative max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div class="kp-modal kp-viewport-modal-panel relative max-w-2xl w-full p-4 sm:p-6 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="new-cash-advance-modal-title" @keydown.escape.window="showModal = false">
             <div class="flex items-center justify-between pb-3 mb-5 border-b border-[#E3EBE5] dark:border-[#203A2B]">
                 <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm font-semibold">
                         <i class="fas fa-hand-holding-dollar" aria-hidden="true"></i>
                     </div>
                     <div>
-                        <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">New Cash Advance Application</h3>
+                        <h3 id="new-cash-advance-modal-title" class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">New Cash Advance Application</h3>
                         <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Disburse short-term cash assistance to registered planter.</p>
                     </div>
                 </div>

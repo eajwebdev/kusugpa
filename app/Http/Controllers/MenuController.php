@@ -621,10 +621,11 @@ public function voucherPDF(Request $request)
     }
 
 
-    return Pdf::loadView('pdf.voucher', [
+    $pdf = Pdf::loadView('pdf.voucher', [
         'summaryData' => $summaryData,
         'autoDeduct' => $autoDeduct
-    ])->stream('voucher-preview.pdf');
+    ]);
+    return $request->boolean('download') ? $pdf->download('voucher.pdf') : $pdf->stream('voucher-preview.pdf');
 }
 
  public function dashboardData(Request $request)

@@ -221,7 +221,7 @@
                     </div>
 
                     <div class="space-y-2.5">
-                        <a href="{{ route('loans.amortization-pdf', $loan) }}" target="_blank"
+                        <a href="{{ route('loans.amortization-pdf', $loan) }}" data-pdf-preview="Amortization Schedule"
                             class="flex items-center justify-between p-3 rounded-xl bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B] hover:border-[#005B2A] dark:hover:border-[#52C97E] transition group">
                             <div class="flex items-center gap-3">
                                 <i class="fas fa-calendar-alt text-[#005B2A] dark:text-[#52C97E] text-base"></i>
@@ -233,7 +233,7 @@
                             <i class="fas fa-download text-xs text-[#52705F] group-hover:text-[#005B2A] dark:group-hover:text-[#52C97E] transition"></i>
                         </a>
 
-                        <a href="{{ route('loans.details-pdf', $loan) }}" target="_blank"
+                        <a href="{{ route('loans.details-pdf', $loan) }}" data-pdf-preview="Full Loan Disclosure"
                             class="flex items-center justify-between p-3 rounded-xl bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B] hover:border-[#005B2A] dark:hover:border-[#52C97E] transition group">
                             <div class="flex items-center gap-3">
                                 <i class="fas fa-file-invoice text-[#005B2A] dark:text-[#52C97E] text-base"></i>
@@ -245,7 +245,7 @@
                             <i class="fas fa-download text-xs text-[#52705F] group-hover:text-[#005B2A] dark:group-hover:text-[#52C97E] transition"></i>
                         </a>
 
-                        <a href="{{ route('loans.soa-pdf', $loan) }}" target="_blank"
+                        <a href="{{ route('loans.soa-pdf', $loan) }}" data-pdf-preview="Statement of Account"
                             class="flex items-center justify-between p-3 rounded-xl bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B] hover:border-[#005B2A] dark:hover:border-[#52C97E] transition group">
                             <div class="flex items-center gap-3">
                                 <i class="fas fa-receipt text-[#005B2A] dark:text-[#52C97E] text-base"></i>
@@ -294,10 +294,10 @@
     </div>
 
     <!-- Payment Modal -->
-    <div id="paymentModal" style="display:none;" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-        <div class="kp-modal max-w-md w-full p-6 mx-4">
+    <div id="paymentModal" style="display:none;" class="fixed inset-0 bg-black/60 backdrop-blur-sm items-center justify-center z-50 overflow-y-auto p-4">
+        <div class="kp-modal kp-viewport-modal-panel max-w-md w-full p-4 sm:p-6 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="loan-payment-modal-title">
             <div class="flex items-center justify-between pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
-                <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Record Loan Amortization Payment</h3>
+                <h3 id="loan-payment-modal-title" class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Record Loan Amortization Payment</h3>
                 <button type="button" onclick="closePaymentModal()" class="text-[#52705F] hover:text-[#172B20] dark:text-[#8AA895]">
                     <i class="fas fa-times text-sm"></i>
                 </button>

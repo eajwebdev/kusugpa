@@ -104,7 +104,8 @@ public function loadMore(Request $request)
             'generatedDate' => now()->format('F d, Y H:i:s'),
         ])->setPaper('a4', 'landscape');
 
-        return $pdf->download('audit-logs-' . now()->format('Y-m-d') . '.pdf');
+        $filename = 'audit-logs-' . now()->format('Y-m-d') . '.pdf';
+        return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
     }
 
     public function clear(Request $request)

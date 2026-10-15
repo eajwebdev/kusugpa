@@ -225,7 +225,7 @@
                     </div>
                 </div>
 
-                <form action="{{ route('loans.monthly-report-pdf') }}" method="GET" class="space-y-3">
+                <form action="{{ route('loans.monthly-report-pdf') }}" method="GET" data-pdf-preview="Monthly Loan Collections" class="space-y-3">
                     <div>
                         <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Target Month</label>
                         <input type="month" name="month" value="{{ date('Y-m') }}" class="kp-input w-full py-2 text-xs">
@@ -259,7 +259,7 @@
                     </div>
                 </div>
 
-                <form action="{{ route('loans.active-loans-pdf') }}" method="GET" class="space-y-3">
+                <form action="{{ route('loans.active-loans-pdf') }}" method="GET" data-pdf-preview="Active Loan Portfolio" class="space-y-3">
                     <div>
                         <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Crop Year Filter</label>
                         <select name="crop_year" class="kp-input w-full py-2 text-xs">
@@ -312,7 +312,8 @@
                     'details': '/loans/' + id + '/details-pdf',
                     'soa': '/loans/' + id + '/soa-pdf',
                 };
-                window.open(urls[this.reportType] || '', '_blank');
+                const titles = { amortization: 'Amortization Schedule', details: 'Full Loan Disclosure', soa: 'Statement of Account' };
+                window.KusugpaPdfPreview.open(urls[this.reportType], titles[this.reportType]);
             },
 
             getStatusClass(status) {

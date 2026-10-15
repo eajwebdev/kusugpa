@@ -10,8 +10,8 @@ class SystemLockMiddleware
 {
     public function handle(Request $request, Closure $next)
     {
-        // Skip for admin routes
-        if ($request->is('system/*') || $request->is('system/auth/*')) {
+        // Keep sign-in available so the Administrator can access the system.
+        if ($request->is('system/auth/*')) {
             return $next($request);
         }
 
@@ -33,6 +33,18 @@ class SystemLockMiddleware
                 'type' => $type
             ], 503);
         };
+
+        // Maintenance applies to every portal role except Administrator,
+        // including super_admin and routes under /system.
+        if (SystemSetting::get('maintenance_mode', false) && auth()->user()?->role !== 'Administrator') {
+            $maintenanceMessage = SystemSetting::get('maintenance_message', 'System is under maintenance.');
+            return $lockedResponse($maintenanceMessage, 'maintenance');
+        }
+
+        // Other lock settings keep their existing admin-route exception.
+        if ($request->is('system/*')) {
+            return $next($request);
+        }
 
         // Check if system is locked
         if (SystemSetting::get('system_locked', false)) {
@@ -59,12 +71,6 @@ class SystemLockMiddleware
                 $lockReason = SystemSetting::get('lock_reason', 'System is locked for maintenance.');
                 return $lockedResponse($lockReason . " Locked from {$lockStart} to {$lockEnd}.", 'scheduled');
             }
-        }
-
-        // Check maintenance mode
-        if (SystemSetting::get('maintenance_mode', false)) {
-            $maintenanceMessage = SystemSetting::get('maintenance_message', 'System is under maintenance.');
-            return $lockedResponse($maintenanceMessage, 'maintenance');
         }
 
         return $next($request);

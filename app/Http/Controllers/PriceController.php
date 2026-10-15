@@ -242,24 +242,50 @@ public function buyMolasses()
 }
 
 
-public function exportQuedanPDF()
+public function exportQuedanPDF(Request $request)
 {
     $quedans = Quedan::orderBy('planter_name')->get();
-    $pdf = Pdf::loadView('pdf.quedan-registry', [
-        'quedans' => $quedans,
+    $pdf = Pdf::loadView('pdf.ledger', [
+        'title' => 'Quedan Registry',
+        'rows' => $quedans,
+        'columns' => [
+            ['key' => 'crop_year', 'label' => 'Season'],
+            ['key' => 'week_no', 'label' => 'Week'],
+            ['key' => 'planter_code', 'label' => 'Planter Code'],
+            ['key' => 'planter_name', 'label' => 'Planter Name'],
+            ['key' => 'qdn_no', 'label' => 'Quedan No.'],
+            ['key' => 'tin_no', 'label' => 'TIN'],
+            ['key' => 'total_liens', 'label' => 'Total Liens (PHP)', 'decimals' => 2],
+            ['key' => 'sugar_lkg', 'label' => 'Sugar Lkg', 'decimals' => 3],
+            ['key' => 'labor_lkg', 'label' => 'Labor Lkg', 'decimals' => 3],
+            ['key' => 'status', 'label' => 'Status'],
+        ],
         'generatedDate' => now()->format('F d, Y H:i:s'),
     ])->setPaper('a4', 'landscape');
-    return $pdf->download('quedan-registry-' . now()->format('Y-m-d') . '.pdf');
+    $filename = 'quedan-registry-' . now()->format('Y-m-d') . '.pdf';
+    return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
 }
 
-public function exportMolassesPDF()
+public function exportMolassesPDF(Request $request)
 {
     $molassesList = Molass::orderBy('planter_name')->get();
-    $pdf = Pdf::loadView('pdf.molasses-registry', [
-        'molassesList' => $molassesList,
+    $pdf = Pdf::loadView('pdf.ledger', [
+        'title' => 'Molasses Registry',
+        'rows' => $molassesList,
+        'columns' => [
+            ['key' => 'crop_year', 'label' => 'Season'],
+            ['key' => 'week_no', 'label' => 'Week'],
+            ['key' => 'planter_code', 'label' => 'Planter Code'],
+            ['key' => 'planter_name', 'label' => 'Planter Name'],
+            ['key' => 'mc_no', 'label' => 'Molasses Certificate'],
+            ['key' => 'tin_no', 'label' => 'TIN'],
+            ['key' => 'mol_net', 'label' => 'Molasses Net', 'decimals' => 3],
+            ['key' => 'status', 'label' => 'Status'],
+        ],
         'generatedDate' => now()->format('F d, Y H:i:s'),
     ])->setPaper('a4', 'landscape');
-    return $pdf->download('molasses-registry-' . now()->format('Y-m-d') . '.pdf');
+    $filename = 'molasses-registry-' . now()->format('Y-m-d') . '.pdf';
+    return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
 }
 
 

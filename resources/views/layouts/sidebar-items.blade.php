@@ -19,9 +19,19 @@
 </li>
 
 <!-- Quedan & Molasses Dropdown -->
-<li x-data="{ open: {{ request()->routeIs('prices.registry*') || request()->routeIs('quedan-molasses-registry*') || request()->routeIs('quedans.bulk*') || request()->routeIs('molasses.bulk*') ? 'true' : 'false' }} }">
-    <button @click="open = !open"
-        class="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('prices.registry*') || request()->routeIs('quedan-molasses-registry*') || request()->routeIs('quedan-buy*') || request()->routeIs('molasses-buy*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
+@php
+    $quedanMolassesActive = request()->routeIs(
+        'prices.registry*',
+        'quedan-molasses-registry*',
+        'quedan-buy*',
+        'molasses-buy*',
+        'quedans.bulk*',
+        'molasses.bulk*'
+    );
+@endphp
+<li x-data="{ open: {{ $quedanMolassesActive ? 'true' : 'false' }} }">
+    <button type="button" @click="open = !open" :aria-expanded="open.toString()"
+        class="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ $quedanMolassesActive ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
         <i class="fas fa-qrcode w-5 h-5 shrink-0 flex items-center justify-center text-center"></i>
         <span class="flex-1 text-left">Quedan & Molasses</span>
         <i class="fas fa-chevron-down w-4 h-4 shrink-0 flex items-center justify-center transition-transform"
@@ -241,12 +251,13 @@
 <!-- Reports -->
 @php
     $canViewReports = auth()->user()->role === 'Administrator' || auth()->user()->hasPermission('view-reports');
+    $reportsActive = request()->routeIs('summaryReport', 'consolidated-report*', 'trucking-allowance-report*');
 @endphp
 
 @if ($canViewReports)
-    <li x-data="{ open: {{ request()->routeIs('summaryReport') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
-            class="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('summaryReport') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
+    <li x-data="{ open: {{ $reportsActive ? 'true' : 'false' }} }">
+        <button type="button" @click="open = !open" :aria-expanded="open.toString()"
+            class="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ $reportsActive ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
             <i class="fas fa-chart-pie w-5 h-5 shrink-0 flex items-center justify-center text-center"></i>
             <span class="flex-1 text-left">Reports</span>
             <i class="fas fa-chevron-down w-4 h-4 shrink-0 flex items-center justify-center transition-transform"
@@ -327,7 +338,7 @@
 
 @if ($canViewLoans)
     <li x-data="{ open: {{ request()->routeIs('loans.*') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
+        <button type="button" @click="open = !open" :aria-expanded="open.toString()"
             class="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('loans.*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
             <i class="fas fa-hand-holding-usd w-5 h-5 shrink-0 flex items-center justify-center text-center"></i>
             <span class="flex-1 text-left">Loans</span>
@@ -377,7 +388,7 @@
 
 @if ($canViewCA)
     <li x-data="{ open: {{ request()->routeIs('cash-advances.*') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
+        <button type="button" @click="open = !open" :aria-expanded="open.toString()"
             class="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('cash-advances.*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
             <i class="fas fa-money-bill-wave w-5 h-5 shrink-0 flex items-center justify-center text-center"></i>
             <span class="flex-1 text-left">Cash Advances</span>

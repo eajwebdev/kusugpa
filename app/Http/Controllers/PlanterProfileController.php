@@ -311,11 +311,22 @@ class PlanterProfileController extends Controller
 
         $planters = $query->get();
 
-        $pdf = Pdf::loadView('pdf.planter-profiles', [
-            'planters' => $planters,
+        $pdf = Pdf::loadView('pdf.ledger', [
+            'title' => 'Planter Profiles',
+            'rows' => $planters,
+            'columns' => [
+                ['key' => 'planter_code', 'label' => 'Code'],
+                ['key' => 'planter_name', 'label' => 'Planter Name'],
+                ['key' => 'contact_number', 'label' => 'Contact'],
+                ['key' => 'address', 'label' => 'Address'],
+                ['key' => 'area_location', 'label' => 'Area Location'],
+                ['key' => 'total_area', 'label' => 'Total Area (ha)', 'decimals' => 2],
+                ['key' => 'status', 'label' => 'Status'],
+                ['key' => 'membership_date', 'label' => 'Member Since'],
+            ],
             'generatedDate' => now()->format('F d, Y'),
         ])->setPaper('a4', 'landscape');
 
-        return $pdf->download('planter-profiles.pdf');
+        return $request->boolean('preview') ? $pdf->stream('planter-profiles.pdf') : $pdf->download('planter-profiles.pdf');
     }
 }

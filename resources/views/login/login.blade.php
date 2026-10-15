@@ -19,19 +19,19 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="h-full" x-data="{ showPassword: false, loading: false }">
-    <div class="kp-auth">
+    <div class="kp-auth kp-auth--login">
         <aside class="kp-auth-aside">
             <div>
+                <a href="{{ url('/') }}" class="kp-auth-back"><i class="fas fa-arrow-left" aria-hidden="true"></i> Back to home</a>
                 <div class="kp-auth-seal grid place-items-center overflow-hidden mb-7">
                     <picture>
                         <source srcset="{{ asset('img/logo-128.webp') }}" type="image/webp">
                         <img src="{{ asset('img/logo-128.png') }}" alt="KUSUG-PA logo" width="64" height="64" class="w-16 h-16 object-contain">
                     </picture>
                 </div>
-                <h1 class="kp-auth-h1">KUSUG-PA</h1>
-                <p class="text-sm mt-3" style="color:#CFE5D6; max-width:34ch;">
-                    Sugarcane Crop Management &amp; Recording System for the Planters Association.
-                </p>
+                <p class="kp-auth-eyebrow">THE PLANTER PORTAL</p>
+                <h1 class="kp-auth-h1">Everything your harvest needs, in one place.</h1>
+                <p class="kp-auth-intro">Crop records, vouchers, loans and reports for the KUSUG-PA community.</p>
 
                 <div class="mt-8">
                     <div class="kp-auth-fact">
@@ -59,46 +59,45 @@
             </div>
 
             <p class="text-xs" style="color:#8AA895;">
-                &copy; {{ date('Y') }} KUSUG-PA Planters Association &middot; v1.0
+                &copy; {{ date('Y') }} KUSUG-PA Planters Association
             </p>
         </aside>
 
         <main class="kp-auth-main">
             <div class="kp-auth-panel">
-                <p class="text-sm font-medium" style="color:var(--kp-muted);">Planter / Staff Portal</p>
-                <h2 class="kp-auth-title mt-1">Welcome back</h2>
-                <p class="text-sm mt-2" style="color:var(--kp-muted);">Sign in to continue to your account.</p>
+                <a href="{{ url('/') }}" class="kp-auth-mobile-brand"><img src="{{ asset('img/logo-64.png') }}" alt="" width="40" height="40"> KUSUG-PA</a>
+                <p class="kp-auth-kicker">SECURE ACCESS <span aria-hidden="true"></span> PLANTER PORTAL</p>
+                <h2 class="kp-auth-title">Welcome back.</h2>
+                <p class="kp-auth-subtitle">Enter your credentials to open your workspace.</p>
 
                 @if(session('error'))
-                <div class="mt-5 bg-red-50 border border-red-100 rounded-lg p-3.5 flex items-start gap-3" x-data="{ show: true }" x-show="show">
+                <div class="mt-5 bg-red-50 border border-red-100 rounded-lg p-3.5 flex items-start gap-3" role="alert">
                     <i class="fas fa-exclamation-circle text-red-400 mt-0.5"></i>
                     <p class="text-sm text-red-700 flex-1">{{ session('error') }}</p>
-                    <button @click="show = false" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
                 </div>
                 @endif
 
                 @if(session('success'))
-                <div class="mt-5 bg-green-50 border border-green-100 rounded-lg p-3.5 flex items-start gap-3" x-data="{ show: true }" x-show="show">
+                <div class="mt-5 bg-green-50 border border-green-100 rounded-lg p-3.5 flex items-start gap-3" role="status">
                     <i class="fas fa-check-circle text-green-400 mt-0.5"></i>
                     <p class="text-sm text-green-700 flex-1">{{ session('success') }}</p>
-                    <button @click="show = false" class="text-green-400 hover:text-red-600"><i class="fas fa-times"></i></button>
                 </div>
                 @endif
 
-                <form class="mt-6 space-y-5" action="{{ route('postLogin') }}" method="POST" @submit="loading = true">
+                <form class="kp-login-form" action="{{ route('postLogin') }}" method="POST" @submit="loading = true">
                     @csrf
 
                     <div class="kp-field">
                         <label for="username" class="kp-label">Username</label>
                         <div class="kp-control">
                             <i class="fas fa-user kp-lead"></i>
-                            <input id="username" name="username" type="text" required
+                            <input id="username" name="username" type="text" required autofocus
                                    placeholder="Enter your username"
                                    value="{{ old('username') }}"
-                                   autocomplete="username">
+                                   autocomplete="username" @error('username') aria-invalid="true" aria-describedby="username-error" @enderror>
                         </div>
                         @error('username')
-                            <p class="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                            <p id="username-error" class="mt-1.5 text-xs text-red-500 flex items-center gap-1" role="alert">
                                 <i class="fas fa-info-circle"></i>{{ $message }}
                             </p>
                         @enderror
@@ -108,11 +107,12 @@
                         <label for="password" class="kp-label">Password</label>
                         <div class="kp-control">
                             <i class="fas fa-lock kp-lead"></i>
-                            <input id="password" name="password"
-                                   :type="showPassword ? 'text' : 'password'"
+                            <input id="password" name="password" type="password"
+                                   x-bind:type="showPassword ? 'text' : 'password'"
                                    required
                                    placeholder="Enter your password"
                                    autocomplete="current-password"
+                                   @error('password') aria-invalid="true" aria-describedby="password-error" @enderror
                                    class="has-trail">
                             <span class="kp-trail">
                                 <button type="button" @click="showPassword = !showPassword"
@@ -123,18 +123,10 @@
                             </span>
                         </div>
                         @error('password')
-                            <p class="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                            <p id="password-error" class="mt-1.5 text-xs text-red-500 flex items-center gap-1" role="alert">
                                 <i class="fas fa-info-circle"></i>{{ $message }}
                             </p>
                         @enderror
-                    </div>
-
-                    <div class="flex items-center justify-between text-sm">
-                        <label class="flex items-center gap-2 cursor-pointer select-none" style="color:var(--kp-muted);">
-                            <input id="remember-me" name="remember-me" type="checkbox"
-                                   class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
-                            Remember me
-                        </label>
                     </div>
 
                     <button type="submit" class="kp-submit" :disabled="loading">
@@ -148,23 +140,19 @@
 
                 @if(config('demo.enabled'))
                 <div class="kp-demo">
-                    <div class="relative text-center">
-                        <span class="text-xs font-semibold uppercase tracking-wide rounded-full px-3 py-1"
-                              style="color:var(--kp-forest); background:var(--kp-soft);">
-                            <i class="fas fa-flask mr-1"></i> Demo mode &mdash; one-click sign in
-                        </span>
-                    </div>
+                    <div class="kp-demo-heading"><span class="kp-demo-badge"><i class="fas fa-bolt" aria-hidden="true"></i> DEMO ACCESS</span><p>Explore the system with one click</p></div>
                     <div class="kp-demo-grid">
                         @foreach(config('demo.accounts') as $demo)
                         <form action="{{ route('demoLogin') }}" method="POST">
                             @csrf
                             <input type="hidden" name="username" value="{{ $demo['username'] }}">
-                            <button type="submit" class="kp-demo-btn">
-                                <span class="kp-demo-ic"><i class="fas fa-user-shield"></i></span>
+                            <button type="submit" class="kp-demo-btn" aria-label="Sign in as demo {{ $demo['lname'] }}">
+                                <span class="kp-demo-ic"><i class="fas fa-user-shield" aria-hidden="true"></i></span>
                                 <span class="min-w-0">
                                     <span class="kp-demo-name block truncate">{{ $demo['lname'] }}</span>
                                     <span class="kp-demo-role block truncate">{{ $demo['role'] }}</span>
                                 </span>
+                                <i class="fas fa-arrow-right kp-demo-arrow" aria-hidden="true"></i>
                             </button>
                         </form>
                         @endforeach

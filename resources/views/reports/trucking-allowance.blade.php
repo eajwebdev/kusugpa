@@ -17,8 +17,8 @@
                     <button @click="showDeleteModal = true" class="kp-btn kp-btn-danger">
                         <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Manage / Delete Records
                     </button>
-                    <a href="{{ route('trucking-allowance-report.export') }}" class="kp-btn kp-btn-secondary">
-                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Export PDF
+                    <a :href="'{{ route('trucking-allowance-report.export') }}?search=' + encodeURIComponent(search)" data-pdf-preview="Trucking Allowance Report" class="kp-btn kp-btn-secondary">
+                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Preview PDF
                     </a>
                 </div>
             </div>

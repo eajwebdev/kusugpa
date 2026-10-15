@@ -15,6 +15,36 @@ use App\Models\User;
 
 class UploadController extends Controller
 {
+    private const TEMPLATE_COLUMNS = [
+        'summary' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'net_cane', 'net_amount'],
+        'trucking' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'net_cane', 'ta_amount', 'trans_code'],
+        'fci' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'fci_amount'],
+        'fuel' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'fuel_amount'],
+        'rentals' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'rental_amount'],
+        'underload' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'underload_amount'],
+        'transloading' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'transloading_amount'],
+        'mudpress' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'trans_code', 'charge_code', 'mpress'],
+        'consolidated' => [
+            'planter_code', 'assn_code', 'planter_name', 'assn_name', 'ta_wt', 'ta_amount',
+            'emi_wt', 'emi_amount', 'pat_wt', 'pat_amount', 'cci_fa_wt', 'cci_fa_amt',
+            'cci_fb_wt', 'cci_fb_amt', 'cci_fc_wt', 'cci_fc_amt', 'fuel_issuance_amt',
+            'rental_amt', 'underload_amt', 'mudpress_amt', 'adj_amt',
+        ],
+        'quedan' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg'],
+        'molasses' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'tin_no', 'mc_no', 'mol_net'],
+    ];
+
+    public function downloadTemplate(string $type)
+    {
+        abort_unless(isset(self::TEMPLATE_COLUMNS[$type]), 404);
+
+        return response()->streamDownload(function () use ($type) {
+            $output = fopen('php://output', 'w');
+            fputcsv($output, self::TEMPLATE_COLUMNS[$type]);
+            fclose($output);
+        }, "kusugpa-{$type}-template.csv", ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     public function uploadCSV(Request $request, $type)
     {
         $permissionMap = [
@@ -91,10 +121,17 @@ class UploadController extends Controller
                 $lines[] = str_getcsv($row, $delimiter);
             }
             
-            Log::info('CSV Lines parsed', ['total_lines' => count($lines)]);
-            
-            if (!empty($lines)) {
-                Log::info('First data line', ['line' => $lines[0] ?? 'N/A', 'columns' => count($lines[0] ?? [])]);
+            // Every downloadable template starts with column headings. Always treat
+            // the first nonblank CSV row as the header, regardless of its contents.
+            $header = array_shift($lines);
+            Log::info('CSV header skipped', ['header' => $header, 'data_rows' => count($lines)]);
+
+            if (empty($lines)) {
+                $message = 'The CSV has no data rows. Add records below the header and try again.';
+                if ($request->ajax() || $request->expectsJson()) {
+                    return response()->json(['error' => $message], 422);
+                }
+                return redirect()->back()->with('error', $message);
             }
             
             $batchData = [];
@@ -103,16 +140,13 @@ class UploadController extends Controller
             
             foreach ($lines as $index => $line) {
                 if (empty(array_filter($line))) continue;
+
+                $rowNumber = $index + 2;
                 
-                if ($index === 0 && !is_numeric(trim($line[0]))) {
-                    Log::info('Skipping header row', ['row' => $line]);
-                    continue;
-                }
-                
-                $method = 'process' . ucfirst($type) . 'Line';
+                $method = 'process' . ucfirst($type === 'rentals' ? 'rental' : $type) . 'Line';
                 
                 if (method_exists($this, $method)) {
-                    $processed = $this->$method($line, $index, $userId);
+                    $processed = $this->$method($line, $rowNumber, $userId);
                     
                     if ($processed['success']) {
                         $processed['data']['crop_year'] = $cropYear;
@@ -120,7 +154,7 @@ class UploadController extends Controller
                         $batchData[] = $processed['data'];
                     } else {
                         $errors[] = $processed['error'];
-                        Log::warning('CSV line error', ['line' => $index, 'error' => $processed['error']]);
+                        Log::warning('CSV line error', ['line' => $rowNumber, 'error' => $processed['error']]);
                     }
                 }
             }
@@ -306,6 +340,27 @@ class UploadController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ]
+        ];
+    }
+
+    private function processFciLine($line, $index, $userId)
+    {
+        if (count($line) < 5) {
+            return ['success' => false, 'error' => "Line {$index}: Insufficient columns"];
+        }
+
+        return [
+            'success' => true,
+            'data' => [
+                'crop_year' => trim($line[0]),
+                'week_no' => trim($line[1]),
+                'planter_code' => trim($line[2]),
+                'planter_name' => trim($line[3]),
+                'fci_amount' => (float) str_replace(',', '', trim($line[4])),
+                'user_id' => $userId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ];
     }
     

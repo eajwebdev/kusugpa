@@ -23,8 +23,8 @@
                             <i class="fas fa-sync mr-1.5" aria-hidden="true"></i> Sync
                         </button>
                     @endif
-                    <a href="{{ route('planter-profiles.export') }}" class="kp-btn kp-btn-secondary">
-                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Export PDF
+                    <a href="{{ route('planter-profiles.export') }}" data-pdf-preview="Planter Profiles" class="kp-btn kp-btn-secondary">
+                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Preview PDF
                     </a>
                 </div>
             </div>

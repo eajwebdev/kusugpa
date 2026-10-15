@@ -275,6 +275,10 @@ Route::middleware(['login_auth:manage-crop-weeks'])->group(function () {
     ->where('type', 'summary|trucking|fuel|rentals|underload|transloading|fci|mudpress|consolidated|quedan|molasses')
     ->name('upload.csv');
 
+    Route::get('/upload/{type}/template', [UploadController::class, 'downloadTemplate'])
+    ->where('type', 'summary|trucking|fuel|rentals|underload|transloading|fci|mudpress|consolidated|quedan|molasses')
+    ->name('upload.template');
+
     Route::get('/quedan-registry/export', [PriceController::class, 'exportQuedanPDF'])->name('quedan-registry.export');
     Route::get('/molasses-registry/export', [PriceController::class, 'exportMolassesPDF'])->name('molasses-registry.export');
 

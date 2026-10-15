@@ -19,8 +19,9 @@
                         <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Batch Delete
                     </button>
                     <a :href="activeTab === 'quedan' ? '{{ route('quedan-registry.export') }}' : '{{ route('molasses-registry.export') }}'"
+                        :data-pdf-preview="activeTab === 'quedan' ? 'Quedan Registry' : 'Molasses Registry'"
                         class="kp-btn kp-btn-secondary text-xs">
-                        <i class="fas fa-file-pdf mr-1.5 text-rose-600 dark:text-rose-400" aria-hidden="true"></i> Export <span x-text="activeTab === 'quedan' ? 'Quedan PDF' : 'Molasses PDF'"></span>
+                        <i class="fas fa-file-pdf mr-1.5 text-rose-600 dark:text-rose-400" aria-hidden="true"></i> Preview <span x-text="activeTab === 'quedan' ? 'Quedan PDF' : 'Molasses PDF'"></span>
                     </a>
                 </div>
             </div>

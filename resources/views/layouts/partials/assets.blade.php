@@ -1,5 +1,8 @@
 {{-- KUSUG-PA shared frontend assets: fonts, Tailwind theme (design tokens), design-system stylesheet.
      Included by every full-page layout so the whole system shares one visual language. --}}
+<link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
+<link rel="icon" type="image/png" sizes="64x64" href="{{ asset('img/logo-64.png') }}">
+<link rel="apple-touch-icon" sizes="128x128" href="{{ asset('img/logo-128.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link

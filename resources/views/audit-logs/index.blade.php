@@ -15,7 +15,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <button @click="exportPDF()" class="kp-btn kp-btn-secondary">
-                    <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Export PDF
+                    <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Preview PDF
                 </button>
             </div>
         </div>
@@ -360,7 +360,7 @@
                 if (this.dateFrom) params.append('date_from', this.dateFrom);
                 if (this.dateTo) params.append('date_to', this.dateTo);
                 if (this.moduleFilter !== 'all') params.append('module', this.moduleFilter);
-                window.open('/audit-logs/export/pdf?' + params.toString(), '_blank');
+                window.KusugpaPdfPreview.open('/audit-logs/export/pdf?' + params.toString(), 'Audit Logs');
             },
 
             getActionBadgeClass(action) {

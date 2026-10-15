@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
+    <link rel="icon" type="image/png" sizes="64x64" href="{{ asset('img/logo-64.png') }}">
     <title>KUSUG-PA | 
         @if($type === 'locked') System Locked
         @elseif($type === 'payment') Payment Required
@@ -76,7 +78,7 @@
         }
     </style>
 </head>
-<body class="bg-slate-950 h-screen flex items-center justify-center overflow-hidden relative">
+<body class="bg-slate-950 min-h-screen flex items-center justify-center overflow-x-hidden overflow-y-auto relative">
 
     <!-- Animated Background Particles -->
     <div class="absolute inset-0 pointer-events-none" id="particles"></div>

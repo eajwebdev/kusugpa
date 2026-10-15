@@ -17,9 +17,9 @@
                     <button @click="showDeleteModal = true" class="kp-btn kp-btn-danger">
                         <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Manage / Delete Records
                     </button>
-                    <a href="{{ route('consolidated-report.export') }}" class="kp-btn kp-btn-secondary">
-                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Export PDF
-                    </a>
+                    <button type="button" @click="openPdfPreview()" class="kp-btn kp-btn-secondary">
+                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Preview PDF
+                    </button>
                 </div>
             </div>
             <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
@@ -311,6 +311,12 @@
 
                     init() {
                         this.fetchAvailableFilters();
+                    },
+
+                    openPdfPreview() {
+                        const url = new URL(@json(route('consolidated-report.export')), window.location.origin);
+                        if (this.search.trim()) url.searchParams.set('search', this.search.trim());
+                        window.KusugpaPdfPreview.open(url.toString(), 'Consolidated Report');
                     },
 
                     async fetchAvailableFilters() {

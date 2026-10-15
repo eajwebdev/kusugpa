@@ -301,7 +301,7 @@
                             </div>
                             <div>
                                 <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">System Maintenance Mode</h3>
-                                <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Display a maintenance splash screen for regular portal users while maintenance runs.</p>
+                                <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Show the maintenance screen to Super Admin, Manager, and other portal users. Administrator access stays available.</p>
                             </div>
                         </div>
 

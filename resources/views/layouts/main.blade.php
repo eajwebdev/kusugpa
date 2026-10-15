@@ -7,7 +7,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#003F20">
-    <link rel="icon" type="image/png" href="{{ asset('img/logo-64.png') }}">
     <title>KUSUG-PA @hasSection('title')| @yield('title')@elseif(isset($title))| {{ $title }}@endif</title>
 
     <!-- Apply saved theme / sidebar state before first paint (prevents flash) -->
@@ -136,6 +135,70 @@
         }
     </script>
 
+    <dialog id="kpGlobalPdfPreview" class="kp-pdf-preview" aria-labelledby="kpGlobalPdfTitle">
+        <div class="kp-pdf-preview-header">
+            <div class="min-w-0">
+                <h2 id="kpGlobalPdfTitle">PDF Preview</h2>
+                <p>Document preview</p>
+            </div>
+            <div class="kp-pdf-preview-actions">
+                <a id="kpGlobalPdfOpen" href="#" target="_blank" rel="noopener" class="kp-btn kp-btn-secondary" aria-label="Open PDF in a new tab">
+                    <i class="fas fa-external-link-alt" aria-hidden="true"></i><span>Open in new tab</span>
+                </a>
+                <button id="kpGlobalPdfClose" type="button" class="kp-pdf-preview-close" aria-label="Close PDF preview">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <iframe id="kpGlobalPdfFrame" title="PDF document preview" class="kp-pdf-preview-frame"></iframe>
+    </dialog>
+    <script>
+        (() => {
+            const dialog = document.getElementById('kpGlobalPdfPreview');
+            const frame = document.getElementById('kpGlobalPdfFrame');
+            const title = document.getElementById('kpGlobalPdfTitle');
+            const openLink = document.getElementById('kpGlobalPdfOpen');
+            let returnFocus = null;
+
+            window.KusugpaPdfPreview = {
+                open(source, label = 'PDF Preview', trigger = document.activeElement) {
+                    if (!source) return;
+                    const url = new URL(source, window.location.href);
+                    url.searchParams.set('preview', '1');
+                    title.textContent = label;
+                    frame.title = label + ' PDF preview';
+                    openLink.href = url.toString();
+                    returnFocus = trigger;
+                    frame.src = url.toString();
+                    if (!dialog.open) dialog.showModal();
+                    document.getElementById('kpGlobalPdfClose').focus();
+                },
+                close() { if (dialog.open) dialog.close(); }
+            };
+
+            document.getElementById('kpGlobalPdfClose').addEventListener('click', () => dialog.close());
+            dialog.addEventListener('close', () => {
+                frame.removeAttribute('src');
+                if (returnFocus && returnFocus.isConnected) returnFocus.focus();
+                returnFocus = null;
+            });
+            document.addEventListener('click', event => {
+                const link = event.target.closest('a[data-pdf-preview]');
+                if (!link) return;
+                event.preventDefault();
+                window.KusugpaPdfPreview.open(link.href, link.dataset.pdfPreview || 'PDF Preview', link);
+            });
+            document.addEventListener('submit', event => {
+                const form = event.target;
+                if (!form.matches('form[data-pdf-preview]')) return;
+                event.preventDefault();
+                const url = new URL(form.action, window.location.href);
+                new FormData(form).forEach((value, key) => url.searchParams.append(key, value));
+                window.KusugpaPdfPreview.open(url.toString(), form.dataset.pdfPreview || 'PDF Preview', event.submitter || form);
+            });
+        })();
+    </script>
+
     @stack('scripts')
 
 
@@ -231,426 +294,77 @@
         const APP_BASE_URL = '{{ url('/') }}'.replace(/\/$/, '');
         const GET_WEEKS_URL = '{{ url('/get-weeks') }}';
         const UPLOAD_BASE_URL = '{{ url('/upload') }}';
+        const UPLOAD_TEMPLATE_BASE_URL = '{{ url('/upload') }}';
         // Tracks which upload modal is open. Used by checkUploadReady() instead of
         // guessing the type from the modal title text (fragile).
         let currentUploadType = '';
 
-        function openQuedanPriceModal() {
-            Swal.fire({
-                title: 'Add Quedan Price',
-                html: swalCustomStyles + `
-            <div style="padding: 0.5rem 0;">
-                <div class="input-group">
-                    <label class="form-label"><i class="fas fa-tag"></i> Quedan Type</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fas fa-tag"></i>
-                        <input type="text" id="quedan_type" class="swal2-input" placeholder="Enter quedan type (e.g., A, B, C)" style="padding-left: 2.75rem;">
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label class="form-label"><i class="fas fa-peso-sign"></i> Quedan Price</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fas fa-peso-sign"></i>
-                        <input type="number" id="quedan_price" class="swal2-input" placeholder="Enter price (e.g., 950.00)" step="0.01">
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label class="form-label"><i class="fas fa-calendar-alt"></i> Crop Year</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fas fa-calendar-alt"></i>
-                        <select id="crop_year" class="swal2-select">
-                            <option value="">Select crop year</option>
-                            @foreach (App\Models\CropYear::pluck('crop_year') as $year)
-                                <option value="{{ $year }}">{{ $year }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label class="form-label"><i class="fas fa-calendar-week"></i> Week Number</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fas fa-calendar-week"></i>
-                        <select id="week_no" class="swal2-select">
-                            <option value="">Select week number</option>
-                            @foreach (App\Models\WeekNo::pluck('week_no')->unique()->sort() as $week)
-                                <option value="{{ $week }}">Week {{ $week }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-            </div>
-        `,
-                showCancelButton: true,
-                confirmButtonText: '<i class="fas fa-save mr-2"></i> Save Price',
-                cancelButtonText: '<i class="fas fa-times mr-2"></i> Cancel',
-                preConfirm: () => {
-                    const quedanType = document.getElementById('quedan_type').value.trim();
-                    const quedanPrice = document.getElementById('quedan_price').value;
-                    const cropYear = document.getElementById('crop_year').value;
-                    const weekNo = document.getElementById('week_no').value;
-                    if (!quedanType || !quedanPrice || !cropYear || !weekNo) {
-                        Swal.showValidationMessage('Please fill all fields');
-                        return false;
-                    }
-                    return fetch('{{ url('/updates/add-quedan-price') }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                quedan_type: quedanType,
-                                quedan_price: quedanPrice,
-                                crop_year: cropYear,
-                                week_no: weekNo,
-                                user_id: '{{ auth()->id() }}'
-                            })
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.message) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Success!',
-                                    text: data.message,
-                                    timer: 2000,
-                                    showConfirmButton: false
-                                });
-                                refreshDashboardData();
-                            }
-                        })
-                        .catch(error => {
-                            Swal.showValidationMessage('Failed to save. Please try again.');
-                        });
-                }
-            });
-        }
-
-        function openMolassesPriceModal() {
-            Swal.fire({
-                title: 'Add Molasses Price',
-                html: swalCustomStyles + `
-            <div style="padding: 0.5rem 0;">
-                <div class="input-group">
-                    <label class="form-label"><i class="fas fa-peso-sign"></i> Molasses Price</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fas fa-peso-sign"></i>
-                        <input type="number" id="mol_price" class="swal2-input" placeholder="Enter price (e.g., 850.00)" step="0.01">
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label class="form-label"><i class="fas fa-calendar-alt"></i> Crop Year</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fas fa-calendar-alt"></i>
-                        <select id="crop_year" class="swal2-select">
-                            <option value="">Select crop year</option>
-                            @foreach (App\Models\CropYear::pluck('crop_year') as $year)
-                                <option value="{{ $year }}">{{ $year }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label class="form-label"><i class="fas fa-calendar-week"></i> Week Number</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fas fa-calendar-week"></i>
-                        <select id="week_no" class="swal2-select">
-                            <option value="">Select week number</option>
-                            @foreach (App\Models\WeekNo::pluck('week_no')->unique()->sort() as $week)
-                                <option value="{{ $week }}">Week {{ $week }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-            </div>
-        `,
-                showCancelButton: true,
-                confirmButtonText: '<i class="fas fa-save mr-2"></i> Save Price',
-                cancelButtonText: '<i class="fas fa-times mr-2"></i> Cancel',
-                preConfirm: () => {
-                    const molPrice = document.getElementById('mol_price').value;
-                    const cropYear = document.getElementById('crop_year').value;
-                    const weekNo = document.getElementById('week_no').value;
-                    if (!molPrice || !cropYear || !weekNo) {
-                        Swal.showValidationMessage('Please fill all fields');
-                        return false;
-                    }
-                    return fetch('{{ url('/updates/add-molasses-price') }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                            },
-                            body: JSON.stringify({
-                                mol_price: molPrice,
-                                crop_year: cropYear,
-                                week_no: weekNo,
-                                user_id: '{{ auth()->id() }}'
-                            })
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.message) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Success!',
-                                    text: data.message,
-                                    timer: 2000,
-                                    showConfirmButton: false
-                                });
-                                refreshDashboardData();
-                            }
-                        })
-                        .catch(error => {
-                            Swal.showValidationMessage('Failed to save. Please try again.');
-                        });
-                }
-            });
-        }
-
-        function openCropYearModal() {
-            Swal.fire({
-                title: 'Add Crop Year',
-                html: swalCustomStyles + `
-            <div style="padding: 0.5rem 0;">
-                <div class="input-group">
-                    <label class="form-label"><i class="fas fa-calendar-alt"></i> Crop Year</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fas fa-calendar-alt"></i>
-                        <input type="text" id="new_crop_year" class="swal2-input" placeholder="Enter crop year (e.g., 20232024)" maxlength="8">
-                    </div>
-                    <p style="font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem;"><i class="fas fa-info-circle mr-1"></i> Format: YYYYMMDD (e.g., 20232024)</p>
-                </div>
-            </div>
-        `,
-                showCancelButton: true,
-                confirmButtonText: '<i class="fas fa-plus-circle mr-2"></i> Add Crop Year',
-                cancelButtonText: '<i class="fas fa-times mr-2"></i> Cancel',
-                preConfirm: () => {
-                    const cropYear = document.getElementById('new_crop_year').value.trim();
-                    if (!cropYear) {
-                        Swal.showValidationMessage('Please enter crop year');
-                        return false;
-                    }
-                    if (!cropYear.match(/^\d{8}$/)) {
-                        Swal.showValidationMessage('Please use format: YYYYMMDD (e.g., 20232024)');
-                        return false;
-                    }
-                    return fetch('{{ url('/updates/add-crop-year') }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                crop_year: cropYear,
-                                user_id: '{{ auth()->id() }}'
-                            })
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.message) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Success!',
-                                    text: data.message,
-                                    timer: 2000,
-                                    showConfirmButton: false
-                                });
-                                refreshDashboardData();
-                            }
-                        })
-                        .catch(error => {
-                            Swal.showValidationMessage('Failed to save. Please try again.');
-                        });
-                }
-            });
-        }
-
-        function openWeekNumberModal() {
-            Swal.fire({
-                title: 'Add Week Number',
-                html: swalCustomStyles + `
-            <div style="padding: 0.5rem 0;">
-                <div class="input-group"><label class="form-label"><i class="fas fa-calendar-alt"></i> Crop Year</label><div class="input-icon-wrapper"><i class="fas fa-calendar-alt"></i><select id="crop_year" class="swal2-select"><option value="">Select crop year</option>@foreach (App\Models\CropYear::pluck('crop_year') as $year)<option value="{{ $year }}">{{ $year }}</option>@endforeach</select></div></div>
-                <div class="input-group"><label class="form-label"><i class="fas fa-hashtag"></i> Week Number</label><div class="input-icon-wrapper"><i class="fas fa-hashtag"></i><input type="number" id="week_no" class="swal2-input" placeholder="Enter week number (e.g., 1)" min="1" max="52"></div></div>
-                <div class="input-group"><label class="form-label"><i class="fas fa-play-circle"></i> Week Start</label><div class="grid grid-cols-2 gap-2"><div class="input-icon-wrapper"><i class="fas fa-calendar"></i><input type="date" id="week_start_date" class="swal2-input" style="padding-left: 2.75rem;"></div><div class="input-icon-wrapper"><i class="fas fa-clock"></i><input type="time" id="week_start_time" class="swal2-input" value="00:00:00" step="1" style="padding-left: 2.75rem;"></div></div></div>
-                <div class="input-group"><label class="form-label"><i class="fas fa-stop-circle"></i> Week End</label><div class="grid grid-cols-2 gap-2"><div class="input-icon-wrapper"><i class="fas fa-calendar"></i><input type="date" id="week_end_date" class="swal2-input" style="padding-left: 2.75rem;"></div><div class="input-icon-wrapper"><i class="fas fa-clock"></i><input type="time" id="week_end_time" class="swal2-input" value="23:59:59" step="1" style="padding-left: 2.75rem;"></div></div></div>
-            </div>`,
-                showCancelButton: true,
-                confirmButtonText: '<i class="fas fa-save mr-2"></i> Save Week',
-                cancelButtonText: '<i class="fas fa-times mr-2"></i> Cancel',
-                preConfirm: () => {
-                    const cropYear = document.getElementById('crop_year').value;
-                    const weekNo = document.getElementById('week_no').value;
-                    const startDate = document.getElementById('week_start_date').value;
-                    const startTime = document.getElementById('week_start_time').value || '00:00:00';
-                    const endDate = document.getElementById('week_end_date').value;
-                    const endTime = document.getElementById('week_end_time').value || '23:59:59';
-                    if (!cropYear || !weekNo || !startDate || !endDate) {
-                        Swal.showValidationMessage('Please fill all fields');
-                        return false;
-                    }
-                    const weekStart = startDate + ' ' + startTime;
-                    const weekEnd = endDate + ' ' + endTime;
-                    if (new Date(weekEnd) <= new Date(weekStart)) {
-                        Swal.showValidationMessage('End date/time must be after start date/time');
-                        return false;
-                    }
-                    return fetch('{{ url('/updates/add-week-number') }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                crop_year: cropYear,
-                                week_no: weekNo,
-                                week_start_date: weekStart,
-                                week_end_date: weekEnd,
-                                user_id: '{{ auth()->id() }}'
-                            })
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.message) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Success!',
-                                    text: data.message,
-                                    timer: 2000,
-                                    showConfirmButton: false
-                                });
-                                refreshDashboardData();
-                            }
-                        })
-                        .catch(error => {
-                            Swal.showValidationMessage('Failed to save. Please try again.');
-                        });
-                }
-            });
-        }
-
-        // Handle file selection
-        function handleFileSelect(input) {
-            const file = input.files[0];
-            if (file) {
-                document.getElementById('selectedFileName').textContent = file.name;
-                document.getElementById('fileInfo2').style.display = 'block';
-            }
-        }
+        @include('layouts.partials.weekly-updates-script')
 
         function openUploadModal(type) {
             currentUploadType = type;
             const titles = {
-                'summary': '📊 Upload Summary CSV',
-                'trucking': '🚛 Upload Trucking Allowance CSV',
-                'fci': '🌿 Upload Fresh Cane Incentive CSV',
-                'fuel': '⛽ Upload Fuel CSV',
-                'rentals': '🏗️ Upload Rentals CSV',
-                'underload': '📉 Upload Underload CSV',
-                'transloading': '🔄 Upload Transloading CSV',
-                'mudpress': '🏭 Upload Mudpress CSV',
-                'consolidated': '📦 Upload Consolidated Summary CSV',
-                'quedan': '📋 Upload Quedan CSV',
-                'molasses': '🧪 Upload Molasses CSV',
+                'summary': 'Upload Summary',
+                'trucking': 'Upload Trucking Allowance',
+                'fci': 'Upload Fresh Cane Incentive',
+                'fuel': 'Upload Fuel',
+                'rentals': 'Upload Rentals',
+                'underload': 'Upload Underload',
+                'transloading': 'Upload Transloading',
+                'mudpress': 'Upload Mudpress',
+                'consolidated': 'Upload Consolidated Summary',
+                'quedan': 'Upload Quedan',
+                'molasses': 'Upload Molasses',
             };
-            const descriptions = {
-                'summary': 'Columns: crop_year, week_no, planter_code, planter_name, net_cane, net_amount',
-                'trucking': 'Columns: crop_year, week_no, planter_code, planter_name, net_cane, ta_amount, trans_code',
-                'fci': 'Upload fresh cane incentive data',
-                'fuel': 'Upload fuel consumption records',
-                'rentals': 'Upload rental equipment records',
-                'underload': 'Upload underload delivery data',
-                'transloading': 'Upload transloading records',
-                'mudpress': 'Columns: crop_year, week_no, planter_code, planter_name, trans_code, charge_code, mpress',
-                'consolidated': 'Columns: planter_code, assn_code, planter_name, assn_name, ta_wt, ta_amount, emi_wt, emi_amount, pat_wt, pat_amount, cci_fa_wt, cci_fa_amt, cci_fb_wt, cci_fb_amt, cci_fc_wt, cci_fc_amt, fuel_issuance_amt, rental_amt, underload_amt, mudpress_amt, adj_amt',
-                'quedan': 'Columns: crop_year, week_no, planter_code, planter_name, qdn_no, tin_no, total_liens, sugar_lkg, labor_lkg',
-                'molasses': 'Columns: crop_year, week_no, planter_code, planter_name, tin_no, mc_no, mol_net',
-            };
-
             // Types that need crop_year and week_no selection
             const needsCropWeek = ['summary', 'trucking', 'fci', 'fuel', 'rentals', 'underload', 'transloading', 'mudpress',
                 'quedan', 'molasses', 'consolidated'
             ];
+            const templateUrl = UPLOAD_TEMPLATE_BASE_URL + '/' + encodeURIComponent(type) + '/template';
 
             Swal.fire({
                 title: titles[type] || 'Upload CSV',
-                html: swalCustomStyles + `
-            <div style="padding: 0.5rem 0;">
-                <div style="text-align: center; margin-bottom: 1.5rem;">
-                    <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
-                        <i class="fas fa-cloud-upload-alt" style="font-size: 1.5rem; color: white;"></i>
+                html: `
+                    <div class="kp-upload-toolbar">
+                        <p>Use the CSV template and keep its header row.</p>
+                        <a href="${templateUrl}" download><i class="fas fa-download" aria-hidden="true"></i> Download template</a>
                     </div>
-                    <p style="color: #6b7280; font-size: 0.9rem; margin-top: 0.5rem;">${descriptions[type] || 'Upload CSV data file'}</p>
-                </div>
-                
-                ${needsCropWeek.includes(type) ? `
-                                    <!-- Crop Year & Week Selection -->
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                                        <div>
-                                            <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; text-align: left;">
-                                                <i class="fas fa-calendar-alt" style="color: #16a34a; margin-right: 4px;"></i> Crop Year *
-                                            </label>
-                                            <select id="uploadCropYear" onchange="onUploadCropYearChange(this)" 
-                                                style="width: 100%; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; background: white;">
-                                                <option value="">Select Crop Year</option>
-                                                @foreach (App\Models\CropYear::orderBy('crop_year', 'desc')->pluck('crop_year') as $cy)
-                                                    <option value="{{ $cy }}">{{ $cy }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; text-align: left;">
-                                                <i class="fas fa-calendar-week" style="color: #16a34a; margin-right: 4px;"></i> Week No *
-                                            </label>
-                                            <select id="uploadWeekNo" onchange="checkUploadReady()" disabled
-                                                style="width: 100%; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; background: white; opacity: 0.6;">
-                                                <option value="">Select Week</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    ` : ''}
-
-                <div style="border: 2px dashed #d1d5db; border-radius: 12px; padding: 2rem; text-align: center; background: #f9fafb; transition: all 0.3s ease;" 
-                    id="dropZone" onmouseover="this.style.borderColor='#16a34a'; this.style.background='#f0fdf4';" 
-                    onmouseout="this.style.borderColor='#d1d5db'; this.style.background='#f9fafb';">
-                    <i class="fas fa-file-csv" style="font-size: 2rem; color: #16a34a; margin-bottom: 0.75rem;"></i>
-                    <p style="font-weight: 600; color: #374151; margin-bottom: 0.5rem;">Choose CSV File</p>
-                    <p style="font-size: 0.8rem; color: #9ca3af; margin-bottom: 1rem;">Drag and drop or click to browse</p>
-                    <label id="browseLabel" style="cursor: pointer; display: inline-block; padding: 0.5rem 1.5rem; background: white; border: 2px solid #16a34a; border-radius: 8px; color: #16a34a; font-weight: 600; font-size: 0.9rem; transition: all 0.3s ease;"
-                        onmouseover="this.style.background='#16a34a'; this.style.color='white';" 
-                        onmouseout="this.style.background='white'; this.style.color='#16a34a';">
-                        <i class="fas fa-folder-open mr-2"></i> Browse Files
-                        <input type="file" id="csvFileInput" accept=".csv,.txt" style="display: none;" onchange="handleFileSelect(this); checkUploadReady();">
-                    </label>
-                    <div id="fileInfo2" style="display: none; margin-top: 1rem; padding: 0.75rem; background: white; border-radius: 8px;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <i class="fas fa-file-csv" style="color: #16a34a; font-size: 1.25rem;"></i>
-                            <div style="text-align: left; flex: 1;">
-                                <p id="selectedFileName" style="font-weight: 600; color: #374151; font-size: 0.9rem;"></p>
-                                <p style="color: #9ca3af; font-size: 0.8rem;">Ready to upload</p>
+                    ${needsCropWeek.includes(type) ? `
+                        <div class="kp-upload-fields">
+                            <div>
+                                <label for="uploadCropYear">Crop Year <span aria-hidden="true">*</span></label>
+                                <select id="uploadCropYear" onchange="onUploadCropYearChange(this)">
+                                    <option value="">Select crop year</option>
+                                    @foreach (App\Models\CropYear::orderBy('crop_year', 'desc')->pluck('crop_year') as $cy)
+                                        <option value="{{ $cy }}">{{ $cy }}</option>
+                                    @endforeach
+                                </select>
                             </div>
-                            <i class="fas fa-check-circle" style="color: #16a34a;"></i>
-                        </div>
+                            <div>
+                                <label for="uploadWeekNo">Week No <span aria-hidden="true">*</span></label>
+                                <select id="uploadWeekNo" onchange="checkUploadReady()" disabled>
+                                    <option value="">Select week</option>
+                                </select>
+                            </div>
+                        </div>` : ''}
+                    <div class="kp-upload-file">
+                        <label for="csvFileInput">CSV file <span>.csv or .txt · up to 5 MB</span></label>
+                        <input type="file" id="csvFileInput" accept=".csv,.txt" onchange="checkUploadReady();">
                     </div>
-                </div>
-                <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.75rem; text-align: center;">
-                    <i class="fas fa-info-circle mr-1"></i>Accepted: .csv, .txt | Max size: 5MB
-                </p>
-                <p id="uploadHint" style="font-size: 0.75rem; color: #f59e0b; margin-top: 0.5rem; text-align: center; display: ${needsCropWeek.includes(type) ? 'block' : 'none'};">
-                    <i class="fas fa-exclamation-circle mr-1"></i>Please select Crop Year and Week No before uploading
-                </p>
-            </div>`,
+                    <p id="uploadHint" class="kp-upload-hint" style="display: ${needsCropWeek.includes(type) ? 'block' : 'none'};">
+                        <i class="fas fa-circle-info" aria-hidden="true"></i> Select Crop Year, Week No, and a CSV file.
+                    </p>`,
                 showCancelButton: true,
                 confirmButtonText: '<i class="fas fa-cloud-upload-alt mr-2"></i> Upload',
                 cancelButtonText: '<i class="fas fa-times mr-2"></i> Cancel',
                 confirmButtonColor: '#16a34a',
                 customClass: {
-                    popup: 'swal2-popup-modern'
+                    popup: 'kp-upload-popup',
+                    title: 'kp-upload-title',
+                    htmlContainer: 'kp-upload-content',
+                    actions: 'kp-upload-actions',
+                    confirmButton: 'kp-upload-confirm',
+                    cancelButton: 'kp-upload-cancel'
                 },
                 didOpen: () => {
                     // Initially disable upload button for types that need crop/week

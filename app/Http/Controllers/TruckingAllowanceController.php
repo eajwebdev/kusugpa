@@ -93,16 +93,29 @@ class TruckingAllowanceController extends Controller
         
         $uploads = $query->take(500)->get();
         
-        AuditLog::log('export', 'reports', 'Exported trucking allowance report PDF', [
+        $preview = $request->boolean('preview');
+
+        AuditLog::log($preview ? 'view' : 'export', 'reports', $preview ? 'Previewed trucking allowance report PDF' : 'Exported trucking allowance report PDF', [
             'records' => $uploads->count()
         ]);
         
-        $pdf = Pdf::loadView('pdf.trucking-allowance-report', [
-            'uploads' => $uploads,
+        $pdf = Pdf::loadView('pdf.ledger', [
+            'title' => 'Trucking Allowance Report',
+            'rows' => $uploads,
+            'columns' => [
+                ['key' => 'crop_year', 'label' => 'Season'],
+                ['key' => 'week_no', 'label' => 'Week'],
+                ['key' => 'planter_code', 'label' => 'Planter Code'],
+                ['key' => 'planter_name', 'label' => 'Planter Name'],
+                ['key' => 'trans_code', 'label' => 'Transport Code'],
+                ['key' => 'net_cane', 'label' => 'Net Cane (t)', 'decimals' => 3],
+                ['key' => 'ta_amount', 'label' => 'TA Amount (PHP)', 'decimals' => 2],
+            ],
             'generatedDate' => now()->format('F d, Y H:i:s'),
         ])->setPaper('a4', 'landscape');
         
-        return $pdf->download('trucking-allowance-report-' . now()->format('Y-m-d') . '.pdf');
+        $filename = 'trucking-allowance-report-' . now()->format('Y-m-d') . '.pdf';
+        return $preview ? $pdf->stream($filename) : $pdf->download($filename);
     }
 
     public function deleteAll()

@@ -74,22 +74,27 @@ class ConsolidatedReportController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('planter_name', 'like', "%{$search}%")
-                  ->orWhere('planter_code', 'like', "%{$search}%");
+                  ->orWhere('planter_code', 'like', "%{$search}%")
+                  ->orWhere('assn_name', 'like', "%{$search}%");
             });
         }
         
         $uploads = $query->take(500)->get();
         
-        AuditLog::log('export', 'reports', 'Exported consolidated report PDF', [
+        $preview = $request->boolean('preview');
+
+        AuditLog::log($preview ? 'view' : 'export', 'reports', $preview ? 'Previewed consolidated report PDF' : 'Exported consolidated report PDF', [
             'records' => $uploads->count()
         ]);
         
         $pdf = Pdf::loadView('pdf.consolidated-report', [
             'uploads' => $uploads,
             'generatedDate' => now()->format('F d, Y H:i:s'),
-        ])->setPaper('a4', 'landscape');
+        ])->setPaper('a3', 'landscape');
         
-        return $pdf->download('consolidated-report-' . now()->format('Y-m-d') . '.pdf');
+        $filename = 'consolidated-report-' . now()->format('Y-m-d') . '.pdf';
+
+        return $preview ? $pdf->stream($filename) : $pdf->download($filename);
     }
 
 

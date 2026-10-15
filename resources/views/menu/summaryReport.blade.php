@@ -253,27 +253,6 @@
             </div>
         </div>
 
-        <!-- PDF Preview Modal -->
-        <div x-show="showPdfModal" x-transition x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-                <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showPdfModal = false"></div>
-                <div class="kp-modal relative inline-block w-full max-w-6xl overflow-hidden text-left align-middle shadow-2xl">
-                    <div class="flex items-center justify-between px-6 py-4 border-b border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324]">
-                        <div class="flex items-center gap-2.5">
-                            <i class="fas fa-file-pdf text-rose-600 dark:text-rose-400 text-lg" aria-hidden="true"></i>
-                            <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Summary Report Document Preview</h3>
-                        </div>
-                        <button type="button" @click="showPdfModal = false"
-                            class="text-[#52705F] hover:text-[#172B20] dark:text-[#8AA895] dark:hover:text-[#EAF5ED] p-1.5 rounded-lg">
-                            <i class="fas fa-times text-base" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                    <div style="height: 82vh;" class="bg-[#E8EDE9] dark:bg-[#0D1812]">
-                        <iframe id="pdfFrame" src="" frameborder="0" style="width:100%; height:100%;"></iframe>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     @push('scripts')
@@ -285,7 +264,6 @@
                     currentPage: 1,
                     totalPages: 1,
                     loading: false,
-                    showPdfModal: false,
                     sortField: 'id',
                     sortDirection: 'desc',
                     availableWeeks: [],
@@ -418,8 +396,7 @@
                         }
                         const url =
                             `{{ url('/summary/pdf-preview') }}?crop_year=${this.filters.cropYear}&week_from=${this.filters.weekFrom}&week_to=${this.filters.weekTo}`;
-                        document.getElementById('pdfFrame').src = url;
-                        this.showPdfModal = true;
+                        window.KusugpaPdfPreview.open(url, 'Summary Report');
                     },
 
                     downloadPDF() {
