@@ -16,6 +16,7 @@ use App\Http\Controllers\PlanterProfileController;
 use App\Http\Controllers\ConsolidatedReportController;
 use App\Http\Controllers\TruckingAllowanceController;
 use App\Http\Controllers\CashAdvanceController;
+use App\Http\Controllers\QuotationController;
 use Illuminate\Http\Request;
 
 
@@ -25,16 +26,18 @@ use Illuminate\Http\Request;
 |--------------------------------------------------------------------------
 */
 
+// Public pages are available with or without an active login session.
+Route::get('/', [QuotationController::class, 'index'])->name('quotation');
+
+Route::get('/quotation', [QuotationController::class, 'index']);
+Route::get('/quotation/download', [QuotationController::class, 'download'])->name('quotation.download');
+
+Route::get('/landing', function () {
+    return view('landing');
+});
+
 // Guest Routes
 Route::middleware(['guest'])->group(function () {
-    Route::get('/', function () {
-        return view('landing');
-    });
-
-    Route::get('/landing', function () {
-        return view('landing');
-    });
-
     Route::get('/login', [LoginAuthController::class, 'getLogin'])->name('getLogin');
     Route::post('/login', [LoginAuthController::class, 'postLogin'])->name('postLogin');
     Route::post('/login/demo', [LoginAuthController::class, 'demoLogin'])->name('demoLogin');

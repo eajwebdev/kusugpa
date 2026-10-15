@@ -15,8 +15,8 @@ class SystemLockMiddleware
             return $next($request);
         }
 
-        // Skip for login, logout
-        if ($request->is('login') || $request->is('logout') || $request->is('/')) {
+        // Public pages and sign-in stay available during portal maintenance.
+        if ($request->is('login', 'logout', '/', 'quotation', 'quotation/download', 'landing')) {
             return $next($request);
         }
 
