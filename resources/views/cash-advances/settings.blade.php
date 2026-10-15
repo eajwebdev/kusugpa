@@ -4,118 +4,134 @@
 @section('title', 'Cash Advance Settings')
 
 @section('content')
-<div class="space-y-6">
-    <div class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-        <h1 class="text-2xl font-bold">Cash Advance Settings</h1>
-        <p class="text-primary-100 text-sm mt-1">Configure cash advance parameters and default rates</p>
-    </div>
+<div class="space-y-6 kp-fade-in">
+    <!-- Page Header -->
+    <header>
+        <div class="kp-page-header">
+            <div>
+                <p class="kp-eyebrow">Financial Services Administration</p>
+                <h1 class="kp-page-title mt-1">Cash Advance Settings & Policy</h1>
+                <p class="kp-page-sub">Configure default interest rates, short-term limits, and automatic voucher deduction parameters.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('cash-advances.index') }}" class="kp-btn kp-btn-secondary text-xs">
+                    <i class="fas fa-arrow-left mr-1.5" aria-hidden="true"></i> Back to Cash Advances
+                </a>
+            </div>
+        </div>
+        <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+    </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Default Settings -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 class="text-lg font-bold text-gray-900 mb-4">
-                <i class="fas fa-sliders-h text-primary-600 mr-2"></i>Default Settings
-            </h3>
+        <!-- Default Settings Card -->
+        <div class="kp-card p-6">
+            <div class="flex items-center gap-2 pb-3 mb-5 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm font-semibold">
+                    <i class="fas fa-sliders" aria-hidden="true"></i>
+                </div>
+                <div>
+                    <h3 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Default Advance Parameters</h3>
+                    <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Emergency and seasonal advance baseline limits.</p>
+                </div>
+            </div>
+
             <form action="{{ route('cash-advances.settings.update') }}" method="POST" class="space-y-4">
                 @csrf
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Default Interest Rate (%)</label>
-                    <input type="number" name="ca_default_interest_rate" step="0.01" value="{{ $settings['ca_default_interest_rate'] }}" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
-                    <p class="text-xs text-gray-400 mt-1">Standard interest rate for cash advances</p>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                        Default Interest Rate (%)
+                    </label>
+                    <input type="number" name="ca_default_interest_rate" step="0.01" value="{{ $settings['ca_default_interest_rate'] }}" class="kp-input w-full">
+                    <p class="text-[11px] text-[#52705F] dark:text-[#8AA895] mt-1">Standard interest applied to cash advance amortizations.</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Term (Months)</label>
-                    <input type="number" name="ca_max_term_months" value="{{ $settings['ca_max_term_months'] }}" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
-                    <p class="text-xs text-gray-400 mt-1">Maximum repayment period in months</p>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                        Maximum Term (Months)
+                    </label>
+                    <input type="number" name="ca_max_term_months" value="{{ $settings['ca_max_term_months'] }}" class="kp-input w-full">
+                    <p class="text-[11px] text-[#52705F] dark:text-[#8AA895] mt-1">Maximum repayment window permitted.</p>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Min Amount (₱)</label>
-                        <input type="number" name="ca_min_amount" step="0.01" value="{{ $settings['ca_min_amount'] }}" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                            Minimum Amount (₱)
+                        </label>
+                        <input type="number" name="ca_min_amount" step="0.01" value="{{ $settings['ca_min_amount'] }}" class="kp-input w-full">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Max Amount (₱)</label>
-                        <input type="number" name="ca_max_amount" step="0.01" value="{{ $settings['ca_max_amount'] }}" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                            Maximum Amount (₱)
+                        </label>
+                        <input type="number" name="ca_max_amount" step="0.01" value="{{ $settings['ca_max_amount'] }}" class="kp-input w-full">
                     </div>
                 </div>
-                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+
+                <div class="flex items-center justify-between p-3.5 bg-[#F7FAF8] dark:bg-[#13231B] rounded-xl border border-[#E3EBE5] dark:border-[#203A2B]">
                     <div>
-                        <span class="text-sm font-medium">Auto-deduct from weekly vouchers</span>
-                        <p class="text-xs text-gray-400 mt-0.5">Automatically deduct amortizations during voucher generation</p>
+                        <span class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]">Auto-deduct Amortizations</span>
+                        <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Automatically deduct dues from weekly crop remittance vouchers</p>
                     </div>
                     <input type="hidden" name="ca_auto_deduct" value="0">
-                    <input type="checkbox" name="ca_auto_deduct" value="1" {{ ($settings['ca_auto_deduct'] ?? false) ? 'checked' : '' }} class="w-5 h-5 text-primary-600 rounded focus:ring-primary-500">
+                    <input type="checkbox" name="ca_auto_deduct" value="1" {{ ($settings['ca_auto_deduct'] ?? false) ? 'checked' : '' }} 
+                        class="w-5 h-5 text-[#005B2A] rounded border-[#CFDCD3] focus:ring-[#005B2A]">
                 </div>
-                <button type="submit" class="w-full bg-primary-600 text-white rounded-xl px-6 py-3 text-sm font-semibold hover:bg-primary-700 transition">
-                    <i class="fas fa-save mr-2"></i> Save Settings
-                </button>
+
+                <div class="pt-2">
+                    <button type="submit" class="kp-btn kp-btn-primary w-full justify-center">
+                        <i class="fas fa-save mr-1.5" aria-hidden="true"></i> Save Cash Advance Settings
+                    </button>
+                </div>
             </form>
         </div>
 
-        <!-- Quick Info -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 class="text-lg font-bold text-gray-900 mb-4">
-                <i class="fas fa-info-circle text-blue-600 mr-2"></i>Cash Advance Information
-            </h3>
-            
-            <div class="space-y-4">
-                <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <div class="flex items-start gap-3">
-                        <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-money-bill-wave text-blue-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm font-semibold text-gray-900">What are Cash Advances?</p>
-                            <p class="text-xs text-gray-600 mt-1">Short-term financial assistance for planters with smaller amounts and shorter terms compared to regular loans.</p>
-                        </div>
+        <!-- Quick Info Card -->
+        <div class="kp-card p-6 flex flex-col justify-between">
+            <div>
+                <div class="flex items-center gap-2 pb-3 mb-5 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                    <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm font-semibold">
+                        <i class="fas fa-circle-info" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Policy Context</h3>
+                        <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Guidelines for planters emergency financial assistance.</p>
                     </div>
                 </div>
 
-                <div class="p-4 bg-green-50 rounded-xl border border-green-100">
-                    <div class="flex items-start gap-3">
-                        <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-check-circle text-green-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm font-semibold text-gray-900">Current Configuration</p>
-                            <div class="grid grid-cols-2 gap-2 mt-2">
-                                <div>
-                                    <p class="text-xs text-gray-500">Interest Rate</p>
-                                    <p class="text-sm font-bold text-gray-900">{{ $settings['ca_default_interest_rate'] }}%</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500">Max Term</p>
-                                    <p class="text-sm font-bold text-gray-900">{{ $settings['ca_max_term_months'] }} months</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500">Min Amount</p>
-                                    <p class="text-sm font-bold text-gray-900">₱{{ number_format($settings['ca_min_amount'], 2) }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500">Max Amount</p>
-                                    <p class="text-sm font-bold text-gray-900">₱{{ number_format($settings['ca_max_amount'], 2) }}</p>
-                                </div>
+                <div class="space-y-4">
+                    <div class="p-4 rounded-xl bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B]">
+                        <h4 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider mb-1">Scope & Purpose</h4>
+                        <p class="text-xs text-[#52705F] dark:text-[#8AA895] leading-relaxed">
+                            Cash advances are short-term emergency liquidity provisions designed to cover urgent field labor, fertilizer top-ups, tractor fuel, or emergency personal expenses, repaid through weekly cane delivery vouchers.
+                        </p>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] border border-[#CFDCD3] dark:border-[#203A2B]">
+                        <h4 class="text-xs font-bold text-[#005B2A] dark:text-[#52C97E] uppercase tracking-wider mb-2">Active Configuration Summary</h4>
+                        <div class="grid grid-cols-2 gap-3 text-xs">
+                            <div>
+                                <span class="text-[#52705F] dark:text-[#8AA895] block mb-0.5">Interest Charge</span>
+                                <span class="font-bold text-[#172B20] dark:text-[#EAF5ED]">{{ $settings['ca_default_interest_rate'] }}%</span>
+                            </div>
+                            <div>
+                                <span class="text-[#52705F] dark:text-[#8AA895] block mb-0.5">Maximum Term</span>
+                                <span class="font-bold text-[#172B20] dark:text-[#EAF5ED]">{{ $settings['ca_max_term_months'] }} months</span>
+                            </div>
+                            <div>
+                                <span class="text-[#52705F] dark:text-[#8AA895] block mb-0.5">Minimum Amount</span>
+                                <span class="font-bold text-[#172B20] dark:text-[#EAF5ED] kp-num">₱{{ number_format($settings['ca_min_amount'], 2) }}</span>
+                            </div>
+                            <div>
+                                <span class="text-[#52705F] dark:text-[#8AA895] block mb-0.5">Maximum Amount</span>
+                                <span class="font-bold text-[#172B20] dark:text-[#EAF5ED] kp-num">₱{{ number_format($settings['ca_max_amount'], 2) }}</span>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                    <div class="flex items-start gap-3">
-                        <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-lightbulb text-amber-600 text-sm"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm font-semibold text-gray-900">Tips</p>
-                            <ul class="text-xs text-gray-600 mt-1 space-y-1">
-                                <li>• Cash advances are ideal for emergency or short-term needs</li>
-                                <li>• Keep interest rates competitive to encourage repayment</li>
-                                <li>• Shorter terms help planters clear their obligations faster</li>
-                                <li>• Changes apply to new applications only</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
+            <div class="pt-4 border-t border-[#E3EBE5] dark:border-[#203A2B] text-[11px] text-[#52705F] dark:text-[#8AA895] flex items-center gap-1.5">
+                <i class="fas fa-lock" aria-hidden="true"></i>
+                <span>Changes are applied immediately to all newly created cash advance records.</span>
             </div>
         </div>
     </div>

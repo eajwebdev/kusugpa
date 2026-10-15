@@ -1,22 +1,31 @@
-<!-- New Loan Modal -->
-<div x-show="showNewLoanModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" x-data="newLoanForm()">
-    <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="fixed inset-0 bg-black/50" @click="showNewLoanModal = false"></div>
-        <div class="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-xl font-bold text-gray-900">New Loan Application</h3>
-                <button @click="showNewLoanModal = false" class="text-gray-400 hover:text-gray-600 p-2">
-                    <i class="fas fa-times text-lg"></i>
+<!-- resources/views/modal/loanModal.blade.php -->
+<div x-show="showNewLoanModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" x-data="newLoanForm()" x-cloak>
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showNewLoanModal = false"></div>
+        <div class="kp-modal relative max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 mb-5 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm font-semibold">
+                        <i class="fas fa-hand-holding-dollar" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">New Loan Application</h3>
+                        <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Initiate credit application with document attachments.</p>
+                    </div>
+                </div>
+                <button type="button" @click="showNewLoanModal = false" class="text-[#52705F] hover:text-[#172B20] dark:text-[#8AA895] p-1.5 rounded-lg">
+                    <i class="fas fa-times text-base" aria-hidden="true"></i>
                 </button>
             </div>
+
             <form id="newLoanForm" @submit.prevent="submitLoanForm()" enctype="multipart/form-data" class="space-y-4">
                 @csrf
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <!-- Planter Selection -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Planter</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Planter <span class="text-rose-600">*</span></label>
                         <select name="planter_code" x-model="selectedPlanter" @change="updatePlanterName()" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            class="kp-input w-full">
                             <option value="">Select Planter</option>
                             @foreach ($planters as $p)
                                 <option value="{{ $p->planter_code }}" data-name="{{ $p->planter_name }}">
@@ -28,15 +37,14 @@
 
                     <!-- Loan Type -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Loan Type</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Loan Classification <span class="text-rose-600">*</span></label>
                         <select name="loan_type_id" x-model="selectedLoanType" @change="updateLoanDetails()" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            class="kp-input w-full">
                             <option value="">Select Type</option>
                             @foreach ($loanTypes as $type)
                                 <option value="{{ $type->id }}" data-rate="{{ $type->default_interest_rate }}"
                                     data-term="{{ $type->default_term_months }}" data-max="{{ $type->max_amount }}">
-                                    {{ $type->name }} ({{ $type->default_interest_rate }}% -
-                                    {{ $type->default_term_months }} mos)
+                                    {{ $type->name }} ({{ $type->default_interest_rate }}% - {{ $type->default_term_months }} mos)
                                 </option>
                             @endforeach
                         </select>
@@ -44,34 +52,34 @@
 
                     <!-- Principal Amount -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Principal Amount (₱)</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Principal Amount (₱) <span class="text-rose-600">*</span></label>
                         <input type="number" name="principal_amount" x-model="principalAmount" step="0.01" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500"
-                            placeholder="Enter loan amount">
-                        <p class="text-xs text-gray-400 mt-1" x-show="maxAmount > 0">
-                            Max: ₱<span x-text="formatNumber(maxAmount)"></span>
+                            class="kp-input w-full"
+                            placeholder="0.00">
+                        <p class="text-[11px] text-[#52705F] dark:text-[#8AA895] mt-1" x-show="maxAmount > 0">
+                            Policy Ceiling: ₱<span x-text="formatNumber(maxAmount)"></span>
                         </p>
                     </div>
 
                     <!-- Interest Rate -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Interest Rate (%)</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Interest Rate (%) <span class="text-rose-600">*</span></label>
                         <input type="number" name="interest_rate" x-model="interestRate" step="0.01" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            class="kp-input w-full">
                     </div>
 
                     <!-- Term -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Term (Months)</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Term (Months) <span class="text-rose-600">*</span></label>
                         <input type="number" name="term_months" x-model="termMonths" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            class="kp-input w-full">
                     </div>
 
                     <!-- Crop Year -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Crop Year</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Crop Year <span class="text-rose-600">*</span></label>
                         <select name="crop_year" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            class="kp-input w-full">
                             @foreach ($cropYears as $cy)
                                 <option value="{{ $cy }}">{{ $cy }}</option>
                             @endforeach
@@ -81,91 +89,79 @@
 
                 <!-- Planter Name (Auto-filled) -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Planter Name</label>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Selected Planter Name</label>
                     <input type="text" name="planter_name" x-model="planterName" readonly
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-700">
+                        class="kp-input w-full bg-[#F7FAF8] dark:bg-[#13231B] text-[#52705F] cursor-not-allowed">
                 </div>
 
                 <!-- Purpose with Default Options -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
-                    <div class="flex flex-wrap gap-2 mb-2">
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Purpose Preset & Notes</label>
+                    <div class="flex flex-wrap gap-1.5 mb-2">
                         <button type="button"
                             @click="purpose = 'Crop production expenses (fertilizers, pesticides, labor)'"
-                            class="px-3 py-1.5 text-xs bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition">
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-[#EAF5ED] text-[#005B2A] dark:bg-[#1A3324] dark:text-[#52C97E] hover:opacity-80 transition">
                             Crop Production
                         </button>
                         <button type="button" @click="purpose = 'Emergency financial assistance'"
-                            class="px-3 py-1.5 text-xs bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition">
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:opacity-80 transition">
                             Emergency
                         </button>
                         <button type="button" @click="purpose = 'Purchase of farming equipment and machinery'"
-                            class="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition">
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 hover:opacity-80 transition">
                             Equipment
                         </button>
                         <button type="button" @click="purpose = 'Farm land improvement and development'"
-                            class="px-3 py-1.5 text-xs bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition">
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 hover:opacity-80 transition">
                             Farm Improvement
                         </button>
                         <button type="button" @click="purpose = ''"
-                            class="px-3 py-1.5 text-xs bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition">
-                            <i class="fas fa-times mr-1"></i> Clear
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:opacity-80 transition">
+                            Clear
                         </button>
                     </div>
                     <textarea name="purpose" x-model="purpose" rows="2"
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500"
-                        placeholder="Enter loan purpose or select from presets above..."></textarea>
+                        class="kp-input w-full"
+                        placeholder="Enter statement of loan purpose..."></textarea>
                 </div>
 
                 <!-- Estimated Summary -->
-                <div class="bg-gray-50 rounded-xl p-4"
+                <div class="rounded-xl p-4 bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B]"
                     x-show="principalAmount > 0 && interestRate > 0 && termMonths > 0">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Estimated Summary</h4>
-                    <div class="grid grid-cols-3 gap-3 text-center">
+                    <h4 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider mb-2">Estimated Repayment Summary</h4>
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs">
                         <div>
-                            <p class="text-xs text-gray-500">Monthly Payment</p>
-                            <p class="text-sm font-bold text-gray-900">₱<span
-                                    x-text="formatNumber(calculateMonthly())"></span></p>
+                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Monthly Due</p>
+                            <p class="font-bold text-[#172B20] dark:text-[#EAF5ED] kp-num mt-0.5">₱<span x-text="formatNumber(calculateMonthly())"></span></p>
                         </div>
                         <div>
-                            <p class="text-xs text-gray-500">Total Interest</p>
-                            <p class="text-sm font-bold text-amber-600">₱<span
-                                    x-text="formatNumber(calculateTotalInterest())"></span></p>
+                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Total Interest</p>
+                            <p class="font-bold text-amber-600 dark:text-amber-400 kp-num mt-0.5">₱<span x-text="formatNumber(calculateTotalInterest())"></span></p>
                         </div>
                         <div>
-                            <p class="text-xs text-gray-500">Total Amount</p>
-                            <p class="text-sm font-bold text-primary-700">₱<span
-                                    x-text="formatNumber(calculateTotal())"></span></p>
+                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Repayable Sum</p>
+                            <p class="font-bold text-[#005B2A] dark:text-[#52C97E] kp-num mt-0.5">₱<span x-text="formatNumber(calculateTotal())"></span></p>
                         </div>
                     </div>
                 </div>
 
                 <!-- === DOCUMENT ATTACHMENT SECTION === -->
-                <div class="border-t border-gray-100 pt-4">
-                    <div class="flex items-center gap-2 mb-3">
-                        <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-paperclip text-amber-600 text-sm"></i>
-                        </div>
-                        <h4 class="text-sm font-bold text-gray-900">Proof of Identity / Supporting Documents</h4>
+                <div class="border-t border-[#E3EBE5] dark:border-[#203A2B] pt-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <i class="fas fa-paperclip text-[#087A3D] dark:text-[#52C97E]"></i>
+                        <h4 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Proof of Identity & Signed Agreement</h4>
                     </div>
 
-                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
-                        <p class="text-xs text-amber-700 flex items-start gap-2">
-                            <i class="fas fa-info-circle mt-0.5"></i>
-                            <span>Upload proof that the planter is applying for this loan. This can be a signed
-                                agreement, valid ID, or any document that verifies the planter's identity. Accepted
-                                formats: PDF, JPG, PNG, DOC (Max: 10MB)</span>
-                        </p>
+                    <div class="bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl p-3 mb-3 text-xs text-amber-800 dark:text-amber-300">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        <span>Upload signed credit note, promissory agreement, or valid government ID (PDF, JPG, PNG, DOC - Max 10MB).</span>
                     </div>
 
                     <div class="space-y-3">
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label
-                                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Document
-                                    Type *</label>
-                                <select id="docType"
-                                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                                <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Document Type *</label>
+                                <select id="docType" class="kp-input w-full py-1.5 text-xs">
                                     <option value="proof">Proof of Identity</option>
                                     <option value="agreement">Signed Agreement</option>
                                     <option value="id">Valid Government ID</option>
@@ -173,54 +169,48 @@
                                 </select>
                             </div>
                             <div>
-                                <label
-                                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Description</label>
-                                <input type="text" id="docDesc" placeholder="e.g., Barangay Clearance, SSS ID"
-                                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                                <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Description</label>
+                                <input type="text" id="docDesc" placeholder="e.g. Barangay Clearance, SSS ID"
+                                    class="kp-input w-full py-1.5 text-xs">
                             </div>
                         </div>
 
                         <div>
-                            <label
-                                class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Select
-                                File *</label>
-                            <div class="relative">
-                                <input type="file" id="loanDocument" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                    required @change="previewFile($event)"
-                                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer">
-                            </div>
+                            <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Select File *</label>
+                            <input type="file" id="loanDocument" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                required @change="previewFile($event)"
+                                class="kp-input w-full py-1.5 text-xs file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#EAF5ED] file:text-[#005B2A] dark:file:bg-[#1A3324] dark:file:text-[#52C97E]">
                         </div>
 
                         <!-- File Preview -->
-                        <div id="filePreview" class="hidden p-3 bg-gray-50 rounded-xl">
+                        <div id="filePreview" class="hidden p-3 bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B] rounded-xl">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center">
-                                        <i class="fas fa-file text-primary-600"></i>
+                                    <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm">
+                                        <i class="fas fa-file"></i>
                                     </div>
                                     <div>
-                                        <p id="previewFileName" class="text-sm font-medium text-gray-900"></p>
-                                        <p id="previewFileSize" class="text-xs text-gray-500"></p>
+                                        <p id="previewFileName" class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED]"></p>
+                                        <p id="previewFileSize" class="text-[11px] text-[#52705F] dark:text-[#8AA895]"></p>
                                     </div>
                                 </div>
-                                <button type="button" @click="removeFile()"
-                                    class="text-red-400 hover:text-red-600 p-2">
-                                    <i class="fas fa-trash text-sm"></i>
+                                <button type="button" @click="removeFile()" class="text-rose-500 hover:text-rose-700 p-1">
+                                    <i class="fas fa-trash text-xs"></i>
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex gap-3 pt-2 border-t border-gray-100">
+                <div class="flex items-center justify-end gap-3 pt-3 border-t border-[#E3EBE5] dark:border-[#203A2B]">
                     <button type="button" @click="showNewLoanModal = false; resetForm()"
-                        class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                        class="kp-btn kp-btn-secondary text-xs">
                         Cancel
                     </button>
                     <button type="submit" :disabled="submitting"
-                        class="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span x-show="!submitting"><i class="fas fa-save mr-1"></i> Submit Application</span>
-                        <span x-show="submitting"><i class="fas fa-spinner fa-spin mr-1"></i> Submitting...</span>
+                        class="kp-btn kp-btn-primary text-xs disabled:opacity-50">
+                        <span x-show="!submitting"><i class="fas fa-check mr-1.5" aria-hidden="true"></i> Submit Application</span>
+                        <span x-show="submitting"><i class="fas fa-circle-notch fa-spin mr-1.5"></i> Submitting...</span>
                     </button>
                 </div>
             </form>

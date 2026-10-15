@@ -4,74 +4,80 @@
 @section('title', 'Crop Year & Week Management')
 
 @section('content')
-    <div x-data="cropWeekData()" class="space-y-6">
+    <div x-data="cropWeekData()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
-        <div
-            class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-            <div class="flex items-center gap-3 mb-2">
-                <i class="fas fa-calendar-week text-2xl"></i>
-                <h1 class="text-2xl sm:text-3xl font-bold">Crop Year & Week Management</h1>
+        <header>
+            <div class="kp-page-header">
+                <div>
+                    <p class="kp-eyebrow">Season & Calendar</p>
+                    <h1 class="kp-page-title mt-1">Crop Year & Week Management</h1>
+                    <p class="kp-page-sub">Configure milling season periods, official crop years, and weekly delivery schedules.</p>
+                </div>
             </div>
-            <p class="text-primary-100 text-sm">Manage crop years and week numbers</p>
-        </div>
+            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+        </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Crop Years Section -->
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="p-6 border-b border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <div class="bg-green-100 rounded-lg p-2">
-                                <i class="fas fa-calendar-alt text-green-600 text-sm"></i>
-                            </div>
-                            <h2 class="text-lg font-bold text-gray-900">Crop Years</h2>
+            <div class="kp-card overflow-hidden">
+                <div class="p-5 border-b flex items-center justify-between" style="border-color: var(--kp-border)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-calendar-alt text-base" style="color: var(--kp-forest)"></i>
+                        <div>
+                            <h2 class="font-display text-base font-semibold" style="color: var(--kp-text)">Crop Years</h2>
+                            <p class="text-xs" style="color: var(--kp-muted)">Registered milling seasons</p>
                         </div>
-                        <span class="text-xs text-gray-500" x-text="cropYears.length + ' entries'"></span>
                     </div>
+                    <span class="text-xs font-mono font-medium px-2.5 py-1 rounded border"
+                        style="background: var(--kp-surface-2); border-color: var(--kp-border); color: var(--kp-muted)"
+                        x-text="cropYears.length + ' seasons'"></span>
                 </div>
-                <div class="overflow-x-auto max-h-96 overflow-y-auto">
-                    <table class="min-w-full divide-y divide-gray-100">
-                        <thead class="bg-gray-50 sticky top-0">
+                <div class="kp-table-wrap" style="max-height: 420px; overflow-y: auto;">
+                    <table class="kp-table">
+                        <thead>
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortCropYears('crop_year')">
-                                    Crop Year <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="cursor-pointer select-none" @click="sortCropYears('crop_year')">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>Crop Year</span>
+                                        <i class="fas text-[10px]" :class="cropYearSortField === 'crop_year' ? (cropYearSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortCropYears('weeks_count')">
-                                    Weeks <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="text-center cursor-pointer select-none" @click="sortCropYears('weeks_count')">
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <span>Weeks</span>
+                                        <i class="fas text-[10px]" :class="cropYearSortField === 'weeks_count' ? (cropYearSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                                <th class="text-center">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50">
+                        <tbody>
                             <template x-for="cropYear in sortedCropYears" :key="cropYear.id">
-                                <tr class="hover:bg-gray-50/50 transition-colors">
-                                    <td class="px-4 py-3">
-                                        <span class="text-sm font-semibold text-gray-900"
-                                            x-text="cropYear.crop_year"></span>
+                                <tr class="hover:bg-[var(--kp-hover)] transition-colors">
+                                    <td class="font-mono font-semibold" style="color: var(--kp-text)" x-text="cropYear.crop_year"></td>
+                                    <td class="text-center">
+                                        <span class="kp-badge kp-badge-emerald font-mono tabular" x-text="cropYear.weeks_count + ' weeks'"></span>
                                     </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <span class="text-sm text-gray-600" x-text="cropYear.weeks_count + ' weeks'"></span>
-                                    </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <div class="flex items-center justify-center gap-2">
+                                    <td class="text-center">
+                                        <div class="flex items-center justify-center gap-1.5">
                                             <button @click="editCropYear(cropYear.id, cropYear.crop_year)"
-                                                class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition">
-                                                <i class="fas fa-edit text-sm"></i>
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] transition"
+                                                style="color: var(--kp-cane)" title="Edit Season">
+                                                <i class="fas fa-edit text-xs"></i>
                                             </button>
                                             <button @click="deleteCropYear(cropYear.id, cropYear.crop_year)"
-                                                class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition">
-                                                <i class="fas fa-trash text-sm"></i>
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] transition text-red-600"
+                                                title="Delete Season">
+                                                <i class="fas fa-trash text-xs"></i>
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
                             </template>
                             <tr x-show="cropYears.length === 0">
-                                <td colspan="3" class="px-4 py-8 text-center text-gray-500">
-                                    <i class="fas fa-calendar-alt text-3xl text-gray-200 mb-2 block"></i>
-                                    No crop years found
+                                <td colspan="3" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                    <i class="fas fa-calendar-alt text-3xl mb-2 block opacity-30"></i>
+                                    No crop year entries recorded.
                                 </td>
                             </tr>
                         </tbody>
@@ -80,96 +86,100 @@
             </div>
 
             <!-- Weeks Section -->
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="p-6 border-b border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <div class="bg-blue-100 rounded-lg p-2">
-                                <i class="fas fa-calendar-week text-blue-600 text-sm"></i>
-                            </div>
-                            <h2 class="text-lg font-bold text-gray-900">Week Numbers</h2>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <select x-model="weekCropYearFilter" @change="filterWeeks()"
-                                class="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-primary-500">
-                                <option value="">All Years</option>
-                                <template x-for="cy in cropYears" :key="cy.id">
-                                    <option :value="cy.crop_year" x-text="cy.crop_year"></option>
-                                </template>
-                            </select>
-                            <span class="text-xs text-gray-500" x-text="filteredWeeks.length + ' entries'"></span>
+            <div class="kp-card overflow-hidden">
+                <div class="p-5 border-b flex flex-wrap items-center justify-between gap-3" style="border-color: var(--kp-border)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-calendar-week text-base" style="color: var(--kp-forest)"></i>
+                        <div>
+                            <h2 class="font-display text-base font-semibold" style="color: var(--kp-text)">Week Numbers</h2>
+                            <p class="text-xs" style="color: var(--kp-muted)">Active schedule breakdown</p>
                         </div>
                     </div>
+                    <div class="flex items-center gap-2.5">
+                        <select x-model="weekCropYearFilter" @change="filterWeeks()" class="kp-select text-xs py-1 px-2.5">
+                            <option value="">All Crop Years</option>
+                            <template x-for="cy in cropYears" :key="cy.id">
+                                <option :value="cy.crop_year" x-text="cy.crop_year"></option>
+                            </template>
+                        </select>
+                        <span class="text-xs font-mono font-medium px-2 py-1 rounded border"
+                            style="background: var(--kp-surface-2); border-color: var(--kp-border); color: var(--kp-muted)"
+                            x-text="filteredWeeks.length + ' weeks'"></span>
+                    </div>
                 </div>
-                <div class="overflow-x-auto max-h-96 overflow-y-auto">
-                    <table class="min-w-full divide-y divide-gray-100">
-                        <thead class="bg-gray-50 sticky top-0">
+                <div class="kp-table-wrap" style="max-height: 420px; overflow-y: auto;">
+                    <table class="kp-table">
+                        <thead>
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortWeeks('crop_year')">
-                                    Crop Year <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="cursor-pointer select-none" @click="sortWeeks('crop_year')">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>Season</span>
+                                        <i class="fas text-[10px]" :class="weekSortField === 'crop_year' ? (weekSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortWeeks('week_no')">
-                                    Week <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="text-center cursor-pointer select-none" @click="sortWeeks('week_no')">
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <span>Week #</span>
+                                        <i class="fas text-[10px]" :class="weekSortField === 'week_no' ? (weekSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortWeeks('week_start_date')">
-                                    Start <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="cursor-pointer select-none" @click="sortWeeks('week_start_date')">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>Start</span>
+                                        <i class="fas text-[10px]" :class="weekSortField === 'week_start_date' ? (weekSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortWeeks('week_end_date')">
-                                    End <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="cursor-pointer select-none" @click="sortWeeks('week_end_date')">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>End</span>
+                                        <i class="fas text-[10px]" :class="weekSortField === 'week_end_date' ? (weekSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                                <th class="text-center">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50">
+                        <tbody>
                             <template x-for="week in sortedWeeks" :key="week.id">
-                                <tr class="hover:bg-gray-50/50 transition-colors">
-                                    <td class="px-4 py-3">
-                                        <span
-                                            class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium"
+                                <tr class="hover:bg-[var(--kp-hover)] transition-colors">
+                                    <td>
+                                        <span class="font-mono text-xs px-2 py-0.5 rounded border"
+                                            style="background: var(--kp-surface-2); border-color: var(--kp-border); color: var(--kp-text)"
                                             x-text="week.crop_year"></span>
                                     </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <span class="text-sm font-semibold text-gray-900"
-                                            x-text="'Week ' + week.week_no"></span>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-sm text-gray-700"
-                                                x-text="formatDate(week.week_start_date)"></span>
-                                            <span class="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded"
-                                                x-text="formatTime(week.week_start_date)"></span>
+                                    <td class="text-center font-mono font-semibold" style="color: var(--kp-text)"
+                                        x-text="'Week ' + week.week_no"></td>
+                                    <td>
+                                        <div class="flex flex-col text-xs">
+                                            <span style="color: var(--kp-text)" x-text="formatDate(week.week_start_date)"></span>
+                                            <span class="font-mono text-[11px]" style="color: var(--kp-muted)" x-text="formatTime(week.week_start_date)"></span>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-sm text-gray-700"
-                                                x-text="formatDate(week.week_end_date)"></span>
-                                            <span class="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded"
-                                                x-text="formatTime(week.week_end_date)"></span>
+                                    <td>
+                                        <div class="flex flex-col text-xs">
+                                            <span style="color: var(--kp-text)" x-text="formatDate(week.week_end_date)"></span>
+                                            <span class="font-mono text-[11px]" style="color: var(--kp-muted)" x-text="formatTime(week.week_end_date)"></span>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <div class="flex items-center justify-center gap-2">
+                                    <td class="text-center">
+                                        <div class="flex items-center justify-center gap-1.5">
                                             <button @click="editWeek(week)"
-                                                class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition">
-                                                <i class="fas fa-edit text-sm"></i>
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] transition"
+                                                style="color: var(--kp-cane)" title="Edit Week">
+                                                <i class="fas fa-edit text-xs"></i>
                                             </button>
                                             <button @click="deleteWeek(week.id)"
-                                                class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition">
-                                                <i class="fas fa-trash text-sm"></i>
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] transition text-red-600"
+                                                title="Delete Week">
+                                                <i class="fas fa-trash text-xs"></i>
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
                             </template>
                             <tr x-show="filteredWeeks.length === 0">
-                                <td colspan="5" class="px-4 py-8 text-center text-gray-500">
-                                    <i class="fas fa-calendar-week text-3xl text-gray-200 mb-2 block"></i>
-                                    No weeks found
+                                <td colspan="5" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                    <i class="fas fa-calendar-week text-3xl mb-2 block opacity-30"></i>
+                                    No weeks recorded for the selected filter.
                                 </td>
                             </tr>
                         </tbody>
@@ -179,65 +189,77 @@
         </div>
 
         <!-- Edit Crop Year Modal -->
-        <div x-show="showCropYearModal" class="fixed inset-0 z-50 flex items-center justify-center"
-            style="display: none;">
-            <div class="fixed inset-0 bg-black/50" @click="showCropYearModal = false"></div>
-            <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 mx-4">
-                <h3 class="text-lg font-bold text-gray-900 mb-4">Edit Crop Year</h3>
-                <form @submit.prevent="saveCropYear()">
-                    <input type="text" x-model="cropYearForm.crop_year" placeholder="e.g., 20252026" maxlength="8"
-                        required
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm mb-4 focus:ring-2 focus:ring-primary-500">
-                    <div class="flex gap-3">
-                        <button type="button" @click="showCropYearModal = false"
-                            class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm">Cancel</button>
-                        <button type="submit"
-                            class="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700">Save</button>
+        <div x-show="showCropYearModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showCropYearModal = false"></div>
+            <div class="relative rounded-xl border max-w-md w-full p-6 shadow-2xl"
+                style="background: var(--kp-surface); border-color: var(--kp-border); color: var(--kp-text)">
+                <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--kp-border)">
+                    <h3 class="font-display text-lg font-semibold" style="color: var(--kp-text)">Edit Crop Year</h3>
+                    <button @click="showCropYearModal = false" class="p-1 rounded text-xs hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
+                <form @submit.prevent="saveCropYear()" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium mb-1.5" style="color: var(--kp-muted)">Crop Year Code (8 digits)</label>
+                        <input type="text" x-model="cropYearForm.crop_year" placeholder="e.g., 20252026" maxlength="8" required class="kp-input w-full">
+                    </div>
+                    <div class="flex gap-2 pt-2 border-t" style="border-color: var(--kp-border)">
+                        <button type="button" @click="showCropYearModal = false" class="kp-btn kp-btn-secondary flex-1">Cancel</button>
+                        <button type="submit" class="kp-btn kp-btn-primary flex-1">
+                            <i class="fas fa-save mr-1.5"></i> Save Changes
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
         <!-- Edit Week Modal -->
-        <div x-show="showWeekModal" class="fixed inset-0 z-50 flex items-center justify-center" style="display: none;">
-            <div class="fixed inset-0 bg-black/50" @click="showWeekModal = false"></div>
-            <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 mx-4">
-                <h3 class="text-lg font-bold text-gray-900 mb-4">Edit Week</h3>
-                <form @submit.prevent="saveWeek()" class="space-y-3">
-                    <input type="text" x-model="weekForm.crop_year" placeholder="Crop Year (e.g., 20252026)"
-                        maxlength="8" required
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
-                    <input type="number" x-model="weekForm.week_no" placeholder="Week Number" min="1"
-                        max="52" required
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+        <div x-show="showWeekModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showWeekModal = false"></div>
+            <div class="relative rounded-xl border max-w-md w-full p-6 shadow-2xl"
+                style="background: var(--kp-surface); border-color: var(--kp-border); color: var(--kp-text)">
+                <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--kp-border)">
+                    <h3 class="font-display text-lg font-semibold" style="color: var(--kp-text)">Edit Week Definition</h3>
+                    <button @click="showWeekModal = false" class="p-1 rounded text-xs hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
+                <form @submit.prevent="saveWeek()" class="space-y-3.5">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Crop Year</label>
+                            <input type="text" x-model="weekForm.crop_year" placeholder="20252026" maxlength="8" required class="kp-input w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Week Number</label>
+                            <input type="number" x-model="weekForm.week_no" min="1" max="52" required class="kp-input w-full">
+                        </div>
+                    </div>
 
                     <!-- Start Date & Time -->
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Start Date & Time</label>
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1" style="color: var(--kp-faint)">Start Schedule</label>
                         <div class="grid grid-cols-2 gap-2">
-                            <input type="date" x-model="weekForm.week_start_date" required
-                                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
-                            <input type="time" x-model="weekForm.week_start_time" step="1" required
-                                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            <input type="date" x-model="weekForm.week_start_date" required class="kp-input w-full">
+                            <input type="time" x-model="weekForm.week_start_time" step="1" required class="kp-input w-full">
                         </div>
                     </div>
 
                     <!-- End Date & Time -->
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">End Date & Time</label>
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1" style="color: var(--kp-faint)">End Schedule</label>
                         <div class="grid grid-cols-2 gap-2">
-                            <input type="date" x-model="weekForm.week_end_date" required
-                                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
-                            <input type="time" x-model="weekForm.week_end_time" step="1" required
-                                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            <input type="date" x-model="weekForm.week_end_date" required class="kp-input w-full">
+                            <input type="time" x-model="weekForm.week_end_time" step="1" required class="kp-input w-full">
                         </div>
                     </div>
 
-                    <div class="flex gap-3 pt-2">
-                        <button type="button" @click="showWeekModal = false"
-                            class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm">Cancel</button>
-                        <button type="submit"
-                            class="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700">Save</button>
+                    <div class="flex gap-2 pt-3 border-t" style="border-color: var(--kp-border)">
+                        <button type="button" @click="showWeekModal = false" class="kp-btn kp-btn-secondary flex-1">Cancel</button>
+                        <button type="submit" class="kp-btn kp-btn-primary flex-1">
+                            <i class="fas fa-save mr-1.5"></i> Save Week
+                        </button>
                     </div>
                 </form>
             </div>
@@ -292,7 +314,6 @@
                         let valA = a[this.weekSortField] ?? '';
                         let valB = b[this.weekSortField] ?? '';
 
-                        // Parse as number if the field is 'week_no'
                         if (this.weekSortField === 'week_no') {
                             valA = parseInt(valA) || 0;
                             valB = parseInt(valB) || 0;
@@ -334,15 +355,12 @@
                     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
                 },
 
-                //updated today
-
                 async parseJsonResponse(response, url) {
                     const text = await response.text();
                     let data = {};
                     try {
                         data = text ? JSON.parse(text) : {};
                     } catch (e) {
-                        // Extract <title> from HTML error pages for a useful message
                         const titleMatch = text.match(/<title[^>]*>([^<]*)<\/title>/i);
                         const title = titleMatch ? titleMatch[1].trim() : '';
                         const preview = (title ? title + ' — ' : '') + 'HTTP ' + response.status +
@@ -401,8 +419,6 @@
                 async saveCropYear() {
                     const url = this.cropYearBaseUrl + '/' + this.editingCropYearId;
                     try {
-                        // NOTE: POST + _method spoofing (not raw PUT) — many shared hosts
-                        // block PUT/DELETE and return an HTML 403/405 page instead.
                         const response = await fetch(url, {
                             method: 'POST',
                             headers: {
@@ -444,7 +460,7 @@
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonText: 'Yes, delete',
-                        confirmButtonColor: '#dc2626'
+                        confirmButtonColor: '#832727'
                     });
                     if (!result.isConfirmed) return;
                     try {
@@ -483,24 +499,12 @@
                 editWeek(week) {
                     this.editingWeekId = week.id;
                     const extractDateTime = (dateString) => {
-                        if (!dateString) return {
-                            date: '',
-                            time: '00:00:00'
-                        };
+                        if (!dateString) return { date: '', time: '00:00:00' };
                         const fullMatch = dateString.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}):?(\d{2})?$/);
-                        if (fullMatch) return {
-                            date: fullMatch[1],
-                            time: fullMatch[2] + ':' + (fullMatch[3] || '00')
-                        };
+                        if (fullMatch) return { date: fullMatch[1], time: fullMatch[2] + ':' + (fullMatch[3] || '00') };
                         const tMatch = dateString.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}):?(\d{2})?/);
-                        if (tMatch) return {
-                            date: tMatch[1],
-                            time: tMatch[2] + ':' + (tMatch[3] || '00')
-                        };
-                        return {
-                            date: '',
-                            time: '00:00:00'
-                        };
+                        if (tMatch) return { date: tMatch[1], time: tMatch[2] + ':' + (tMatch[3] || '00') };
+                        return { date: '', time: '00:00:00' };
                     };
                     const start = extractDateTime(week.week_start_date);
                     const end = extractDateTime(week.week_end_date);
@@ -516,10 +520,8 @@
                 },
 
                 async saveWeek() {
-                    const startTime = this.weekForm.week_start_time.length === 5 ? this.weekForm.week_start_time +
-                        ':00' : this.weekForm.week_start_time;
-                    const endTime = this.weekForm.week_end_time.length === 5 ? this.weekForm.week_end_time + ':00' :
-                        this.weekForm.week_end_time;
+                    const startTime = this.weekForm.week_start_time.length === 5 ? this.weekForm.week_start_time + ':00' : this.weekForm.week_start_time;
+                    const endTime = this.weekForm.week_end_time.length === 5 ? this.weekForm.week_end_time + ':00' : this.weekForm.week_end_time;
                     const weekStart = this.weekForm.week_start_date + ' ' + startTime;
                     const weekEnd = this.weekForm.week_end_date + ' ' + endTime;
                     if (new Date(weekEnd) <= new Date(weekStart)) {
@@ -576,7 +578,7 @@
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonText: 'Yes, delete',
-                        confirmButtonColor: '#dc2626'
+                        confirmButtonColor: '#832727'
                     });
                     if (!result.isConfirmed) return;
                     try {

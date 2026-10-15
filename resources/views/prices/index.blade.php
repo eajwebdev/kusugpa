@@ -4,98 +4,109 @@
 @section('title', 'Price Management')
 
 @section('content')
-    <div x-data="priceData()" class="space-y-6">
+    <div x-data="priceData()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
-        <div
-            class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-            <div class="flex items-center gap-3 mb-2">
-                <i class="fas fa-tags text-2xl"></i>
-                <h1 class="text-2xl sm:text-3xl font-bold">Price Management</h1>
+        <header>
+            <div class="kp-page-header">
+                <div>
+                    <p class="kp-eyebrow">Market Rates & Pricing</p>
+                    <h1 class="kp-page-title mt-1">Price Management</h1>
+                    <p class="kp-page-sub">Configure weekly market prices for sugar quedan classes and molasses production.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('prices.registry') }}" class="kp-btn kp-btn-secondary">
+                        <i class="fas fa-history mr-1.5" aria-hidden="true"></i> Price Registry
+                    </a>
+                </div>
             </div>
-            <p class="text-primary-100 text-sm">Manage Quedan and Molasses prices</p>
-        </div>
+            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+        </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Quedan Prices Section -->
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="p-6 border-b border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <div class="bg-green-100 rounded-lg p-2">
-                                <i class="fas fa-tag text-green-600 text-sm"></i>
-                            </div>
-                            <h2 class="text-lg font-bold text-gray-900">Quedan Prices</h2>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <select x-model="quedanCropYearFilter" @change="filterQuedan()"
-                                class="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-primary-500">
-                                <option value="">All Years</option>
-                                <template x-for="cy in cropYears" :key="cy.id">
-                                    <option :value="cy.crop_year" x-text="cy.crop_year"></option>
-                                </template>
-                            </select>
-                            <span class="text-xs text-gray-500" x-text="filteredQuedan.length + ' entries'"></span>
+            <div class="kp-card overflow-hidden">
+                <div class="p-5 border-b flex flex-wrap items-center justify-between gap-3" style="border-color: var(--kp-border)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-tag text-base" style="color: var(--kp-forest)"></i>
+                        <div>
+                            <h2 class="font-display text-base font-semibold" style="color: var(--kp-text)">Quedan Prices</h2>
+                            <p class="text-xs" style="color: var(--kp-muted)">Weekly sugar quedans per Lkg</p>
                         </div>
                     </div>
+                    <div class="flex items-center gap-2.5">
+                        <select x-model="quedanCropYearFilter" @change="filterQuedan()" class="kp-select text-xs py-1 px-2.5">
+                            <option value="">All Crop Years</option>
+                            <template x-for="cy in cropYears" :key="cy.id">
+                                <option :value="cy.crop_year" x-text="cy.crop_year"></option>
+                            </template>
+                        </select>
+                        <span class="text-xs font-mono font-medium px-2 py-1 rounded border"
+                            style="background: var(--kp-surface-2); border-color: var(--kp-border); color: var(--kp-muted)"
+                            x-text="filteredQuedan.length + ' entries'"></span>
+                    </div>
                 </div>
-                <div class="overflow-x-auto max-h-96 overflow-y-auto">
-                    <table class="min-w-full divide-y divide-gray-100">
-                        <thead class="bg-gray-50 sticky top-0">
+                <div class="kp-table-wrap" style="max-height: 480px; overflow-y: auto;">
+                    <table class="kp-table">
+                        <thead>
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortQuedan('crop_year')">
-                                    Crop Year <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="cursor-pointer select-none" @click="sortQuedan('crop_year')">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>Season</span>
+                                        <i class="fas text-[10px]" :class="quedanSortField === 'crop_year' ? (quedanSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortQuedan('week_no')">
-                                    Week <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="text-center cursor-pointer select-none" @click="sortQuedan('week_no')">
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <span>Week</span>
+                                        <i class="fas text-[10px]" :class="quedanSortField === 'week_no' ? (quedanSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Type</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortQuedan('quedan_price')">
-                                    Price <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="text-center">Class / Type</th>
+                                <th class="text-right cursor-pointer select-none" @click="sortQuedan('quedan_price')">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <span>Price / Lkg</span>
+                                        <i class="fas text-[10px]" :class="quedanSortField === 'quedan_price' ? (quedanSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                                <th class="text-center">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50">
+                        <tbody>
                             <template x-for="price in sortedQuedan" :key="price.id">
-                                <tr class="hover:bg-gray-50/50 transition-colors">
-                                    <td class="px-4 py-3">
-                                        <span
-                                            class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium"
+                                <tr class="hover:bg-[var(--kp-hover)] transition-colors">
+                                    <td>
+                                        <span class="font-mono text-xs px-2 py-0.5 rounded border"
+                                            style="background: var(--kp-surface-2); border-color: var(--kp-border); color: var(--kp-text)"
                                             x-text="price.crop_year"></span>
                                     </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <span class="text-sm font-semibold text-gray-900"
-                                            x-text="'Week ' + price.week_no"></span>
+                                    <td class="text-center font-mono font-semibold" style="color: var(--kp-text)"
+                                        x-text="'Week ' + price.week_no"></td>
+                                    <td class="text-center">
+                                        <span class="kp-badge kp-badge-emerald font-semibold uppercase tracking-wider"
+                                            x-text="price.quedan_type || 'STANDARD'"></span>
                                     </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <span class="text-sm font-bold text-gray-900"
-                                            x-text="price.quedan_type || 'N/A'"></span>
-                                    </td>
-                                    <td class="px-4 py-3 text-right">
-                                        <span class="text-sm font-semibold text-gray-900">₱<span
-                                                x-text="formatNumber(price.quedan_price)"></span></span>
-                                    </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <div class="flex items-center justify-center gap-2">
+                                    <td class="text-right font-mono font-semibold tabular" style="color: var(--kp-text)"
+                                        x-text="'₱' + formatNumber(price.quedan_price)"></td>
+                                    <td class="text-center">
+                                        <div class="flex items-center justify-center gap-1.5">
                                             <button @click="editQuedan(price)"
-                                                class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition">
-                                                <i class="fas fa-edit text-sm"></i>
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] transition"
+                                                style="color: var(--kp-cane)" title="Edit Price">
+                                                <i class="fas fa-edit text-xs"></i>
                                             </button>
                                             <button @click="deleteQuedan(price.id)"
-                                                class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition">
-                                                <i class="fas fa-trash text-sm"></i>
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] transition text-red-600"
+                                                title="Delete Price">
+                                                <i class="fas fa-trash text-xs"></i>
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
                             </template>
                             <tr x-show="filteredQuedan.length === 0">
-                                <td colspan="5" class="px-4 py-8 text-center text-gray-500">
-                                    <i class="fas fa-tag text-3xl text-gray-200 mb-2 block"></i>
-                                    No quedan prices found
+                                <td colspan="5" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                    <i class="fas fa-tag text-3xl mb-2 block opacity-30"></i>
+                                    No quedan prices recorded for this selection.
                                 </td>
                             </tr>
                         </tbody>
@@ -104,79 +115,84 @@
             </div>
 
             <!-- Molasses Prices Section -->
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="p-6 border-b border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <div class="bg-blue-100 rounded-lg p-2">
-                                <i class="fas fa-flask text-blue-600 text-sm"></i>
-                            </div>
-                            <h2 class="text-lg font-bold text-gray-900">Molasses Prices</h2>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <select x-model="molassesCropYearFilter" @change="filterMolasses()"
-                                class="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-primary-500">
-                                <option value="">All Years</option>
-                                <template x-for="cy in cropYears" :key="cy.id">
-                                    <option :value="cy.crop_year" x-text="cy.crop_year"></option>
-                                </template>
-                            </select>
-                            <span class="text-xs text-gray-500" x-text="filteredMolasses.length + ' entries'"></span>
+            <div class="kp-card overflow-hidden">
+                <div class="p-5 border-b flex flex-wrap items-center justify-between gap-3" style="border-color: var(--kp-border)">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fas fa-flask text-base" style="color: var(--kp-forest)"></i>
+                        <div>
+                            <h2 class="font-display text-base font-semibold" style="color: var(--kp-text)">Molasses Prices</h2>
+                            <p class="text-xs" style="color: var(--kp-muted)">Weekly molasses rates per metric ton</p>
                         </div>
                     </div>
+                    <div class="flex items-center gap-2.5">
+                        <select x-model="molassesCropYearFilter" @change="filterMolasses()" class="kp-select text-xs py-1 px-2.5">
+                            <option value="">All Crop Years</option>
+                            <template x-for="cy in cropYears" :key="cy.id">
+                                <option :value="cy.crop_year" x-text="cy.crop_year"></option>
+                            </template>
+                        </select>
+                        <span class="text-xs font-mono font-medium px-2 py-1 rounded border"
+                            style="background: var(--kp-surface-2); border-color: var(--kp-border); color: var(--kp-muted)"
+                            x-text="filteredMolasses.length + ' entries'"></span>
+                    </div>
                 </div>
-                <div class="overflow-x-auto max-h-96 overflow-y-auto">
-                    <table class="min-w-full divide-y divide-gray-100">
-                        <thead class="bg-gray-50 sticky top-0">
+                <div class="kp-table-wrap" style="max-height: 480px; overflow-y: auto;">
+                    <table class="kp-table">
+                        <thead>
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortMolasses('crop_year')">
-                                    Crop Year <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="cursor-pointer select-none" @click="sortMolasses('crop_year')">
+                                    <div class="flex items-center gap-1.5">
+                                        <span>Season</span>
+                                        <i class="fas text-[10px]" :class="molassesSortField === 'crop_year' ? (molassesSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortMolasses('week_no')">
-                                    Week <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="text-center cursor-pointer select-none" @click="sortMolasses('week_no')">
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <span>Week</span>
+                                        <i class="fas text-[10px]" :class="molassesSortField === 'week_no' ? (molassesSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                    @click="sortMolasses('mol_price')">
-                                    Price <i class="fas fa-sort text-gray-300 ml-1"></i>
+                                <th class="text-right cursor-pointer select-none" @click="sortMolasses('mol_price')">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <span>Price / MT</span>
+                                        <i class="fas text-[10px]" :class="molassesSortField === 'mol_price' ? (molassesSortDir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
                                 </th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                                <th class="text-center">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50">
+                        <tbody>
                             <template x-for="price in sortedMolasses" :key="price.id">
-                                <tr class="hover:bg-gray-50/50 transition-colors">
-                                    <td class="px-4 py-3">
-                                        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium"
+                                <tr class="hover:bg-[var(--kp-hover)] transition-colors">
+                                    <td>
+                                        <span class="font-mono text-xs px-2 py-0.5 rounded border"
+                                            style="background: var(--kp-surface-2); border-color: var(--kp-border); color: var(--kp-text)"
                                             x-text="price.crop_year"></span>
                                     </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <span class="text-sm font-semibold text-gray-900"
-                                            x-text="'Week ' + price.week_no"></span>
-                                    </td>
-                                    <td class="px-4 py-3 text-right">
-                                        <span class="text-sm font-semibold text-gray-900">₱<span
-                                                x-text="formatNumber(price.mol_price)"></span></span>
-                                    </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <div class="flex items-center justify-center gap-2">
+                                    <td class="text-center font-mono font-semibold" style="color: var(--kp-text)"
+                                        x-text="'Week ' + price.week_no"></td>
+                                    <td class="text-right font-mono font-semibold tabular" style="color: var(--kp-text)"
+                                        x-text="'₱' + formatNumber(price.mol_price)"></td>
+                                    <td class="text-center">
+                                        <div class="flex items-center justify-center gap-1.5">
                                             <button @click="editMolasses(price)"
-                                                class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition">
-                                                <i class="fas fa-edit text-sm"></i>
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] transition"
+                                                style="color: var(--kp-cane)" title="Edit Price">
+                                                <i class="fas fa-edit text-xs"></i>
                                             </button>
                                             <button @click="deleteMolasses(price.id)"
-                                                class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition">
-                                                <i class="fas fa-trash text-sm"></i>
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] transition text-red-600"
+                                                title="Delete Price">
+                                                <i class="fas fa-trash text-xs"></i>
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
                             </template>
                             <tr x-show="filteredMolasses.length === 0">
-                                <td colspan="4" class="px-4 py-8 text-center text-gray-500">
-                                    <i class="fas fa-flask text-3xl text-gray-200 mb-2 block"></i>
-                                    No molasses prices found
+                                <td colspan="4" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                    <i class="fas fa-flask text-3xl mb-2 block opacity-30"></i>
+                                    No molasses prices recorded for this selection.
                                 </td>
                             </tr>
                         </tbody>
@@ -186,47 +202,76 @@
         </div>
 
         <!-- Edit Quedan Modal -->
-        <div x-show="showQuedanModal" class="fixed inset-0 z-50 flex items-center justify-center" style="display: none;">
-            <div class="fixed inset-0 bg-black/50" @click="showQuedanModal = false"></div>
-            <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 mx-4">
-                <h3 class="text-lg font-bold text-gray-900 mb-4">Edit Quedan Price</h3>
-                <form @submit.prevent="saveQuedan()" class="space-y-3">
-                    <input type="text" x-model="quedanForm.quedan_type" placeholder="Quedan Type (e.g., A, B, C)"
-                        required class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                    <input type="number" x-model="quedanForm.quedan_price" step="0.01" placeholder="Price" required
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                    <input type="text" x-model="quedanForm.crop_year" placeholder="Crop Year" required
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                    <input type="text" x-model="quedanForm.week_no" placeholder="Week Number" required
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                    <div class="flex gap-3 pt-2">
-                        <button type="button" @click="showQuedanModal = false"
-                            class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm">Cancel</button>
-                        <button type="submit"
-                            class="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700">Save</button>
+        <div x-show="showQuedanModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showQuedanModal = false"></div>
+            <div class="relative rounded-xl border max-w-md w-full p-6 shadow-2xl"
+                style="background: var(--kp-surface); border-color: var(--kp-border); color: var(--kp-text)">
+                <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--kp-border)">
+                    <h3 class="font-display text-lg font-semibold" style="color: var(--kp-text)">Edit Quedan Price</h3>
+                    <button @click="showQuedanModal = false" class="p-1 rounded text-xs hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
+                <form @submit.prevent="saveQuedan()" class="space-y-3.5">
+                    <div>
+                        <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Quedan Type / Class *</label>
+                        <input type="text" x-model="quedanForm.quedan_type" placeholder="e.g., A, B, C, D" required class="kp-input w-full">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Price per Lkg (₱) *</label>
+                        <input type="number" x-model="quedanForm.quedan_price" step="0.01" placeholder="0.00" required class="kp-input w-full">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Crop Year *</label>
+                            <input type="text" x-model="quedanForm.crop_year" placeholder="20252026" required class="kp-input w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Week Number *</label>
+                            <input type="text" x-model="quedanForm.week_no" placeholder="1-52" required class="kp-input w-full">
+                        </div>
+                    </div>
+                    <div class="flex gap-2 pt-3 border-t" style="border-color: var(--kp-border)">
+                        <button type="button" @click="showQuedanModal = false" class="kp-btn kp-btn-secondary flex-1">Cancel</button>
+                        <button type="submit" class="kp-btn kp-btn-primary flex-1">
+                            <i class="fas fa-save mr-1.5"></i> Save Quedan Price
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
         <!-- Edit Molasses Modal -->
-        <div x-show="showMolassesModal" class="fixed inset-0 z-50 flex items-center justify-center"
-            style="display: none;">
-            <div class="fixed inset-0 bg-black/50" @click="showMolassesModal = false"></div>
-            <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 mx-4">
-                <h3 class="text-lg font-bold text-gray-900 mb-4">Edit Molasses Price</h3>
-                <form @submit.prevent="saveMolasses()" class="space-y-3">
-                    <input type="number" x-model="molassesForm.mol_price" step="0.01" placeholder="Price" required
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                    <input type="text" x-model="molassesForm.crop_year" placeholder="Crop Year" required
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                    <input type="text" x-model="molassesForm.week_no" placeholder="Week Number" required
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                    <div class="flex gap-3 pt-2">
-                        <button type="button" @click="showMolassesModal = false"
-                            class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm">Cancel</button>
-                        <button type="submit"
-                            class="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700">Save</button>
+        <div x-show="showMolassesModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showMolassesModal = false"></div>
+            <div class="relative rounded-xl border max-w-md w-full p-6 shadow-2xl"
+                style="background: var(--kp-surface); border-color: var(--kp-border); color: var(--kp-text)">
+                <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--kp-border)">
+                    <h3 class="font-display text-lg font-semibold" style="color: var(--kp-text)">Edit Molasses Price</h3>
+                    <button @click="showMolassesModal = false" class="p-1 rounded text-xs hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
+                <form @submit.prevent="saveMolasses()" class="space-y-3.5">
+                    <div>
+                        <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Price per Metric Ton (₱) *</label>
+                        <input type="number" x-model="molassesForm.mol_price" step="0.01" placeholder="0.00" required class="kp-input w-full">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Crop Year *</label>
+                            <input type="text" x-model="molassesForm.crop_year" placeholder="20252026" required class="kp-input w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Week Number *</label>
+                            <input type="text" x-model="molassesForm.week_no" placeholder="1-52" required class="kp-input w-full">
+                        </div>
+                    </div>
+                    <div class="flex gap-2 pt-3 border-t" style="border-color: var(--kp-border)">
+                        <button type="button" @click="showMolassesModal = false" class="kp-btn kp-btn-secondary flex-1">Cancel</button>
+                        <button type="submit" class="kp-btn kp-btn-primary flex-1">
+                            <i class="fas fa-save mr-1.5"></i> Save Molasses Price
+                        </button>
                     </div>
                 </form>
             </div>
@@ -270,7 +315,6 @@
                         let valA = a[this.quedanSortField] ?? '';
                         let valB = b[this.quedanSortField] ?? '';
 
-                        // Parse as number if the field is 'week_no' or 'quedan_price'
                         if (this.quedanSortField === 'week_no' || this.quedanSortField === 'quedan_price') {
                             valA = parseFloat(valA) || 0;
                             valB = parseFloat(valB) || 0;
@@ -293,7 +337,6 @@
                         let valA = a[this.molassesSortField] ?? '';
                         let valB = b[this.molassesSortField] ?? '';
 
-                        // Parse as number if the field is 'week_no' or 'mol_price'
                         if (this.molassesSortField === 'week_no' || this.molassesSortField === 'mol_price') {
                             valA = parseFloat(valA) || 0;
                             valB = parseFloat(valB) || 0;
@@ -369,11 +412,12 @@
                 },
                 async deleteQuedan(id) {
                     const result = await Swal.fire({
-                        title: 'Delete?',
+                        title: 'Delete Price?',
+                        text: 'This action cannot be undone.',
                         icon: 'warning',
                         showCancelButton: true,
-                        confirmButtonText: 'Yes',
-                        confirmButtonColor: '#dc2626'
+                        confirmButtonText: 'Yes, delete',
+                        confirmButtonColor: '#832727'
                     });
                     if (!result.isConfirmed) return;
                     try {
@@ -443,11 +487,12 @@
                 },
                 async deleteMolasses(id) {
                     const result = await Swal.fire({
-                        title: 'Delete?',
+                        title: 'Delete Price?',
+                        text: 'This action cannot be undone.',
                         icon: 'warning',
                         showCancelButton: true,
-                        confirmButtonText: 'Yes',
-                        confirmButtonColor: '#dc2626'
+                        confirmButtonText: 'Yes, delete',
+                        confirmButtonColor: '#832727'
                     });
                     if (!result.isConfirmed) return;
                     try {

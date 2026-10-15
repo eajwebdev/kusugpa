@@ -4,227 +4,267 @@
 @section('title', 'Planter Profiles')
 
 @section('content')
-    <div x-data="planterData()" class="space-y-6">
+    <div x-data="planterData()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
-        <div
-            class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <header>
+            <div class="kp-page-header">
                 <div>
-                    <div class="flex items-center gap-3 mb-2">
-                        <i class="fas fa-address-book text-2xl"></i>
-                        <h1 class="text-2xl sm:text-3xl font-bold">Planter Profiles</h1>
-                    </div>
-                    <p class="text-primary-100 text-sm">Manage planter information and status</p>
+                    <p class="kp-eyebrow">Directory & Membership</p>
+                    <h1 class="kp-page-title mt-1">Planter Profiles</h1>
+                    <p class="kp-page-sub">Manage planter member records, operational status, and production history.</p>
                 </div>
-                <div class="mt-4 sm:mt-0 flex items-center gap-2">
+                <div class="flex items-center gap-2">
                     @if (in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager']) ||
                             auth()->user()->hasPermission('manage-planter-profiles'))
-                        <button @click="openAddModal()"
-                            class="bg-white text-primary-700 rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-primary-50 transition">
-                            <i class="fas fa-plus-circle mr-2"></i> Add Planter
+                        <button @click="openAddModal()" class="kp-btn kp-btn-primary">
+                            <i class="fas fa-plus-circle mr-1.5" aria-hidden="true"></i> Add Planter
                         </button>
-                        <button @click="syncPlanters()"
-                            class="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-white/30 transition">
-                            <i class="fas fa-sync mr-2"></i> Sync
+                        <button @click="syncPlanters()" class="kp-btn kp-btn-secondary">
+                            <i class="fas fa-sync mr-1.5" aria-hidden="true"></i> Sync
                         </button>
                     @endif
-                    <a href="{{ route('planter-profiles.export') }}"
-                        class="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-white/30 transition">
-                        <i class="fas fa-file-pdf mr-2"></i> Export
+                    <a href="{{ route('planter-profiles.export') }}" class="kp-btn kp-btn-secondary">
+                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Export PDF
                     </a>
                 </div>
             </div>
-        </div>
+            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+        </header>
 
-        <!-- Stats -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-                <p class="text-xs text-gray-500">Total Planters</p>
-                <p class="text-2xl font-bold text-gray-900">{{ $stats['total'] }}</p>
+        <!-- Stats Strip -->
+        <section aria-label="Planter summary metrics" class="kp-kpis">
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-address-book" aria-hidden="true"></i> Total Planters</p>
+                <p class="kp-kpi-value kp-num">{{ $stats['total'] }}</p>
+                <p class="kp-kpi-sub">Total registered members</p>
             </div>
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-                <p class="text-xs text-gray-500">Active</p>
-                <p class="text-2xl font-bold text-green-600">{{ $stats['active'] }}</p>
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-check-circle" aria-hidden="true"></i> Active</p>
+                <p class="kp-kpi-value kp-num" style="color: var(--kp-emerald)">{{ $stats['active'] }}</p>
+                <p class="kp-kpi-sub">Good standing profiles</p>
             </div>
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-                <p class="text-xs text-gray-500">Inactive</p>
-                <p class="text-2xl font-bold text-gray-400">{{ $stats['inactive'] }}</p>
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-pause-circle" aria-hidden="true"></i> Inactive</p>
+                <p class="kp-kpi-value kp-num" style="color: var(--kp-muted)">{{ $stats['inactive'] }}</p>
+                <p class="kp-kpi-sub">Dormant member profiles</p>
             </div>
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-                <p class="text-xs text-gray-500">New This Month</p>
-                <p class="text-2xl font-bold text-blue-600">{{ $stats['new_this_month'] }}</p>
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-calendar-plus" aria-hidden="true"></i> New This Month</p>
+                <p class="kp-kpi-value kp-num" style="color: var(--kp-forest)">{{ $stats['new_this_month'] }}</p>
+                <p class="kp-kpi-sub">Recently registered</p>
             </div>
-        </div>
+        </section>
 
-        <!-- Filters -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-            <div class="flex flex-wrap gap-3 items-end">
-                <div class="flex-1 min-w-[200px]">
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Search</label>
-                    <input type="text" x-model="search" @input="applyFilters()" placeholder="Search name or code..."
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        <!-- Filter Bar -->
+        <div class="kp-card p-4">
+            <div class="flex flex-wrap gap-4 items-end">
+                <div class="flex-1 min-w-[240px]">
+                    <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Search Planters</label>
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style="color: var(--kp-faint)"></i>
+                        <input type="text" x-model="search" @input="applyFilters()" placeholder="Search by planter name or code..."
+                            class="kp-input w-full pl-9">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                    <select x-model="statusFilter" @change="applyFilters()"
-                        class="border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                <div class="w-48">
+                    <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Status</label>
+                    <select x-model="statusFilter" @change="applyFilters()" class="kp-select w-full">
                         <option value="all">All Status</option>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                         <option value="suspended">Suspended</option>
                     </select>
                 </div>
-                <button @click="clearFilters()" class="text-gray-500 hover:text-gray-700 text-sm py-2">
-                    <i class="fas fa-times mr-1"></i> Clear
+                <button @click="clearFilters()" class="kp-btn kp-btn-secondary h-[38px]">
+                    <i class="fas fa-times mr-1"></i> Reset
                 </button>
-                <span class="text-xs text-gray-400 ml-auto"
+                <span class="text-xs font-mono ml-auto py-2" style="color: var(--kp-muted)"
                     x-text="'Showing ' + filteredPlanters.length + ' planters'"></span>
             </div>
         </div>
 
-        <!-- Table -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="overflow-x-auto" style="max-height: 600px; overflow-y: auto;">
-                <table class="min-w-full divide-y divide-gray-100">
-                    <thead class="bg-gray-50 sticky top-0 z-10">
+        <!-- Table Container -->
+        <div class="kp-card overflow-hidden">
+            <div class="kp-table-wrap" style="max-height: 640px; overflow-y: auto;">
+                <table class="kp-table">
+                    <thead>
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                @click="sortBy('planter_code')">Code</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
-                                @click="sortBy('planter_name')">Name</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Contact</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Area</th>
-                            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Status</th>
-                            <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Total Cane</th>
-                            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                            <th class="cursor-pointer select-none" @click="sortBy('planter_code')">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Code</span>
+                                    <i class="fas text-[10px]" :class="sortField === 'planter_code' ? (sortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                </div>
+                            </th>
+                            <th class="cursor-pointer select-none" @click="sortBy('planter_name')">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Planter Name</span>
+                                    <i class="fas text-[10px]" :class="sortField === 'planter_name' ? (sortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                </div>
+                            </th>
+                            <th>Contact</th>
+                            <th>Area Location</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-right">Total Cane</th>
+                            <th class="text-center">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-50">
+                    <tbody>
                         <template x-for="planter in paginatedPlanters" :key="planter.id">
-                            <tr class="hover:bg-gray-50/50 transition-colors">
-                                <td class="px-4 py-3 text-sm font-mono font-semibold text-gray-900"
-                                    x-text="planter.planter_code"></td>
-                                <td class="px-4 py-3">
+                            <tr class="hover:bg-[var(--kp-hover)] transition-colors">
+                                <td class="font-mono font-semibold" style="color: var(--kp-text)" x-text="planter.planter_code"></td>
+                                <td>
                                     <a :href="'/planter-profiles/' + planter.id"
-                                        class="text-sm font-medium text-primary-600 hover:text-primary-700"
+                                        class="font-medium hover:underline"
+                                        style="color: var(--kp-emerald)"
                                         x-text="planter.planter_name"></a>
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-600" x-text="planter.contact_number || '—'"></td>
-                                <td class="px-4 py-3 text-sm text-gray-600" x-text="planter.area_location || '—'"></td>
-                                <td class="px-4 py-3 text-center">
-    <div class="flex items-center justify-center gap-2">
-        <!-- Status Badge with pulsing dot -->
-        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border"
-            :class="planter.status === 'active' 
-                ? 'bg-green-50 text-green-700 border-green-200' 
-                : planter.status === 'suspended' 
-                    ? 'bg-red-50 text-red-700 border-red-200' 
-                    : 'bg-gray-50 text-gray-600 border-gray-200'">
-            
-            <!-- Pulsing green dot for Active -->
-            <span class="relative flex h-2 w-2" x-show="planter.status === 'active'">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-            </span>
-            
-            <!-- Static red dot for Suspended -->
-            <span class="relative flex h-2 w-2" x-show="planter.status === 'suspended'">
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-            </span>
-            
-            <!-- Static gray dot for Inactive -->
-            <span class="relative flex h-2 w-2" x-show="planter.status === 'inactive'">
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-gray-400"></span>
-            </span>
-            
-            <span x-text="planter.status.charAt(0).toUpperCase() + planter.status.slice(1)"></span>
-        </span>
+                                <td style="color: var(--kp-muted)" x-text="planter.contact_number || '—'"></td>
+                                <td style="color: var(--kp-muted)" x-text="planter.area_location || '—'"></td>
+                                <td class="text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <span class="kp-badge"
+                                            :class="{
+                                                'kp-badge-emerald': planter.status === 'active',
+                                                'kp-badge-rose': planter.status === 'suspended',
+                                                'kp-badge-neutral': planter.status === 'inactive'
+                                            }">
+                                            <span class="w-1.5 h-1.5 rounded-full"
+                                                :class="{
+                                                    'bg-emerald-500 animate-pulse': planter.status === 'active',
+                                                    'bg-red-500': planter.status === 'suspended',
+                                                    'bg-gray-400': planter.status === 'inactive'
+                                                }"></span>
+                                            <span x-text="planter.status.charAt(0).toUpperCase() + planter.status.slice(1)"></span>
+                                        </span>
 
-        <!-- Toggle Button -->
-        @if (in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager']) ||
-                auth()->user()->hasPermission('manage-planter-profiles'))
-            <button @click.stop="toggleStatus(planter)" 
-                class="p-1.5 rounded-lg transition"
-                :class="planter.status === 'active' ? 'text-green-600 hover:bg-green-50' : 'text-red-400 hover:bg-red-50'"
-                :title="planter.status === 'active' ? 'Click to deactivate' : 'Click to activate'">
-                <i class="fas fa-power-off text-xs"></i>
-            </button>
-        @endif
-    </div>
-</td>
-                                <td class="px-4 py-3 text-sm text-right font-semibold"
+                                        @if (in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager']) ||
+                                                auth()->user()->hasPermission('manage-planter-profiles'))
+                                            <button @click.stop="toggleStatus(planter)"
+                                                class="p-1 rounded transition hover:bg-[var(--kp-surface-2)]"
+                                                :style="planter.status === 'active' ? 'color: var(--kp-emerald)' : 'color: var(--kp-muted)'"
+                                                :title="planter.status === 'active' ? 'Click to deactivate' : 'Click to activate'">
+                                                <i class="fas fa-power-off text-xs"></i>
+                                            </button>
+                                        @endif
+                                    </div>
+                                </td>
+                                <td class="text-right font-mono font-medium tabular" style="color: var(--kp-text)"
                                     x-text="formatNumber(getPlanterStat(planter.planter_code, 'total_cane'), 2) + ' tons'">
                                 </td>
-                                <td class="px-4 py-3 text-center">
+                                <td class="text-center">
                                     <div class="flex items-center justify-center gap-1">
                                         <a :href="'/planter-profiles/' + planter.id"
-                                            class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><i
-                                                class="fas fa-eye text-sm"></i></a>
+                                            class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs font-semibold"
+                                            style="color: var(--kp-forest)" title="View Profile">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
                                         @if (in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager']) ||
                                                 auth()->user()->hasPermission('manage-planter-profiles'))
                                             <button @click.stop="editPlanter(planter)"
-                                                class="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg"><i
-                                                    class="fas fa-edit text-sm"></i></button>
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs font-semibold"
+                                                style="color: var(--kp-cane)" title="Edit Planter">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
                                         @endif
                                     </div>
                                 </td>
                             </tr>
                         </template>
                         <tr x-show="filteredPlanters.length === 0">
-                            <td colspan="7" class="px-4 py-12 text-center text-gray-500">No planters found</td>
+                            <td colspan="7" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                <i class="fas fa-address-book text-3xl mb-2 block opacity-30"></i>
+                                No planters match the current filters.
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <div class="px-4 py-3 border-t border-gray-100 flex items-center justify-between" x-show="totalPages > 1">
+
+            <!-- Pagination -->
+            <div class="px-4 py-3 border-t flex items-center justify-between"
+                style="border-color: var(--kp-border); background: var(--kp-surface-2)"
+                x-show="totalPages > 1">
                 <button @click="currentPage--" :disabled="currentPage === 1"
-                    class="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50">Previous</button>
-                <span class="text-sm text-gray-500" x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
+                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
+                    <i class="fas fa-chevron-left mr-1"></i> Previous
+                </button>
+                <span class="text-xs font-medium tabular" style="color: var(--kp-muted)" x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
                 <button @click="currentPage++" :disabled="currentPage >= totalPages"
-                    class="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50">Next</button>
+                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
+                    Next <i class="fas fa-chevron-right ml-1"></i>
+                </button>
             </div>
         </div>
 
         <!-- Add/Edit Modal -->
-        <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center" style="display: none;">
-            <div class="fixed inset-0 bg-black/50" @click="showModal = false"></div>
-            <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 mx-4 max-h-[90vh] overflow-y-auto">
-                <h3 class="text-lg font-bold text-gray-900 mb-4" x-text="editingPlanter ? 'Edit Planter' : 'Add Planter'">
-                </h3>
-                <form @submit.prevent="savePlanter()" class="space-y-3">
+        <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showModal = false"></div>
+            <div class="relative rounded-xl border max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+                style="background: var(--kp-surface); border-color: var(--kp-border); color: var(--kp-text)">
+                <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--kp-border)">
+                    <h3 class="font-display text-lg font-semibold" style="color: var(--kp-text)"
+                        x-text="editingPlanter ? 'Edit Planter Profile' : 'Add New Planter'">
+                    </h3>
+                    <button @click="showModal = false" class="text-xs p-1 rounded hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
+                <form @submit.prevent="savePlanter()" class="space-y-3.5">
                     <div class="grid grid-cols-2 gap-3">
-                        <input type="text" x-model="form.planter_code" placeholder="Planter Code *" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                        <input type="text" x-model="form.planter_name" placeholder="Planter Name *" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Planter Code *</label>
+                            <input type="text" x-model="form.planter_code" placeholder="e.g. 1001" required class="kp-input w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Planter Name *</label>
+                            <input type="text" x-model="form.planter_name" placeholder="Full name" required class="kp-input w-full">
+                        </div>
                     </div>
-                    <input type="text" x-model="form.contact_number" placeholder="Contact Number"
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                    <input type="text" x-model="form.address" placeholder="Address"
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
+                    <div>
+                        <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Contact Number</label>
+                        <input type="text" x-model="form.contact_number" placeholder="e.g. 0917-123-4567" class="kp-input w-full">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Address</label>
+                        <input type="text" x-model="form.address" placeholder="Barangay, City / Municipality" class="kp-input w-full">
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <input type="text" x-model="form.area_location" placeholder="Area Location"
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                        <input type="number" x-model="form.total_area" placeholder="Total Area (ha)" step="0.01"
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Area Location</label>
+                            <input type="text" x-model="form.area_location" placeholder="e.g. Hacienda San Jose" class="kp-input w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Total Area (ha)</label>
+                            <input type="number" x-model="form.total_area" placeholder="0.00" step="0.01" class="kp-input w-full">
+                        </div>
                     </div>
                     <div class="grid grid-cols-3 gap-3">
-                        <select x-model="form.status"
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="suspended">Suspended</option>
-                        </select>
-                        <input type="date" x-model="form.membership_date"
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                        <input type="text" x-model="form.crop_year" placeholder="Crop Year"
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Status</label>
+                            <select x-model="form.status" class="kp-select w-full">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Membership Date</label>
+                            <input type="date" x-model="form.membership_date" class="kp-input w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Crop Year</label>
+                            <input type="text" x-model="form.crop_year" placeholder="2023-2024" class="kp-input w-full">
+                        </div>
                     </div>
-                    <textarea x-model="form.notes" placeholder="Notes" rows="2"
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm"></textarea>
-                    <div class="flex gap-3 pt-2">
-                        <button type="submit"
-                            class="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700">Save</button>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Notes</label>
+                        <textarea x-model="form.notes" placeholder="Additional remarks or notes..." rows="2" class="kp-input w-full"></textarea>
+                    </div>
+                    <div class="flex gap-2 pt-3 border-t" style="border-color: var(--kp-border)">
+                        <button type="button" @click="showModal = false" class="kp-btn kp-btn-secondary flex-1">Cancel</button>
+                        <button type="submit" class="kp-btn kp-btn-primary flex-1">
+                            <i class="fas fa-save mr-1.5"></i> Save Planter
+                        </button>
                     </div>
                 </form>
             </div>

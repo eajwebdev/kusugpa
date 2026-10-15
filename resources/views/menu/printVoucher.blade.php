@@ -4,127 +4,127 @@
 @section('title', 'Print Vouchers')
 
 @section('content')
-    <div x-data="voucherFilter()" class="space-y-6">
+    <div x-data="voucherFilter()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
-        <div
-            class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <header>
+            <div class="kp-page-header">
                 <div>
-                    <div class="flex items-center gap-3 mb-2">
-                        <i class="fas fa-print text-2xl"></i>
-                        <h1 class="text-2xl sm:text-3xl font-bold">Print Vouchers</h1>
-                    </div>
-                    <p class="text-primary-100 text-sm">Generate and print check vouchers for planters</p>
+                    <p class="kp-eyebrow">Disbursement & Settlement</p>
+                    <h1 class="kp-page-title mt-1">Print Vouchers</h1>
+                    <p class="kp-page-sub">Generate and print check vouchers and remittance statements for planters.</p>
                 </div>
-                <div class="mt-4 sm:mt-0 flex items-center gap-3">
-                    <span class="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2 text-sm" x-show="showPreview">
-                        <i class="fas fa-file-invoice mr-1"></i> Preview Ready
+                <div class="flex items-center gap-2">
+                    <span class="kp-badge kp-badge--forest text-xs py-1.5 px-3" x-show="showPreview" x-cloak>
+                        <i class="fas fa-file-invoice mr-1.5" aria-hidden="true"></i> Voucher Statement Ready
                     </span>
+                    <button type="button" @click="resetFilters()" class="kp-btn kp-btn-secondary text-xs">
+                        <i class="fas fa-undo mr-1.5" aria-hidden="true"></i> Reset Filters
+                    </button>
                 </div>
             </div>
-        </div>
+            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+        </header>
 
         <!-- Filter Card -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
-            <div class="p-6 border-b border-gray-100">
-                <div class="flex items-center gap-2">
-                    <div class="bg-primary-100 rounded-lg p-2">
-                        <i class="fas fa-filter text-primary-600 text-sm"></i>
-                    </div>
-                    <h2 class="text-lg font-bold text-gray-900">Voucher Filters</h2>
+        <div class="kp-card p-6 overflow-visible">
+            <div class="flex items-center gap-2.5 pb-4 mb-5 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm font-semibold">
+                    <i class="fas fa-filter" aria-hidden="true"></i>
+                </div>
+                <div>
+                    <h2 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Voucher Generation Criteria</h2>
+                    <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Select crop period and target planters to compile check disbursements.</p>
                 </div>
             </div>
 
-            <div class="p-6 overflow-visible">
-                <form @submit.prevent="loadVoucher" class="space-y-4">
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        <!-- Crop Year -->
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                <i class="fas fa-calendar-alt text-primary-500 mr-1"></i> Crop Year *
-                            </label>
-                            <select x-model="filters.crop_year" @change="onFilterChange()"
-                                class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50 transition">
-                                <option value="">Select Crop Year</option>
-                                @foreach ($cropYear as $year)
-                                    <option value="{{ $year }}">{{ $year }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+            <form @submit.prevent="loadVoucher" class="space-y-5">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <!-- Crop Year -->
+                    <div>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                            <i class="fas fa-calendar-alt text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Crop Year <span class="text-rose-600">*</span>
+                        </label>
+                        <select x-model="filters.crop_year" @change="onFilterChange()"
+                            class="kp-input w-full">
+                            <option value="">Select Crop Year</option>
+                            @foreach ($cropYear as $year)
+                                <option value="{{ $year }}">{{ $year }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                        <!-- Week From -->
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                <i class="fas fa-play-circle text-primary-500 mr-1"></i> Week From *
-                            </label>
-                            <select x-model="filters.week_from" @change="onFilterChange()"
-                                class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50 transition">
-                                <option value="">Select Week</option>
-                                @foreach ($weekNos as $week)
-                                    <option value="{{ $week }}">Week {{ $week }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                    <!-- Week From -->
+                    <div>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                            <i class="fas fa-play-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week From <span class="text-rose-600">*</span>
+                        </label>
+                        <select x-model="filters.week_from" @change="onFilterChange()"
+                            class="kp-input w-full">
+                            <option value="">Select Week</option>
+                            @foreach ($weekNos as $week)
+                                <option value="{{ $week }}">Week {{ $week }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                        <!-- Week To -->
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                <i class="fas fa-stop-circle text-primary-500 mr-1"></i> Week To *
-                            </label>
-                            <select x-model="filters.week_to" @change="onFilterChange()"
-                                class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50 transition">
-                                <option value="">Select Week</option>
-                                @foreach ($weekNos as $week)
-                                    <option value="{{ $week }}">Week {{ $week }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                    <!-- Week To -->
+                    <div>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                            <i class="fas fa-stop-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week To <span class="text-rose-600">*</span>
+                        </label>
+                        <select x-model="filters.week_to" @change="onFilterChange()"
+                            class="kp-input w-full">
+                            <option value="">Select Week</option>
+                            @foreach ($weekNos as $week)
+                                <option value="{{ $week }}">Week {{ $week }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                        <!-- Planter Selection -->
+                    <!-- Planter Selection -->
+                    <div class="relative">
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                            <i class="fas fa-user text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Planter Scope
+                        </label>
                         <div class="relative">
-                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                <i class="fas fa-user text-primary-500 mr-1"></i> Planter Names
-                            </label>
-                            <div class="relative">
-                                <button
-                                    @click="togglePlanterDropdown()"
-                                    type="button"
-                                    :disabled="!canLoadPlanters"
-                                    class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-left bg-gray-50 hover:bg-white focus:ring-2 focus:ring-primary-500 transition flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <span class="truncate" x-text="planterSelectedText"></span>
-                                    <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform"
-                                        :class="{ 'rotate-180': planterOpen }"></i>
-                                </button>
+                            <button
+                                @click="togglePlanterDropdown()"
+                                type="button"
+                                :disabled="!canLoadPlanters"
+                                class="kp-input w-full text-left flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed">
+                                <span class="truncate font-medium" x-text="planterSelectedText"></span>
+                                <i class="fas fa-chevron-down text-[#52705F] text-xs transition-transform duration-200"
+                                    :class="{ 'rotate-180': planterOpen }"></i>
+                            </button>
 
-                                <div x-show="planterOpen" @click.away="planterOpen = false" x-transition
-                                    class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto left-0">
-                                    <!-- Loading State -->
-                                    <div x-show="planterLoading" class="p-4 text-center text-sm text-gray-500">
-                                        <i class="fas fa-spinner fa-spin mr-2"></i> Loading planters...
+                            <div x-show="planterOpen" @click.away="planterOpen = false" x-transition x-cloak
+                                class="absolute z-50 mt-1.5 w-full bg-white dark:bg-[#13231B] border border-[#CFDCD3] dark:border-[#203A2B] rounded-xl shadow-xl max-h-64 overflow-y-auto left-0">
+                                <!-- Loading State -->
+                                <div x-show="planterLoading" class="p-4 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
+                                    <i class="fas fa-circle-notch fa-spin mr-2 text-[#005B2A] dark:text-[#52C97E]"></i> Loading planter roster...
+                                </div>
+
+                                <!-- No Results -->
+                                <div x-show="!planterLoading && planters.length === 0"
+                                    class="p-4 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
+                                    No planters found for the selected period
+                                </div>
+
+                                <!-- Planter List -->
+                                <div x-show="!planterLoading && planters.length > 0">
+                                    <div class="sticky top-0 bg-[#F7FAF8] dark:bg-[#1A3324] px-3 py-2 border-b border-[#E3EBE5] dark:border-[#203A2B] z-10 flex justify-between items-center text-xs">
+                                        <button @click="selectAllPlanters()" type="button"
+                                            class="font-semibold text-[#005B2A] dark:text-[#52C97E] hover:underline">Select All</button>
+                                        <button @click="clearAllPlanters()" type="button"
+                                            class="font-medium text-[#52705F] dark:text-[#8AA895] hover:text-rose-600">Clear</button>
                                     </div>
-
-                                    <!-- No Results -->
-                                    <div x-show="!planterLoading && planters.length === 0"
-                                        class="p-4 text-center text-sm text-gray-500">
-                                        No planters found for selected criteria
-                                    </div>
-
-                                    <!-- Planter List -->
-                                    <div x-show="!planterLoading && planters.length > 0">
-                                        <div class="sticky top-0 bg-white p-2 border-b border-gray-100 z-10 flex gap-2">
-                                            <button @click="clearAllPlanters()"
-                                                type="button"
-                                                class="text-xs text-primary-600 hover:text-primary-700">Clear All</button>
-                                            <button @click="selectAllPlanters()" type="button"
-                                                class="text-xs text-primary-600 hover:text-primary-700">Select All</button>
-                                        </div>
+                                    <div class="divide-y divide-[#E3EBE5] dark:divide-[#203A2B]">
                                         <template x-for="planter in planters" :key="planter.planter_code">
-                                            <label
-                                                class="flex items-center px-4 py-2 hover:bg-primary-50 cursor-pointer transition">
+                                            <label class="flex items-center px-3.5 py-2 hover:bg-[#EAF5ED] dark:hover:bg-[#1A3324] cursor-pointer transition">
                                                 <input type="checkbox" :value="planter.planter_code"
                                                     x-model="filters.planter_names"
-                                                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500 mr-3">
-                                                <span class="text-sm text-gray-700 truncate"
+                                                    class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A] mr-2.5">
+                                                <span class="text-xs text-[#172B20] dark:text-[#EAF5ED] truncate font-medium"
                                                     x-text="planter.planter_name + ' (' + planter.planter_code + ')'"></span>
                                             </label>
                                         </template>
@@ -133,73 +133,77 @@
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Action Buttons -->
-                    <div class="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+                <!-- Action Buttons -->
+                <div class="flex items-center justify-between pt-4 border-t border-[#E3EBE5] dark:border-[#203A2B]">
+                    <div class="text-xs text-[#52705F] dark:text-[#8AA895] flex items-center gap-1.5">
+                        <i class="fas fa-info-circle text-[#087A3D]" aria-hidden="true"></i>
+                        <span>Select crop year and week range to activate preview generation.</span>
+                    </div>
+                    <div class="flex items-center gap-2.5">
                         <button type="button" @click="resetFilters()"
-                            class="inline-flex items-center px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition">
-                            <i class="fas fa-undo mr-2"></i> Reset
+                            class="kp-btn kp-btn-secondary">
+                            <i class="fas fa-undo mr-1.5" aria-hidden="true"></i> Reset
                         </button>
                         <button type="submit"
-                            class="inline-flex items-center px-6 py-2.5 border border-transparent rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            class="kp-btn kp-btn-primary shadow-sm"
                             :disabled="!filters.crop_year || !filters.week_from || !filters.week_to">
-                            <i class="fas fa-file-pdf mr-2"></i> Generate Voucher
+                            <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Generate Voucher
                         </button>
                     </div>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
 
-        <!-- PDF Preview -->
-        <div x-show="showPreview" x-transition
-            class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div
-                class="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div class="flex items-center gap-2">
-                    <div class="bg-green-100 rounded-lg p-2">
-                        <i class="fas fa-check-circle text-green-600 text-sm"></i>
+        <!-- PDF Preview Card -->
+        <div x-show="showPreview" x-transition x-cloak
+            class="kp-card overflow-hidden">
+            <div class="px-6 py-4 border-b border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-[#EAF5ED] dark:bg-[#13231B] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm font-semibold">
+                        <i class="fas fa-check-circle" aria-hidden="true"></i>
                     </div>
                     <div>
-                        <h3 class="text-lg font-bold text-gray-900">Voucher Preview</h3>
-                        <p class="text-xs text-gray-500">
-                            Crop Year: <span x-text="filters.crop_year"></span> |
-                            Weeks: <span x-text="filters.week_from + ' - ' + filters.week_to"></span> |
-                            Planters: <span
-                                x-text="filters.planter_names.length ? filters.planter_names.length : 'All'"></span>
+                        <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED]">Voucher Ledger Document</h3>
+                        <p class="text-xs text-[#52705F] dark:text-[#8AA895] flex items-center gap-2 mt-0.5">
+                            <span>Crop Year: <strong class="text-[#172B20] dark:text-[#EAF5ED]" x-text="filters.crop_year"></strong></span>
+                            <span>•</span>
+                            <span>Weeks: <strong class="text-[#172B20] dark:text-[#EAF5ED]" x-text="filters.week_from + ' – ' + filters.week_to"></strong></span>
+                            <span>•</span>
+                            <span>Planters: <strong class="text-[#172B20] dark:text-[#EAF5ED]" x-text="filters.planter_names.length ? filters.planter_names.length : 'All Planters'"></strong></span>
                         </p>
                     </div>
                 </div>
-                <div class="flex gap-2">
-                    <button @click="downloadPDF"
-                        class="inline-flex items-center px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition">
-                        <i class="fas fa-download mr-2 text-blue-500"></i> Download
+                <div class="flex items-center gap-2">
+                    <button type="button" @click="downloadPDF"
+                        class="kp-btn kp-btn-secondary text-xs">
+                        <i class="fas fa-download mr-1.5 text-blue-600 dark:text-blue-400" aria-hidden="true"></i> Download PDF
                     </button>
-                    <button @click="printVoucher"
-                        class="inline-flex items-center px-4 py-2 border border-transparent rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 shadow-sm transition">
-                        <i class="fas fa-print mr-2"></i> Print
+                    <button type="button" @click="printVoucher"
+                        class="kp-btn kp-btn-primary text-xs">
+                        <i class="fas fa-print mr-1.5" aria-hidden="true"></i> Print Document
                     </button>
                 </div>
             </div>
-            <div class="p-0 bg-gray-100">
-                <iframe :src="pdfUrl" class="w-full" style="height: 800px; border: none;"></iframe>
+            <div class="p-0 bg-[#E8EDE9] dark:bg-[#0D1812]">
+                <iframe :src="pdfUrl" class="w-full" style="height: 820px; border: none;"></iframe>
             </div>
         </div>
 
         <!-- Empty State -->
-        <div x-show="!showPreview" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-            <div class="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-print text-3xl text-gray-300"></i>
+        <div x-show="!showPreview" class="kp-card p-12 text-center">
+            <div class="w-16 h-16 rounded-2xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center mx-auto mb-4 text-2xl">
+                <i class="fas fa-print" aria-hidden="true"></i>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 mb-2">No Voucher Generated</h3>
-            <p class="text-sm text-gray-500 max-w-md mx-auto">
-                Select a crop year, week range, and optionally specific planters, then click "Generate Voucher" to preview
-                and print.
+            <h3 class="text-base font-bold text-[#172B20] dark:text-[#EAF5ED] mb-1">No Voucher Generated</h3>
+            <p class="text-xs text-[#52705F] dark:text-[#8AA895] max-w-md mx-auto leading-relaxed">
+                Select a crop year, week range, and optionally target specific planters, then click <strong>"Generate Voucher"</strong> to preview the compiled printable statement.
             </p>
         </div>
     </div>
 
     @push('scripts')
-        <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
         <script>
             function voucherFilter() {
                 return {
@@ -230,7 +234,6 @@
                     },
 
                     onFilterChange() {
-                        // Reset planters when filters change
                         this.filters.planter_names = [];
                         this.planters = [];
                     },
@@ -284,7 +287,7 @@
                                 icon: 'warning',
                                 title: 'Incomplete Filters',
                                 text: 'Please select crop year and week range.',
-                                confirmButtonColor: '#16a34a'
+                                confirmButtonColor: '#005B2A'
                             });
                             return;
                         }

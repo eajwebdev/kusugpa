@@ -4,203 +4,276 @@
 @section('title', 'Loan Reports')
 
 @section('content')
-<div class="space-y-6">
-    <div class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-        <h1 class="text-2xl font-bold">Loan Reports</h1>
-        <p class="text-primary-100 text-sm mt-1">Generate and download loan reports</p>
-    </div>
+<div class="space-y-6 kp-fade-in">
+    <!-- Page Header -->
+    <header>
+        <div class="kp-page-header">
+            <div>
+                <p class="kp-eyebrow">Financial Reporting & Statements</p>
+                <h1 class="kp-page-title mt-1">Loan Portfolio Reports</h1>
+                <p class="kp-page-sub">Generate and print authoritative amortization schedules, statements of account, and monthly collection registers.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('loans.index') }}" class="kp-btn kp-btn-secondary text-xs">
+                    <i class="fas fa-arrow-left mr-1.5" aria-hidden="true"></i> Back to Loans
+                </a>
+            </div>
+        </div>
+        <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+    </header>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         
-        <!-- Amortization Schedule -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6" 
+        <!-- 1. Amortization Schedule Card -->
+        <div class="kp-card p-6 flex flex-col justify-between" 
             x-data="searchableSelect({ loans: {{ json_encode(\App\Models\Loan::whereIn('status', ['approved', 'active'])->orderBy('created_at', 'desc')->get()->toArray()) }}, reportType: 'amortization' })">
-            <div class="flex items-start gap-4 mb-4">
-                <div class="bg-blue-100 rounded-xl p-3"><i class="fas fa-calendar-alt text-blue-600 text-xl"></i></div>
-                <div>
-                    <h3 class="font-bold text-gray-900">Amortization Schedule</h3>
-                    <p class="text-xs text-gray-500 mt-1">Print payment schedule for a specific loan</p>
-                </div>
-            </div>
-            <div class="relative" @click.away="open = false">
-                <div class="relative">
-                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                    <input type="text" x-model="search" @click="open = true" @input="open = true"
-                        placeholder="Search planter name or loan number..."
-                        class="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 mb-1">
-                    <button x-show="search" @click="search = ''; selectedLoan = null; open = false" 
-                        class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-times text-xs"></i>
-                    </button>
-                </div>
-                <div x-show="open" x-transition
-                    class="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto mt-1">
-                    <template x-for="loan in filteredLoans" :key="loan.id">
-                        <div @click="selectLoan(loan)" 
-                            :class="{'bg-primary-50': selectedLoan?.id === loan.id}"
-                            class="px-4 py-2.5 text-sm cursor-pointer hover:bg-gray-50 transition-colors flex items-center justify-between">
-                            <div>
-                                <p class="font-medium text-gray-900" x-text="loan.loan_number"></p>
-                                <p class="text-xs text-gray-500" x-text="loan.planter_name + ' (' + loan.planter_code + ')'"></p>
-                            </div>
-                            <span class="text-xs px-2 py-0.5 rounded-full" 
-                                :class="loan.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'"
-                                x-text="loan.status"></span>
-                        </div>
-                    </template>
-                    <div x-show="filteredLoans.length === 0" class="px-4 py-3 text-sm text-gray-500 text-center">No loans found</div>
-                </div>
-            </div>
-            <div x-show="selectedLoan" class="mt-2 p-3 bg-blue-50 rounded-xl">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-semibold text-gray-900" x-text="selectedLoan.loan_number"></p>
-                        <p class="text-xs text-gray-600" x-text="selectedLoan.planter_name"></p>
+            <div>
+                <div class="flex items-start gap-3 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                    <div class="w-10 h-10 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-lg flex-shrink-0">
+                        <i class="fas fa-calendar-alt" aria-hidden="true"></i>
                     </div>
-                    <button @click="selectedLoan = null; search = ''" class="text-gray-400 hover:text-red-500"><i class="fas fa-times-circle"></i></button>
+                    <div>
+                        <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Amortization Schedule</h3>
+                        <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-0.5">Print installment breakdown for a specific loan.</p>
+                    </div>
+                </div>
+
+                <div class="relative" @click.away="open = false">
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#52705F] text-xs"></i>
+                        <input type="text" x-model="search" @click="open = true" @input="open = true"
+                            placeholder="Search planter or loan #..."
+                            class="kp-input w-full pl-8 py-2 text-xs mb-1">
+                        <button x-show="search" @click="search = ''; selectedLoan = null; open = false" 
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#52705F] hover:text-[#172B20] dark:hover:text-[#EAF5ED]" x-cloak>
+                            <i class="fas fa-times text-xs"></i>
+                        </button>
+                    </div>
+
+                    <!-- Dropdown List -->
+                    <div x-show="open" x-transition x-cloak
+                        class="absolute z-20 w-full bg-white dark:bg-[#13231B] border border-[#CFDCD3] dark:border-[#203A2B] rounded-xl shadow-xl max-h-48 overflow-y-auto mt-1 divide-y divide-[#E3EBE5] dark:divide-[#203A2B]">
+                        <template x-for="loan in filteredLoans" :key="loan.id">
+                            <div @click="selectLoan(loan)" 
+                                :class="{'bg-[#EAF5ED] dark:bg-[#1A3324]': selectedLoan?.id === loan.id}"
+                                class="px-3.5 py-2 text-xs cursor-pointer hover:bg-[#EAF5ED]/50 dark:hover:bg-[#1A3324]/50 transition flex items-center justify-between">
+                                <div>
+                                    <p class="font-bold text-[#172B20] dark:text-[#EAF5ED]" x-text="loan.loan_number"></p>
+                                    <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]" x-text="loan.planter_name + ' (' + loan.planter_code + ')'"></p>
+                                </div>
+                                <span class="kp-badge text-[10px]" 
+                                    :class="loan.status === 'active' ? 'kp-badge--forest' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'"
+                                    x-text="loan.status"></span>
+                            </div>
+                        </template>
+                        <div x-show="filteredLoans.length === 0" class="px-4 py-3 text-xs text-[#52705F] text-center">No loans found</div>
+                    </div>
+                </div>
+
+                <!-- Selected Loan Preview -->
+                <div x-show="selectedLoan" class="mt-3 p-3 bg-[#EAF5ED] dark:bg-[#1A3324] rounded-xl border border-[#CFDCD3] dark:border-[#203A2B]" x-cloak>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-bold text-[#005B2A] dark:text-[#52C97E]" x-text="selectedLoan?.loan_number"></p>
+                            <p class="text-[11px] text-[#172B20] dark:text-[#EAF5ED]" x-text="selectedLoan?.planter_name"></p>
+                        </div>
+                        <button @click="selectedLoan = null; search = ''" class="text-[#52705F] hover:text-rose-600 text-xs">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
-            <button @click="generateReport()" :disabled="!selectedLoan"
-                class="w-full mt-3 bg-blue-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                <i class="fas fa-file-pdf mr-1"></i> Generate PDF
+
+            <button type="button" @click="generateReport()" :disabled="!selectedLoan"
+                class="w-full mt-4 kp-btn kp-btn-primary justify-center text-xs disabled:opacity-40">
+                <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Generate Amortization PDF
             </button>
         </div>
 
-        <!-- Loan Details -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6" 
+        <!-- 2. Loan Details Card -->
+        <div class="kp-card p-6 flex flex-col justify-between" 
             x-data="searchableSelect({ loans: {{ json_encode(\App\Models\Loan::orderBy('created_at', 'desc')->get()->toArray()) }}, reportType: 'details' })">
-            <div class="flex items-start gap-4 mb-4">
-                <div class="bg-green-100 rounded-xl p-3"><i class="fas fa-file-invoice text-green-600 text-xl"></i></div>
-                <div>
-                    <h3 class="font-bold text-gray-900">Loan Details</h3>
-                    <p class="text-xs text-gray-500 mt-1">Print complete loan information</p>
+            <div>
+                <div class="flex items-start gap-3 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                    <div class="w-10 h-10 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-lg flex-shrink-0">
+                        <i class="fas fa-file-invoice" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Loan Full Disclosure</h3>
+                        <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-0.5">Print comprehensive facility contract details.</p>
+                    </div>
                 </div>
-            </div>
-            <div class="relative" @click.away="open = false">
-                <div class="relative">
-                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                    <input type="text" x-model="search" @click="open = true" @input="open = true"
-                        placeholder="Search planter name or loan number..."
-                        class="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 mb-1">
-                    <button x-show="search" @click="search = ''; selectedLoan = null; open = false" 
-                        class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xs"></i></button>
-                </div>
-                <div x-show="open" x-transition
-                    class="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto mt-1">
-                    <template x-for="loan in filteredLoans" :key="loan.id">
-                        <div @click="selectLoan(loan)" :class="{'bg-primary-50': selectedLoan?.id === loan.id}"
-                            class="px-4 py-2.5 text-sm cursor-pointer hover:bg-gray-50 transition-colors flex items-center justify-between">
-                            <div>
-                                <p class="font-medium text-gray-900" x-text="loan.loan_number"></p>
-                                <p class="text-xs text-gray-500" x-text="loan.planter_name + ' (' + loan.planter_code + ')'"></p>
+
+                <div class="relative" @click.away="open = false">
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#52705F] text-xs"></i>
+                        <input type="text" x-model="search" @click="open = true" @input="open = true"
+                            placeholder="Search planter or loan #..."
+                            class="kp-input w-full pl-8 py-2 text-xs mb-1">
+                        <button x-show="search" @click="search = ''; selectedLoan = null; open = false" 
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#52705F] hover:text-[#172B20] dark:hover:text-[#EAF5ED]" x-cloak>
+                            <i class="fas fa-times text-xs"></i>
+                        </button>
+                    </div>
+
+                    <div x-show="open" x-transition x-cloak
+                        class="absolute z-20 w-full bg-white dark:bg-[#13231B] border border-[#CFDCD3] dark:border-[#203A2B] rounded-xl shadow-xl max-h-48 overflow-y-auto mt-1 divide-y divide-[#E3EBE5] dark:divide-[#203A2B]">
+                        <template x-for="loan in filteredLoans" :key="loan.id">
+                            <div @click="selectLoan(loan)" :class="{'bg-[#EAF5ED] dark:bg-[#1A3324]': selectedLoan?.id === loan.id}"
+                                class="px-3.5 py-2 text-xs cursor-pointer hover:bg-[#EAF5ED]/50 dark:hover:bg-[#1A3324]/50 transition flex items-center justify-between">
+                                <div>
+                                    <p class="font-bold text-[#172B20] dark:text-[#EAF5ED]" x-text="loan.loan_number"></p>
+                                    <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]" x-text="loan.planter_name + ' (' + loan.planter_code + ')'"></p>
+                                </div>
+                                <span class="kp-badge text-[10px]" :class="getStatusClass(loan.status)" x-text="loan.status"></span>
                             </div>
-                            <span class="text-xs px-2 py-0.5 rounded-full" :class="getStatusClass(loan.status)" x-text="loan.status"></span>
+                        </template>
+                        <div x-show="filteredLoans.length === 0" class="px-4 py-3 text-xs text-[#52705F] text-center">No loans found</div>
+                    </div>
+                </div>
+
+                <div x-show="selectedLoan" class="mt-3 p-3 bg-[#EAF5ED] dark:bg-[#1A3324] rounded-xl border border-[#CFDCD3] dark:border-[#203A2B]" x-cloak>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-bold text-[#005B2A] dark:text-[#52C97E]" x-text="selectedLoan?.loan_number"></p>
+                            <p class="text-[11px] text-[#172B20] dark:text-[#EAF5ED]" x-text="selectedLoan?.planter_name"></p>
                         </div>
-                    </template>
-                    <div x-show="filteredLoans.length === 0" class="px-4 py-3 text-sm text-gray-500 text-center">No loans found</div>
+                        <button @click="selectedLoan = null; search = ''" class="text-[#52705F] hover:text-rose-600 text-xs">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div x-show="selectedLoan" class="mt-2 p-3 bg-green-50 rounded-xl">
-                <div class="flex items-center justify-between">
-                    <div><p class="text-sm font-semibold text-gray-900" x-text="selectedLoan.loan_number"></p><p class="text-xs text-gray-600" x-text="selectedLoan.planter_name"></p></div>
-                    <button @click="selectedLoan = null; search = ''" class="text-gray-400 hover:text-red-500"><i class="fas fa-times-circle"></i></button>
-                </div>
-            </div>
-            <button @click="generateReport()" :disabled="!selectedLoan"
-                class="w-full mt-3 bg-green-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                <i class="fas fa-file-pdf mr-1"></i> Generate PDF
+
+            <button type="button" @click="generateReport()" :disabled="!selectedLoan"
+                class="w-full mt-4 kp-btn kp-btn-primary justify-center text-xs disabled:opacity-40">
+                <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Generate Disclosure PDF
             </button>
         </div>
 
-        <!-- Statement of Account -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6" 
+        <!-- 3. Statement of Account Card -->
+        <div class="kp-card p-6 flex flex-col justify-between" 
             x-data="searchableSelect({ loans: {{ json_encode(\App\Models\Loan::whereIn('status', ['active', 'completed'])->orderBy('created_at', 'desc')->get()->toArray()) }}, reportType: 'soa' })">
-            <div class="flex items-start gap-4 mb-4">
-                <div class="bg-purple-100 rounded-xl p-3"><i class="fas fa-file-alt text-purple-600 text-xl"></i></div>
-                <div>
-                    <h3 class="font-bold text-gray-900">Statement of Account</h3>
-                    <p class="text-xs text-gray-500 mt-1">Print SOA with payment history</p>
+            <div>
+                <div class="flex items-start gap-3 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                    <div class="w-10 h-10 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-lg flex-shrink-0">
+                        <i class="fas fa-receipt" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Statement of Account (SOA)</h3>
+                        <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-0.5">Print ledger payments and current balance.</p>
+                    </div>
                 </div>
-            </div>
-            <div class="relative" @click.away="open = false">
-                <div class="relative">
-                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                    <input type="text" x-model="search" @click="open = true" @input="open = true"
-                        placeholder="Search planter name or loan number..."
-                        class="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 mb-1">
-                    <button x-show="search" @click="search = ''; selectedLoan = null; open = false" 
-                        class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xs"></i></button>
-                </div>
-                <div x-show="open" x-transition
-                    class="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto mt-1">
-                    <template x-for="loan in filteredLoans" :key="loan.id">
-                        <div @click="selectLoan(loan)" :class="{'bg-primary-50': selectedLoan?.id === loan.id}"
-                            class="px-4 py-2.5 text-sm cursor-pointer hover:bg-gray-50 transition-colors flex items-center justify-between">
-                            <div>
-                                <p class="font-medium text-gray-900" x-text="loan.loan_number"></p>
-                                <p class="text-xs text-gray-500" x-text="loan.planter_name + ' (' + loan.planter_code + ')'"></p>
+
+                <div class="relative" @click.away="open = false">
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#52705F] text-xs"></i>
+                        <input type="text" x-model="search" @click="open = true" @input="open = true"
+                            placeholder="Search planter or loan #..."
+                            class="kp-input w-full pl-8 py-2 text-xs mb-1">
+                        <button x-show="search" @click="search = ''; selectedLoan = null; open = false" 
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#52705F] hover:text-[#172B20] dark:hover:text-[#EAF5ED]" x-cloak>
+                            <i class="fas fa-times text-xs"></i>
+                        </button>
+                    </div>
+
+                    <div x-show="open" x-transition x-cloak
+                        class="absolute z-20 w-full bg-white dark:bg-[#13231B] border border-[#CFDCD3] dark:border-[#203A2B] rounded-xl shadow-xl max-h-48 overflow-y-auto mt-1 divide-y divide-[#E3EBE5] dark:divide-[#203A2B]">
+                        <template x-for="loan in filteredLoans" :key="loan.id">
+                            <div @click="selectLoan(loan)" :class="{'bg-[#EAF5ED] dark:bg-[#1A3324]': selectedLoan?.id === loan.id}"
+                                class="px-3.5 py-2 text-xs cursor-pointer hover:bg-[#EAF5ED]/50 dark:hover:bg-[#1A3324]/50 transition flex items-center justify-between">
+                                <div>
+                                    <p class="font-bold text-[#172B20] dark:text-[#EAF5ED]" x-text="loan.loan_number"></p>
+                                    <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]" x-text="loan.planter_name + ' (' + loan.planter_code + ')'"></p>
+                                </div>
+                                <span class="kp-badge text-[10px]" :class="getStatusClass(loan.status)" x-text="loan.status"></span>
                             </div>
-                            <span class="text-xs px-2 py-0.5 rounded-full" :class="getStatusClass(loan.status)" x-text="loan.status"></span>
+                        </template>
+                        <div x-show="filteredLoans.length === 0" class="px-4 py-3 text-xs text-[#52705F] text-center">No loans found</div>
+                    </div>
+                </div>
+
+                <div x-show="selectedLoan" class="mt-3 p-3 bg-[#EAF5ED] dark:bg-[#1A3324] rounded-xl border border-[#CFDCD3] dark:border-[#203A2B]" x-cloak>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-bold text-[#005B2A] dark:text-[#52C97E]" x-text="selectedLoan?.loan_number"></p>
+                            <p class="text-[11px] text-[#172B20] dark:text-[#EAF5ED]" x-text="selectedLoan?.planter_name"></p>
                         </div>
-                    </template>
-                    <div x-show="filteredLoans.length === 0" class="px-4 py-3 text-sm text-gray-500 text-center">No loans found</div>
+                        <button @click="selectedLoan = null; search = ''" class="text-[#52705F] hover:text-rose-600 text-xs">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div x-show="selectedLoan" class="mt-2 p-3 bg-purple-50 rounded-xl">
-                <div class="flex items-center justify-between">
-                    <div><p class="text-sm font-semibold text-gray-900" x-text="selectedLoan.loan_number"></p><p class="text-xs text-gray-600" x-text="selectedLoan.planter_name"></p></div>
-                    <button @click="selectedLoan = null; search = ''" class="text-gray-400 hover:text-red-500"><i class="fas fa-times-circle"></i></button>
-                </div>
-            </div>
-            <button @click="generateReport()" :disabled="!selectedLoan"
-                class="w-full mt-3 bg-purple-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                <i class="fas fa-file-pdf mr-1"></i> Generate PDF
+
+            <button type="button" @click="generateReport()" :disabled="!selectedLoan"
+                class="w-full mt-4 kp-btn kp-btn-primary justify-center text-xs disabled:opacity-40">
+                <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Generate Official SOA PDF
             </button>
         </div>
 
-        <!-- Monthly Report -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div class="flex items-start gap-4 mb-4">
-                <div class="bg-orange-100 rounded-xl p-3"><i class="fas fa-chart-line text-orange-600 text-xl"></i></div>
-                <div>
-                    <h3 class="font-bold text-gray-900">Monthly Report</h3>
-                    <p class="text-xs text-gray-500 mt-1">Monthly collections and new loans</p>
+        <!-- 4. Monthly Collection Ledger Card -->
+        <div class="kp-card p-6 flex flex-col justify-between">
+            <div>
+                <div class="flex items-start gap-3 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                    <div class="w-10 h-10 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-lg flex-shrink-0">
+                        <i class="fas fa-chart-line" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Monthly Loan Collections</h3>
+                        <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-0.5">Summary of monthly collections and releases.</p>
+                    </div>
                 </div>
+
+                <form action="{{ route('loans.monthly-report-pdf') }}" method="GET" class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Target Month</label>
+                        <input type="month" name="month" value="{{ date('Y-m') }}" class="kp-input w-full py-2 text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Crop Year Filter</label>
+                        <select name="crop_year" class="kp-input w-full py-2 text-xs">
+                            <option value="">All Crop Years</option>
+                            @foreach($cropYears as $cy)
+                                <option value="{{ $cy }}">{{ $cy }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full mt-2 kp-btn kp-btn-secondary justify-center text-xs">
+                        <i class="fas fa-file-pdf mr-1.5 text-rose-600" aria-hidden="true"></i> Generate Monthly Statement
+                    </button>
+                </form>
             </div>
-            <form action="{{ route('loans.monthly-report-pdf') }}" method="GET">
-                <input type="month" name="month" value="{{ date('Y-m') }}" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-2">
-                <select name="crop_year" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-2">
-                    <option value="">All Crop Years</option>
-                    @foreach($cropYears as $cy)
-                        <option value="{{ $cy }}">{{ $cy }}</option>
-                    @endforeach
-                </select>
-                <button type="submit" class="w-full bg-orange-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-orange-700">
-                    <i class="fas fa-file-pdf mr-1"></i> Generate PDF
-                </button>
-            </form>
         </div>
 
-        <!-- Active Loans Report -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div class="flex items-start gap-4 mb-4">
-                <div class="bg-red-100 rounded-xl p-3"><i class="fas fa-list-ul text-red-600 text-xl"></i></div>
-                <div>
-                    <h3 class="font-bold text-gray-900">Active Loans Report</h3>
-                    <p class="text-xs text-gray-500 mt-1">Summary of all active loans</p>
+        <!-- 5. Active Portfolio Summary Card -->
+        <div class="kp-card p-6 flex flex-col justify-between">
+            <div>
+                <div class="flex items-start gap-3 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                    <div class="w-10 h-10 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-lg flex-shrink-0">
+                        <i class="fas fa-list-check" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Active Portfolio Summary</h3>
+                        <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-0.5">Ledger summary of all active loans in the cooperative.</p>
+                    </div>
                 </div>
+
+                <form action="{{ route('loans.active-loans-pdf') }}" method="GET" class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Crop Year Filter</label>
+                        <select name="crop_year" class="kp-input w-full py-2 text-xs">
+                            <option value="">All Crop Years</option>
+                            @foreach($cropYears as $cy)
+                                <option value="{{ $cy }}">{{ $cy }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full mt-2 kp-btn kp-btn-secondary justify-center text-xs">
+                        <i class="fas fa-file-pdf mr-1.5 text-rose-600" aria-hidden="true"></i> Generate Active Summary
+                    </button>
+                </form>
             </div>
-            <form action="{{ route('loans.active-loans-pdf') }}" method="GET">
-                <select name="crop_year" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-2">
-                    <option value="">All Crop Years</option>
-                    @foreach($cropYears as $cy)
-                        <option value="{{ $cy }}">{{ $cy }}</option>
-                    @endforeach
-                </select>
-                <button type="submit" class="w-full bg-red-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-red-700">
-                    <i class="fas fa-file-pdf mr-1"></i> Generate PDF
-                </button>
-            </form>
         </div>
     </div>
 </div>
@@ -244,13 +317,13 @@
 
             getStatusClass(status) {
                 const classes = {
-                    active: 'bg-green-100 text-green-700',
-                    pending: 'bg-yellow-100 text-yellow-700',
-                    approved: 'bg-blue-100 text-blue-700',
-                    completed: 'bg-gray-100 text-gray-700',
-                    rejected: 'bg-red-100 text-red-700',
+                    active: 'kp-badge--forest',
+                    pending: 'kp-badge--amber',
+                    approved: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+                    completed: 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300',
+                    rejected: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',
                 };
-                return classes[status] || 'bg-gray-100 text-gray-700';
+                return classes[status] || 'bg-stone-100 text-stone-700';
             }
         };
     }

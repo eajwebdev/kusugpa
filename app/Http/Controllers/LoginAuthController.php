@@ -45,6 +45,31 @@ class LoginAuthController extends Controller
         return redirect()->back()->with('error', 'Invalid Credentials');
     }
 
+    /**
+     * One-click login for demo mode (DEMO=true in .env).
+     * Only accounts listed in config/demo.php can be used.
+     */
+    public function demoLogin(Request $request)
+    {
+        abort_unless(config('demo.enabled'), 404);
+
+        $request->validate(['username' => 'required|string']);
+
+        $allowed = collect(config('demo.accounts'))->pluck('username');
+        abort_unless($allowed->contains($request->username), 403);
+
+        $user = \App\Models\User::where('username', $request->username)->first();
+
+        if (!$user) {
+            return redirect()->back()->with('error', 'Demo user not found. Run: php artisan db:seed');
+        }
+
+        auth()->guard('web')->login($user);
+        $request->session()->regenerate();
+
+        return redirect()->route('dashboard')->with('success', 'Signed in as demo ' . $user->role . '.');
+    }
+
     public function logout()
     {
         auth()->logout();

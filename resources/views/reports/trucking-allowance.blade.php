@@ -1,173 +1,190 @@
+<!-- resources/views/reports/trucking-allowance.blade.php -->
 @extends('layouts.main')
 
 @section('title', 'Trucking Allowance Report')
 
 @section('content')
-    <div x-data="truckingAllowanceData()" class="space-y-6">
-        <div
-            class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+    <div x-data="truckingAllowanceData()" class="space-y-6 kp-fade-in">
+        <!-- Page Header -->
+        <header>
+            <div class="kp-page-header">
                 <div>
-                    <h1 class="text-2xl font-bold">Trucking Allowance Report</h1>
-                    <p class="text-primary-100 text-sm mt-1">Trucking allowance data by planter</p>
+                    <p class="kp-eyebrow">Logistics & Transport</p>
+                    <h1 class="kp-page-title mt-1">Trucking Allowance Report</h1>
+                    <p class="kp-page-sub">Certified records of cane delivery hauling subsidies and transport assistance per planter.</p>
                 </div>
-                <div class="mt-4 sm:mt-0 flex items-center gap-2">
-                    <button @click="showDeleteModal = true"
-                        class="bg-red-500/80 backdrop-blur-sm rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-red-600/80 transition">
-                        <i class="fas fa-trash mr-2"></i> Delete Records
+                <div class="flex items-center gap-2">
+                    <button @click="showDeleteModal = true" class="kp-btn kp-btn-danger">
+                        <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Manage / Delete Records
                     </button>
-                    <a href="{{ route('trucking-allowance-report.export') }}"
-                        class="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-white/30 transition">
-                        <i class="fas fa-file-pdf mr-2"></i> Export PDF
+                    <a href="{{ route('trucking-allowance-report.export') }}" class="kp-btn kp-btn-secondary">
+                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Export PDF
                     </a>
                 </div>
             </div>
-        </div>
+            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+        </header>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-                <p class="text-xs text-gray-500">Total Records</p>
-                <p class="text-xl font-bold text-gray-900" x-text="formatNum(totalRecords, 0)">{{ number_format($totals['total_records']) }}</p>
+        <!-- KPI Strip -->
+        <section aria-label="Trucking allowance summary" class="kp-kpis">
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-list-ol" aria-hidden="true"></i> Total Entries</p>
+                <p class="kp-kpi-value kp-num" x-text="formatNum(totalRecords, 0)">{{ number_format($totals['total_records']) }}</p>
+                <p class="kp-kpi-sub">Total delivery records</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-                <p class="text-xs text-gray-500">Total Net Cane</p>
-                <p class="text-xl font-bold text-green-600" x-text="formatNum({{ $totals['total_net_cane'] }}, 3)">{{ number_format($totals['total_net_cane'], 3) }}</p>
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-weight-hanging" aria-hidden="true"></i> Total Net Cane</p>
+                <p class="kp-kpi-value kp-num" style="color: var(--kp-emerald)" x-text="formatNum({{ $totals['total_net_cane'] }}, 3) + ' tons'">
+                    {{ number_format($totals['total_net_cane'], 3) }} tons
+                </p>
+                <p class="kp-kpi-sub">Delivered tonnage</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-                <p class="text-xs text-gray-500">Total TA Amount</p>
-                <p class="text-xl font-bold text-primary-600">₱{{ number_format($totals['total_ta_amount'], 2) }}</p>
+            <div class="kp-kpi">
+                <p class="kp-kpi-label"><i class="fas fa-truck-moving" aria-hidden="true"></i> Total Allowance</p>
+                <p class="kp-kpi-value kp-num" style="color: var(--kp-forest)">₱{{ number_format($totals['total_ta_amount'], 2) }}</p>
+                <p class="kp-kpi-sub">Cumulative gross hauling payout</p>
             </div>
-        </div>
+        </section>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-            <div class="flex flex-wrap gap-3 items-center justify-between">
-                <div class="flex flex-wrap gap-3 items-center">
-                    <div class="flex-1 min-w-[200px]">
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Search</label>
-                        <input type="text" x-model="search" @input="applyFilters()"
-                            placeholder="Search planter name or code..."
-                            class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        <!-- Search & Filter Bar -->
+        <div class="kp-card p-4">
+            <div class="flex flex-wrap gap-4 items-end justify-between">
+                <div class="flex flex-wrap gap-4 items-end flex-1">
+                    <div class="min-w-[240px] flex-1">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Search Planter</label>
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style="color: var(--kp-faint)"></i>
+                            <input type="text" x-model="search" @input="applyFilters()"
+                                placeholder="Search by planter name or code..."
+                                class="kp-input w-full pl-9">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Per Page</label>
-                        <select x-model="perPage" @change="loadPage(1)"
-                            class="border border-gray-200 rounded-xl px-3 py-2 text-sm">
-                            <option value="15">15</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
+                    <div class="w-36">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Per Page</label>
+                        <select x-model="perPage" @change="loadPage(1)" class="kp-select w-full">
+                            <option value="15">15 rows</option>
+                            <option value="25">25 rows</option>
+                            <option value="50">50 rows</option>
+                            <option value="100">100 rows</option>
                         </select>
                     </div>
-                    <button @click="clearFilters()" class="text-gray-500 hover:text-gray-700 text-sm py-2">
-                        <i class="fas fa-times mr-1"></i> Clear
+                    <button @click="clearFilters()" class="kp-btn kp-btn-secondary h-[38px]">
+                        <i class="fas fa-times mr-1"></i> Reset
                     </button>
                 </div>
                 <div class="flex items-center gap-3">
-                    <span class="text-xs text-gray-400"
+                    <span class="text-xs font-mono" style="color: var(--kp-muted)"
                         x-text="'Showing ' + allData.length + ' of ' + totalRecords + ' records'"></span>
-                    <button x-show="selectedIds.length > 0" @click="deleteSelected()"
-                        class="bg-red-500 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-red-600 transition">
-                        <i class="fas fa-trash mr-2"></i> Delete Selected (<span x-text="selectedIds.length"></span>)
+                    <button x-show="selectedIds.length > 0" @click="deleteSelected()" class="kp-btn kp-btn-danger">
+                        <i class="fas fa-trash mr-1.5"></i> Delete Selected (<span x-text="selectedIds.length"></span>)
                     </button>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="overflow-x-auto" style="max-height: 600px; overflow-y: auto;">
-                <table class="min-w-full divide-y divide-gray-100">
-                    <thead class="bg-gray-50 sticky top-0 z-10">
+        <!-- Data Table Card -->
+        <div class="kp-card overflow-hidden">
+            <div class="kp-table-wrap" style="max-height: 640px; overflow-y: auto;">
+                <table class="kp-table">
+                    <thead>
                         <tr>
-                            <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase">
-                                <input type="checkbox" @click="toggleSelectAll" :checked="isAllSelected"
-                                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                            <th class="w-10 text-center">
+                                <input type="checkbox" @click="toggleSelectAll" :checked="isAllSelected" class="rounded accent-emerald-700">
                             </th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100" @click="sortBy('crop_year')">CRP YR</th>
-                            <th class="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100" @click="sortBy('week_no')">WK No</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100" @click="sortBy('planter_code')">Code</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100" @click="sortBy('planter_name')">Planter Name</th>
-                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100" @click="sortBy('trans_code')">Trans Code</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100" @click="sortBy('net_cane')">Net Cane</th>
-                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100" @click="sortBy('ta_amount')">TA Amount</th>
+                            <th class="cursor-pointer select-none text-center" @click="sortBy('crop_year')">Season</th>
+                            <th class="cursor-pointer select-none text-center" @click="sortBy('week_no')">Wk #</th>
+                            <th class="cursor-pointer select-none" @click="sortBy('planter_code')">Planter Code</th>
+                            <th class="cursor-pointer select-none" @click="sortBy('planter_name')">Planter Name</th>
+                            <th class="cursor-pointer select-none" @click="sortBy('trans_code')">Trans Code</th>
+                            <th class="text-right cursor-pointer select-none" @click="sortBy('net_cane')">Net Cane (tons)</th>
+                            <th class="text-right cursor-pointer select-none" @click="sortBy('ta_amount')">TA Amount</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-50">
+                    <tbody>
                         <template x-for="row in allData" :key="row.id">
-                            <tr class="hover:bg-gray-50/50 transition-colors"
-                                :class="{ 'bg-primary-50': selectedIds.includes(row.id) }">
-                                <td class="px-3 py-2 text-center">
-                                    <input type="checkbox" :value="row.id" x-model="selectedIds"
-                                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                            <tr class="hover:bg-[var(--kp-hover)] transition-colors"
+                                :style="selectedIds.includes(row.id) ? 'background-color: var(--kp-soft)' : ''">
+                                <td class="text-center">
+                                    <input type="checkbox" :value="row.id" x-model="selectedIds" class="rounded accent-emerald-700">
                                 </td>
-                                <td class="px-3 py-2 text-xs text-center font-semibold" x-text="row.crop_year || '—'"></td>
-                                <td class="px-3 py-2 text-xs text-center font-semibold" x-text="row.week_no || '—'"></td>
-                                <td class="px-3 py-2 text-xs font-mono text-gray-900" x-text="row.planter_code"></td>
-                                <td class="px-3 py-2 text-sm font-medium text-gray-900" x-text="row.planter_name"></td>
-                                <td class="px-3 py-2 text-xs text-gray-600" x-text="row.trans_code || '—'"></td>
-                                <td class="px-3 py-2 text-xs text-right text-gray-700" x-text="formatNum(row.net_cane, 3)"></td>
-                                <td class="px-3 py-2 text-xs text-right font-semibold text-primary-700" x-text="'₱' + formatNum(row.ta_amount)"></td>
+                                <td class="text-center font-mono text-xs" style="color: var(--kp-muted)" x-text="row.crop_year || '—'"></td>
+                                <td class="text-center font-mono font-semibold" style="color: var(--kp-text)" x-text="row.week_no || '—'"></td>
+                                <td class="font-mono font-semibold text-xs" style="color: var(--kp-text)" x-text="row.planter_code"></td>
+                                <td class="font-medium text-sm whitespace-nowrap" style="color: var(--kp-text)" x-text="row.planter_name"></td>
+                                <td class="font-mono text-xs" style="color: var(--kp-muted)" x-text="row.trans_code || '—'"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="formatNum(row.net_cane, 3)"></td>
+                                <td class="text-right font-mono font-semibold tabular" style="color: var(--kp-forest)" x-text="'₱' + formatNum(row.ta_amount)"></td>
                             </tr>
                         </template>
                         <tr x-show="loading">
-                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">
-                                <i class="fas fa-spinner fa-spin text-2xl text-gray-300 mb-2"></i>
-                                <p>Loading data...</p>
+                            <td colspan="8" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                <i class="fas fa-circle-notch fa-spin text-2xl mb-2 block" style="color: var(--kp-forest)"></i>
+                                Fetching trucking allowance records...
                             </td>
                         </tr>
                         <tr x-show="!loading && allData.length === 0">
-                            <td colspan="8" class="px-4 py-12 text-center text-gray-500">No records found</td>
+                            <td colspan="8" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                <i class="fas fa-truck text-3xl mb-2 block opacity-30"></i>
+                                No trucking allowance records found.
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <div class="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
+            <!-- Pagination -->
+            <div class="px-4 py-3 border-t flex flex-wrap items-center justify-between gap-3"
+                style="border-color: var(--kp-border); background: var(--kp-surface-2)">
                 <div class="flex items-center gap-2">
-                    <span class="text-xs text-gray-400"
+                    <span class="text-xs font-mono" style="color: var(--kp-muted)"
                         x-text="'Page ' + currentPage + ' of ' + totalPages + ' (' + totalRecords + ' records)'"></span>
                 </div>
-                <div class="flex items-center gap-1" x-show="totalPages > 1">
+                <div class="flex items-center gap-1.5" x-show="totalPages > 1">
                     <button @click="loadPage(1)" :disabled="currentPage === 1"
-                        class="px-2.5 py-1.5 text-xs border rounded-lg disabled:opacity-50 hover:bg-gray-50 transition">First</button>
+                        class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs disabled:opacity-50">First</button>
                     <button @click="loadPage(currentPage - 1)" :disabled="currentPage === 1"
-                        class="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 transition">Previous</button>
+                        class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
+                        <i class="fas fa-chevron-left mr-1"></i> Prev
+                    </button>
+
                     <template x-for="page in visiblePages" :key="page">
                         <button @click="loadPage(page)"
-                            :class="page === currentPage ? 'bg-primary-600 text-white shadow-sm' : 'hover:bg-gray-50'"
-                            class="px-3 py-1.5 text-sm border rounded-lg transition" x-text="page"></button>
+                            :class="page === currentPage ? 'kp-btn kp-btn-primary' : 'kp-btn kp-btn-secondary'"
+                            class="py-1 px-3 text-xs font-mono tabular" x-text="page"></button>
                     </template>
+
                     <button @click="loadPage(currentPage + 1)" :disabled="currentPage >= totalPages"
-                        class="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-50 hover:bg-gray-50 transition">Next</button>
+                        class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
+                        Next <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
                     <button @click="loadPage(totalPages)" :disabled="currentPage >= totalPages"
-                        class="px-2.5 py-1.5 text-xs border rounded-lg disabled:opacity-50 hover:bg-gray-50 transition">Last</button>
+                        class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs disabled:opacity-50">Last</button>
                 </div>
-                <div></div>
             </div>
         </div>
 
         <!-- Delete Modal -->
-        <div x-show="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center" style="display: none;">
-            <div class="fixed inset-0 bg-black/50" @click="showDeleteModal = false"></div>
-            <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 mx-4">
-                <h3 class="text-lg font-bold text-gray-900 mb-4">
-                    <i class="fas fa-trash text-red-500 mr-2"></i> Delete Trucking Allowance Records
-                </h3>
+        <div x-show="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showDeleteModal = false"></div>
+            <div class="relative rounded-xl border max-w-lg w-full p-6 shadow-2xl max-h-[85vh] overflow-y-auto"
+                style="background: var(--kp-surface); border-color: var(--kp-border); color: var(--kp-text)">
+                <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--kp-border)">
+                    <h3 class="font-display text-lg font-semibold flex items-center gap-2" style="color: #A32F2F">
+                        <i class="fas fa-trash text-base"></i>
+                        <span>Delete Trucking Allowance Records</span>
+                    </h3>
+                    <button @click="showDeleteModal = false" class="p-1 rounded text-xs hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
                 <div class="space-y-4">
-                    <div class="border border-red-200 rounded-xl p-4 bg-red-50">
-                        <h4 class="font-semibold text-red-700 mb-2">Delete ALL Records</h4>
-                        <p class="text-xs text-red-600 mb-3">This will permanently delete all trucking allowance records.</p>
-                        <button @click="confirmDeleteAll()"
-                            class="bg-red-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-red-700 transition">
-                            <i class="fas fa-exclamation-triangle mr-2"></i> Delete All Records
-                        </button>
-                    </div>
-                    <div class="border border-amber-200 rounded-xl p-4 bg-amber-50">
-                        <h4 class="font-semibold text-amber-700 mb-2">Delete by Crop Year & Week</h4>
+                    <!-- Delete by Week -->
+                    <div class="rounded-xl p-4 border" style="background: var(--kp-surface-2); border-color: var(--kp-border)">
+                        <h4 class="font-semibold text-sm mb-1" style="color: var(--kp-text)">Delete by Crop Year & Week</h4>
                         <div class="grid grid-cols-2 gap-3 mb-3">
                             <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Crop Year</label>
-                                <select x-model="deleteForm.crop_year" @change="updateWeekOptions()"
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                                <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Crop Year</label>
+                                <select x-model="deleteForm.crop_year" @change="updateWeekOptions()" class="kp-select w-full">
                                     <option value="">Select Crop Year</option>
                                     <template x-for="cy in availableCropYears" :key="cy">
                                         <option :value="cy" x-text="cy"></option>
@@ -175,9 +192,8 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Week No</label>
-                                <select x-model="deleteForm.week_no" :disabled="!deleteForm.crop_year"
-                                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm disabled:opacity-50">
+                                <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Week No</label>
+                                <select x-model="deleteForm.week_no" :disabled="!deleteForm.crop_year" class="kp-select w-full disabled:opacity-50">
                                     <option value="">Select Week</option>
                                     <template x-for="wk in availableWeeks" :key="wk">
                                         <option :value="wk" x-text="'Week ' + wk"></option>
@@ -186,21 +202,33 @@
                             </div>
                         </div>
                         <button @click="confirmDeleteByWeek()" :disabled="!deleteForm.crop_year || !deleteForm.week_no"
-                            class="bg-amber-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-amber-700 transition disabled:opacity-50">
-                            <i class="fas fa-trash mr-2"></i> Delete by Week
+                            class="kp-btn kp-btn-danger text-xs py-1.5 px-3 disabled:opacity-50">
+                            <i class="fas fa-trash mr-1.5"></i> Delete by Week
                         </button>
                     </div>
-                    <div class="border border-blue-200 rounded-xl p-4 bg-blue-50">
-                        <h4 class="font-semibold text-blue-700 mb-2">Delete Selected Records</h4>
+
+                    <!-- Delete Selected -->
+                    <div class="rounded-xl p-4 border" style="background: var(--kp-surface-2); border-color: var(--kp-border)">
+                        <h4 class="font-semibold text-sm mb-1" style="color: var(--kp-text)">Delete Selected Records</h4>
+                        <p class="text-xs mb-3" style="color: var(--kp-muted)">Permanently delete rows currently checked in the table.</p>
                         <button @click="confirmDeleteSelected()" :disabled="selectedIds.length === 0"
-                            class="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50">
-                            <i class="fas fa-trash mr-2"></i> Delete Selected (<span x-text="selectedIds.length"></span>)
+                            class="kp-btn kp-btn-secondary text-xs py-1.5 px-3 disabled:opacity-50">
+                            <i class="fas fa-trash mr-1.5"></i> Delete Selected (<span x-text="selectedIds.length"></span>)
+                        </button>
+                    </div>
+
+                    <!-- Delete All -->
+                    <div class="rounded-xl p-4 border border-red-200 dark:border-red-900" style="background: rgba(163, 47, 47, 0.05)">
+                        <h4 class="font-semibold text-sm text-red-700 dark:text-red-400 mb-1">Delete ALL Records</h4>
+                        <p class="text-xs text-red-600 dark:text-red-300 mb-3">Irreversible purge of all trucking allowance data entries.</p>
+                        <button @click="confirmDeleteAll()" class="kp-btn kp-btn-danger text-xs py-1.5 px-3">
+                            <i class="fas fa-exclamation-triangle mr-1.5"></i> Delete All Records
                         </button>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-200">
-                    <button @click="showDeleteModal = false"
-                        class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition">Cancel</button>
+
+                <div class="mt-4 pt-4 border-t flex justify-end" style="border-color: var(--kp-border)">
+                    <button @click="showDeleteModal = false" class="kp-btn kp-btn-secondary">Cancel</button>
                 </div>
             </div>
         </div>
@@ -309,8 +337,8 @@
 
                     async confirmDeleteAll() {
                         const result = await Swal.fire({
-                            title: 'Delete ALL Records?', text: 'This cannot be undone!',
-                            icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete all', confirmButtonColor: '#dc2626'
+                            title: 'Delete ALL Records?', text: 'This action cannot be undone!',
+                            icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete all', confirmButtonColor: '#832727'
                         });
                         if (!result.isConfirmed) return;
                         try {
@@ -332,7 +360,7 @@
                         }
                         const result = await Swal.fire({
                             title: 'Delete Records?', text: `Delete records for ${this.deleteForm.crop_year} Week ${this.deleteForm.week_no}?`,
-                            icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete', confirmButtonColor: '#dc2626'
+                            icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete', confirmButtonColor: '#832727'
                         });
                         if (!result.isConfirmed) return;
                         try {
@@ -355,7 +383,7 @@
                         }
                         const result = await Swal.fire({
                             title: 'Delete Selected Records?', text: `Delete ${this.selectedIds.length} selected record(s)?`,
-                            icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete', confirmButtonColor: '#dc2626'
+                            icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete', confirmButtonColor: '#832727'
                         });
                         if (!result.isConfirmed) return;
                         try {

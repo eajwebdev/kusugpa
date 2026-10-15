@@ -1,138 +1,122 @@
+<!-- resources/views/user-management/index.blade.php -->
 @extends('layouts.main')
 
 @section('title', 'User Management')
 
 @section('content')
-    <div x-data="userManagementData()" class="space-y-6">
+    <div x-data="userManagementData()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
-        <div
-            class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <header>
+            <div class="kp-page-header">
                 <div>
-                    <div class="flex items-center gap-3 mb-2">
-                        <i class="fas fa-users text-2xl"></i>
-                        <h1 class="text-2xl sm:text-3xl font-bold">User Management</h1>
-                    </div>
-                    <p class="text-slate-300 text-sm">Manage system users, roles, and permissions</p>
+                    <p class="kp-eyebrow">Access Control & Security</p>
+                    <h1 class="kp-page-title mt-1">User Management</h1>
+                    <p class="kp-page-sub">Manage system operator accounts, assigned roles, and granular module permissions.</p>
                 </div>
-                <div class="mt-4 sm:mt-0 flex items-center space-x-3">
-                    <span class="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2 text-sm">
-                        Total Users: <span class="font-bold" x-text="users.length"></span>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-mono font-medium px-3 py-1.5 rounded-lg border"
+                        style="background: var(--kp-surface-2); border-color: var(--kp-border); color: var(--kp-text)">
+                        Total Users: <strong class="tabular" x-text="users.length"></strong>
                     </span>
-                    <button @click="openCreateModal()"
-                        class="bg-white text-primary-700 rounded-xl px-4 py-2 text-sm font-semibold hover:bg-primary-50 transition-colors shadow-sm flex items-center gap-2">
-                        <i class="fas fa-plus-circle"></i> Add User
+                    <button @click="openCreateModal()" class="kp-btn kp-btn-primary">
+                        <i class="fas fa-plus-circle mr-1.5" aria-hidden="true"></i> Add User
                     </button>
+                </div>
+            </div>
+            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+        </header>
+
+        <!-- Search Bar Card -->
+        <div class="kp-card p-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h2 class="font-display text-base font-semibold" style="color: var(--kp-text)">Operator Accounts</h2>
+                    <p class="text-xs" style="color: var(--kp-muted)">Active authorized profiles with assigned permissions.</p>
+                </div>
+                <div class="relative w-full sm:w-80">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style="color: var(--kp-faint)"></i>
+                    <input type="text" x-model="searchQuery" @input="filterUsers()"
+                        class="kp-input w-full pl-9"
+                        placeholder="Search name, username, or role...">
                 </div>
             </div>
         </div>
 
         <!-- Users Table Card -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <!-- Table Header -->
-            <div class="p-4 sm:p-6 border-b border-gray-100">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div class="flex items-center gap-2">
-                        
-                        <h2 class="text-lg font-bold text-gray-900">Registered Users</h2>
-                    </div>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-search text-gray-400 text-sm"></i>
-                        </div>
-                        <input type="text" x-model="searchQuery" @input="filterUsers()"
-                            class="w-full sm:w-72 pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50"
-                            placeholder="Search users...">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Table Body -->
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-100">
-                    <thead class="bg-gray-50">
+        <div class="kp-card overflow-hidden">
+            <div class="kp-table-wrap" style="max-height: 640px; overflow-y: auto;">
+                <table class="kp-table">
+                    <thead>
                         <tr>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">#
-                            </th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                User</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                Email</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                Role</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                Permissions</th>
-                            <th class="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                Created</th>
-                            <th class="px-4 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                Actions</th>
+                            <th class="w-12">#</th>
+                            <th>User</th>
+                            <th>Role</th>
+                            <th>Assigned Permissions</th>
+                            <th>Created Date</th>
+                            <th class="text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-50">
+                    <tbody>
                         <template x-for="(user, index) in filteredUsers" :key="user.id">
-                            <tr class="hover:bg-gray-50/50 transition-colors">
-                                <td class="px-4 py-3 text-sm text-gray-500" x-text="index + 1"></td>
-                                <td class="px-4 py-3">
+                            <tr class="hover:bg-[var(--kp-hover)] transition-colors">
+                                <td class="font-mono text-xs" style="color: var(--kp-muted)" x-text="index + 1"></td>
+                                <td>
                                     <div class="flex items-center gap-3">
-                                        <div :class="getRoleBadgeClass(user.role).avatar"
-                                            class="h-9 w-9 rounded-xl flex items-center justify-center">
-                                            <span class="text-sm font-bold" x-text="getInitials(user)"></span>
+                                        <div class="h-9 w-9 rounded-lg flex items-center justify-center font-bold text-xs font-mono border"
+                                            style="background: var(--kp-soft); border-color: var(--kp-border); color: var(--kp-forest)">
+                                            <span x-text="getInitials(user)"></span>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-semibold text-gray-900"
+                                            <p class="font-semibold text-sm" style="color: var(--kp-text)"
                                                 x-text="user.fname + ' ' + (user.lname || '')"></p>
-                                            <p class="text-xs text-gray-400" x-text="user.username"></p>
+                                            <p class="text-xs font-mono" style="color: var(--kp-muted)" x-text="'@' + user.username"></p>
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-600" x-text="user.email"></td>
-                                <td class="px-4 py-3">
-                                    <span :class="getRoleBadgeClass(user.role).badge"
-                                        class="px-2.5 py-1 text-xs font-medium rounded-full" x-text="user.role"></span>
+                                <td>
+                                    <span :class="getRoleBadgeClass(user.role).badge" x-text="user.role"></span>
                                 </td>
-                                <td class="px-4 py-3">
-                                    <div class="flex flex-wrap gap-1">
-                                        <template x-if="user.role === 'Administrator'">
-                                            <span
-                                                class="px-2 py-0.5 text-xs bg-primary-50 text-primary-700 rounded-full font-medium">All
-                                                Access</span>
+                                <td>
+                                    <div class="flex flex-wrap gap-1 max-w-md">
+                                        <template x-if="user.role === 'Administrator' || user.role === 'super_admin'">
+                                            <span class="kp-badge kp-badge-emerald font-semibold">
+                                                <i class="fas fa-shield-alt text-[10px] mr-1"></i> Full System Access
+                                            </span>
                                         </template>
-                                        <template x-if="user.role !== 'Administrator' && user.permissions">
+                                        <template x-if="user.role !== 'Administrator' && user.role !== 'super_admin' && user.permissions && user.permissions.length > 0">
                                             <template x-for="perm in user.permissions" :key="perm.id">
-                                                <span
-                                                    class="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded-full font-medium"
+                                                <span class="px-2 py-0.5 text-[11px] rounded font-medium border"
+                                                    style="background: var(--kp-surface-2); border-color: var(--kp-border); color: var(--kp-text)"
                                                     x-text="formatPermission(perm.name)"></span>
                                             </template>
                                         </template>
-                                        <template
-                                            x-if="user.role !== 'Administrator' && (!user.permissions || user.permissions.length === 0)">
-                                            <span
-                                                class="px-2 py-0.5 text-xs bg-gray-50 text-gray-500 rounded-full font-medium">No
-                                                permissions</span>
+                                        <template x-if="user.role !== 'Administrator' && user.role !== 'super_admin' && (!user.permissions || user.permissions.length === 0)">
+                                            <span class="text-xs italic" style="color: var(--kp-faint)">No custom permissions</span>
                                         </template>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-500" x-text="formatDate(user.created_at)"></td>
-                                <td class="px-4 py-3 text-right">
-                                    <div class="flex items-center justify-end gap-2">
+                                <td class="text-xs font-mono" style="color: var(--kp-muted)" x-text="formatDate(user.created_at)"></td>
+                                <td class="text-right">
+                                    <div class="flex items-center justify-end gap-1.5">
                                         <!-- Permissions Button -->
                                         <button @click="openPermissionsModal(user)" :disabled="!canManagePermissions(user)"
-                                            class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                            :title="canManagePermissions(user) ? 'Manage Permissions' :
-                                                'Cannot modify permissions for this role'">
+                                            class="p-1.5 rounded-md transition-colors hover:bg-[var(--kp-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed"
+                                            style="color: var(--kp-forest)"
+                                            :title="canManagePermissions(user) ? 'Manage Permissions' : 'Inherits default administrative role'">
                                             <i class="fas fa-shield-alt text-sm"></i>
                                         </button>
 
                                         <!-- Edit Button -->
                                         <button @click="openEditModal(user)" :disabled="!canEditUser(user)"
-                                            class="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            class="p-1.5 rounded-md transition-colors hover:bg-[var(--kp-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed"
+                                            style="color: var(--kp-cane)"
                                             :title="canEditUser(user) ? 'Edit User' : 'Cannot edit this user'">
                                             <i class="fas fa-edit text-sm"></i>
                                         </button>
 
                                         <!-- Delete Button -->
                                         <button @click="deleteUser(user)" :disabled="!canDeleteUser(user)"
-                                            class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            class="p-1.5 rounded-md transition-colors hover:bg-[var(--kp-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed text-red-600"
                                             :title="canDeleteUser(user) ? 'Delete User' : 'Cannot delete this user'">
                                             <i class="fas fa-trash-alt text-sm"></i>
                                         </button>
@@ -141,11 +125,9 @@
                             </tr>
                         </template>
                         <tr x-show="filteredUsers.length === 0">
-                            <td colspan="7" class="px-4 py-12 text-center">
-                                <div class="flex flex-col items-center">
-                                    <i class="fas fa-users text-4xl text-gray-200 mb-3"></i>
-                                    <p class="text-gray-500">No users found.</p>
-                                </div>
+                            <td colspan="6" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                <i class="fas fa-users text-3xl mb-2 block opacity-30"></i>
+                                No operator records found matching the query.
                             </td>
                         </tr>
                     </tbody>
@@ -153,17 +135,17 @@
             </div>
 
             <!-- Table Footer -->
-            <div class="px-4 sm:px-6 py-3 border-t border-gray-100 bg-gray-50/50">
-                <p class="text-xs text-gray-500">
-                    Showing <span class="font-semibold text-gray-700" x-text="filteredUsers.length"></span>
-                    of <span class="font-semibold text-gray-700" x-text="users.length"></span> users
+            <div class="px-4 py-3 border-t flex items-center justify-between"
+                style="border-color: var(--kp-border); background: var(--kp-surface-2)">
+                <p class="text-xs font-mono" style="color: var(--kp-muted)">
+                    Showing <span class="font-semibold" style="color: var(--kp-text)" x-text="filteredUsers.length"></span>
+                    of <span class="font-semibold" style="color: var(--kp-text)" x-text="users.length"></span> users
                 </p>
             </div>
         </div>
 
         @include('modal.user-modal')
         @include('modal.permissions-modal')
-
     </div>
 
     @push('scripts')
@@ -192,8 +174,7 @@
 
                     init() {
                         this.filterUsers();
-                        // Format permissions from DB into the format needed by the UI
-                        this.availablePermissions = this.allPermissions.map(p => ({
+                        this.availablePermissions = (this.allPermissions || []).map(p => ({
                             id: p.id,
                             slug: p.slug,
                             label: p.name,
@@ -205,9 +186,8 @@
                     getInitials(user) {
                         const first = user.fname ? user.fname.charAt(0).toUpperCase() : '';
                         const last = user.lname ? user.lname.charAt(0).toUpperCase() : '';
-                        return first + last || '?';
+                        return (first + last) || '?';
                     },
-                    // Add these methods inside the userManagementData() return object:
 
                     getPermissionsByGroup(group) {
                         const groups = {
@@ -218,7 +198,6 @@
                             'settings': ['set-quedan-price', 'set-molasses-price', 'set-crop-year', 'set-week-number'],
                             'other': ['print-vouchers'],
                         };
-
                         const slugs = groups[group] || [];
                         return this.availablePermissions.filter(p => slugs.includes(p.slug));
                     },
@@ -264,90 +243,65 @@
                     getRoleBadgeClass(role) {
                         const roles = {
                             'Administrator': {
-                                badge: 'bg-red-100 text-red-700 ring-1 ring-red-300',
-                                avatar: 'bg-red-100 text-red-700 ring-2 ring-red-300'
+                                badge: 'kp-badge kp-badge-rose',
+                                avatar: 'bg-red-50 text-red-700'
                             },
                             'super_admin': {
-                                badge: 'bg-purple-100 text-purple-700 ring-1 ring-purple-300',
-                                avatar: 'bg-purple-100 text-purple-700 ring-2 ring-purple-300'
+                                badge: 'kp-badge kp-badge-info',
+                                avatar: 'bg-indigo-50 text-indigo-700'
                             },
                             'manager': {
-                                badge: 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300',
-                                avatar: 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-300'
+                                badge: 'kp-badge kp-badge-emerald',
+                                avatar: 'bg-emerald-50 text-emerald-700'
                             },
                             'loan_officer': {
-                                badge: 'bg-teal-100 text-teal-700 ring-1 ring-teal-300',
-                                avatar: 'bg-teal-100 text-teal-700 ring-2 ring-teal-300'
+                                badge: 'kp-badge kp-badge-amber',
+                                avatar: 'bg-amber-50 text-amber-700'
                             },
                             'User': {
-                                badge: 'bg-blue-100 text-blue-700',
-                                avatar: 'bg-blue-100 text-blue-700'
+                                badge: 'kp-badge kp-badge-neutral',
+                                avatar: 'bg-gray-100 text-gray-700'
                             },
                             'Viewer': {
-                                badge: 'bg-gray-100 text-gray-700',
+                                badge: 'kp-badge kp-badge-neutral',
                                 avatar: 'bg-gray-100 text-gray-700'
                             },
                         };
                         return roles[role] || {
-                            badge: 'bg-gray-100 text-gray-700',
+                            badge: 'kp-badge kp-badge-neutral',
                             avatar: 'bg-gray-100 text-gray-700'
                         };
                     },
 
-                    // Check if current user can edit this user
                     canEditUser(user) {
                         const currentRole = '{{ auth()->user()->role }}';
                         const currentUserId = {{ auth()->id() }};
-
-                        // Administrator can edit everyone INCLUDING themselves
-                        if (currentRole === 'Administrator') {
-                            return true; // Allow editing self too
-                        }
-
-                        // Super admin can edit themselves and Users/Viewers, but not other admins
+                        if (currentRole === 'Administrator') return true;
                         if (currentRole === 'super_admin') {
-                            if (user.id === currentUserId) return true; // Can edit self
+                            if (user.id === currentUserId) return true;
                             return !['Administrator', 'super_admin'].includes(user.role);
                         }
-
-                        // Other roles cannot edit anyone
                         return false;
                     },
 
-                    // Check if current user can delete this user
                     canDeleteUser(user) {
                         const currentRole = '{{ auth()->user()->role }}';
                         const currentUserId = {{ auth()->id() }};
-
-                        // Cannot delete yourself
                         if (user.id === currentUserId) return false;
-
-                        // Administrator can delete everyone except themselves
                         if (currentRole === 'Administrator') return true;
-
-                        // Super admin can delete Users and Viewers only
                         if (currentRole === 'super_admin') {
                             return !['Administrator', 'super_admin'].includes(user.role);
                         }
-
                         return false;
                     },
 
-                    // Check if current user can manage permissions of this user
                     canManagePermissions(user) {
                         const currentRole = '{{ auth()->user()->role }}';
-
-                        // Administrator and super_admin have all access by default - no need to manage
                         if (user.role === 'Administrator' || user.role === 'super_admin') return false;
-
-                        // Administrator can manage everyone's permissions
                         if (currentRole === 'Administrator') return true;
-
-                        // Super admin can manage Users and Viewers permissions
                         if (currentRole === 'super_admin') {
                             return ['User', 'Viewer'].includes(user.role);
                         }
-
                         return false;
                     },
 
@@ -408,8 +362,6 @@
                                 '{{ url('/user-management') }}';
 
                             const method = this.editingUser ? 'PUT' : 'POST';
-
-                            // Only send password if it's filled
                             const formData = {
                                 ...this.userForm
                             };
@@ -430,7 +382,6 @@
                             const data = await response.json();
 
                             if (!response.ok) {
-                                // Handle validation errors
                                 if (data.errors) {
                                     const errorMessages = Object.values(data.errors).flat().join('\n');
                                     throw new Error(errorMessages);
@@ -465,6 +416,7 @@
                             this.loading = false;
                         }
                     },
+
                     async loadPermissions() {
                         try {
                             const response = await fetch('{{ route('permissions.list') }}', {
@@ -491,7 +443,7 @@
                             showCancelButton: true,
                             confirmButtonText: 'Yes, delete',
                             cancelButtonText: 'Cancel',
-                            confirmButtonColor: '#dc2626',
+                            confirmButtonColor: '#832727',
                         });
 
                         if (!result.isConfirmed) return;
@@ -506,7 +458,6 @@
                             });
 
                             const data = await response.json();
-
                             if (!response.ok) throw new Error(data.message);
 
                             this.users = this.users.filter(u => u.id !== user.id);
@@ -532,8 +483,6 @@
                         if (user.role === 'Administrator' || user.role === 'super_admin') return;
 
                         this.selectedUser = user;
-
-                        // Reset permissions and set granted status
                         this.availablePermissions = this.allPermissions.map(p => ({
                             id: p.id,
                             slug: p.slug,
@@ -551,7 +500,6 @@
 
                     async savePermissions() {
                         if (!this.selectedUser) return;
-
                         this.savingPermissions = true;
 
                         try {
@@ -572,10 +520,8 @@
                             });
 
                             const data = await response.json();
-
                             if (!response.ok) throw new Error(data.message);
 
-                            // Update user in local array
                             const index = this.users.findIndex(u => u.id === this.selectedUser.id);
                             if (index !== -1) {
                                 this.users[index].permissions = data.permissions;

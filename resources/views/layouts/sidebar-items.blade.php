@@ -19,9 +19,9 @@
 </li>
 
 <!-- Quedan & Molasses Dropdown -->
-<li x-data="{ open: {{ request()->routeIs('quedan-molasses-registry*') || request()->routeIs('quedans.bulk*') || request()->routeIs('molasses.bulk*') ? 'true' : 'false' }} }">
+<li x-data="{ open: {{ request()->routeIs('prices.registry*') || request()->routeIs('quedan-molasses-registry*') || request()->routeIs('quedans.bulk*') || request()->routeIs('molasses.bulk*') ? 'true' : 'false' }} }">
     <button @click="open = !open"
-        class="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('quedan-molasses-registry*') || request()->routeIs('quedan-buy*') || request()->routeIs('molasses-buy*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
+        class="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('prices.registry*') || request()->routeIs('quedan-molasses-registry*') || request()->routeIs('quedan-buy*') || request()->routeIs('molasses-buy*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
         <i class="fas fa-qrcode w-5 h-5 shrink-0 flex items-center justify-center text-center"></i>
         <span class="flex-1 text-left">Quedan & Molasses</span>
         <i class="fas fa-chevron-down w-4 h-4 shrink-0 flex items-center justify-center transition-transform"
@@ -29,8 +29,8 @@
     </button>
     <ul x-show="open" class="mt-1 space-y-1 ml-8">
         <li>
-            <a href="{{ route('quedan-molasses-registry') }}"
-                class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('quedan-molasses-registry') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
+            <a href="{{ route('prices.registry') }}"
+                class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('prices.registry*') || request()->routeIs('quedan-molasses-registry*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
                 <i class="fas fa-list-ul w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
                 <span>Registry List</span>
             </a>

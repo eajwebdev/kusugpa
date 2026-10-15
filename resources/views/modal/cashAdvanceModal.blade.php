@@ -1,21 +1,31 @@
+<!-- resources/views/modal/cashAdvanceModal.blade.php -->
 <div x-data="newCAForm()" x-show="showModal" x-on:open-ca-modal.window="showModal = true"
-    x-on:close-ca-modal.window="showModal = false" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
-    <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="fixed inset-0 bg-black/50" @click="showModal = false"></div>
-        <div class="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-xl font-bold text-gray-900">New Cash Advance</h3>
-                <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 p-2">
-                    <i class="fas fa-times text-lg"></i>
+    x-on:close-ca-modal.window="showModal = false" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" x-cloak>
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showModal = false"></div>
+        <div class="kp-modal relative max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 mb-5 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm font-semibold">
+                        <i class="fas fa-hand-holding-dollar" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">New Cash Advance Application</h3>
+                        <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Disburse short-term cash assistance to registered planter.</p>
+                    </div>
+                </div>
+                <button type="button" @click="showModal = false" class="text-[#52705F] hover:text-[#172B20] dark:text-[#8AA895] p-1.5 rounded-lg">
+                    <i class="fas fa-times text-base" aria-hidden="true"></i>
                 </button>
             </div>
+
             <form @submit.prevent="submitCAForm()" class="space-y-4">
                 @csrf
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Planter</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Planter <span class="text-rose-600">*</span></label>
                         <select name="planter_code" x-model="selectedPlanter" @change="updatePlanterName()" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            class="kp-input w-full">
                             <option value="">Select Planter</option>
                             @foreach ($planters as $p)
                                 <option value="{{ $p->planter_code }}" data-name="{{ $p->planter_name }}">
@@ -25,25 +35,25 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount (₱)</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Advance Amount (₱) <span class="text-rose-600">*</span></label>
                         <input type="number" name="amount" x-model="amount" step="0.01" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500"
-                            placeholder="Enter amount">
+                            class="kp-input w-full"
+                            placeholder="0.00">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Interest Rate (%)</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Interest Rate (%) <span class="text-rose-600">*</span></label>
                         <input type="number" name="interest_rate" x-model="interestRate" step="0.01" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            class="kp-input w-full">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Term (Months)</label>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Term (Months) <span class="text-rose-600">*</span></label>
                         <input type="number" name="term_months" x-model="termMonths" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            class="kp-input w-full">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Crop Year</label>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Crop Year <span class="text-rose-600">*</span></label>
                         <select name="crop_year" required
-                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500">
+                            class="kp-input w-full">
                             @foreach ($cropYears as $cy)
                                 <option value="{{ $cy }}">{{ $cy }}</option>
                             @endforeach
@@ -52,62 +62,57 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Planter Name</label>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Selected Planter Name</label>
                     <input type="text" name="planter_name" x-model="planterName" readonly
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-700">
+                        class="kp-input w-full bg-[#F7FAF8] dark:bg-[#13231B] text-[#52705F] cursor-not-allowed">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
-                    <div class="flex flex-wrap gap-2 mb-2">
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Purpose Preset & Notes</label>
+                    <div class="flex flex-wrap gap-1.5 mb-2">
                         <button type="button" @click="purpose = 'Emergency cash assistance'"
-                            class="px-3 py-1.5 text-xs bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition">Emergency</button>
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:opacity-80 transition">Emergency</button>
                         <button type="button" @click="purpose = 'Personal financial needs'"
-                            class="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition">Personal</button>
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 hover:opacity-80 transition">Personal</button>
                         <button type="button" @click="purpose = 'Medical expenses'"
-                            class="px-3 py-1.5 text-xs bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition">Medical</button>
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-[#EAF5ED] text-[#005B2A] dark:bg-[#1A3324] dark:text-[#52C97E] hover:opacity-80 transition">Medical</button>
                         <button type="button" @click="purpose = 'Education expenses'"
-                            class="px-3 py-1.5 text-xs bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition">Education</button>
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 hover:opacity-80 transition">Education</button>
                         <button type="button" @click="purpose = ''"
-                            class="px-3 py-1.5 text-xs bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition">
-                            <i class="fas fa-times mr-1"></i> Clear
-                        </button>
+                            class="px-2.5 py-1 text-[11px] rounded-lg font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:opacity-80 transition">Clear</button>
                     </div>
                     <textarea name="purpose" x-model="purpose" rows="2"
-                        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500"
-                        placeholder="Enter purpose or select from presets above..."></textarea>
+                        class="kp-input w-full"
+                        placeholder="Enter statement of purpose or select from presets above..."></textarea>
                 </div>
 
-                <div class="bg-gray-50 rounded-xl p-4" x-show="amount > 0 && interestRate > 0 && termMonths > 0">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Estimated Summary</h4>
-                    <div class="grid grid-cols-3 gap-3 text-center">
+                <div class="rounded-xl p-4 bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B]" x-show="amount > 0 && interestRate > 0 && termMonths > 0">
+                    <h4 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider mb-2">Estimated Calculation Summary</h4>
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs">
                         <div>
-                            <p class="text-xs text-gray-500">Monthly Payment</p>
-                            <p class="text-sm font-bold text-gray-900">₱<span
-                                    x-text="formatNumber(calculateMonthly())"></span></p>
+                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Monthly Due</p>
+                            <p class="font-bold text-[#172B20] dark:text-[#EAF5ED] kp-num mt-0.5">₱<span x-text="formatNumber(calculateMonthly())"></span></p>
                         </div>
                         <div>
-                            <p class="text-xs text-gray-500">Total Interest</p>
-                            <p class="text-sm font-bold text-amber-600">₱<span
-                                    x-text="formatNumber(calculateTotalInterest())"></span></p>
+                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Total Interest</p>
+                            <p class="font-bold text-amber-600 dark:text-amber-400 kp-num mt-0.5">₱<span x-text="formatNumber(calculateTotalInterest())"></span></p>
                         </div>
                         <div>
-                            <p class="text-xs text-gray-500">Total Amount</p>
-                            <p class="text-sm font-bold text-primary-700">₱<span
-                                    x-text="formatNumber(calculateTotal())"></span></p>
+                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Repayable Sum</p>
+                            <p class="font-bold text-[#005B2A] dark:text-[#52C97E] kp-num mt-0.5">₱<span x-text="formatNumber(calculateTotal())"></span></p>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex gap-3 pt-2 border-t border-gray-100">
+                <div class="flex items-center justify-end gap-3 pt-3 border-t border-[#E3EBE5] dark:border-[#203A2B]">
                     <button type="button" @click="showModal = false; resetForm()"
-                        class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                        class="kp-btn kp-btn-secondary text-xs">
                         Cancel
                     </button>
                     <button type="submit" :disabled="submitting"
-                        class="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span x-show="!submitting"><i class="fas fa-save mr-1"></i> Submit Application</span>
-                        <span x-show="submitting"><i class="fas fa-spinner fa-spin mr-1"></i> Submitting...</span>
+                        class="kp-btn kp-btn-primary text-xs disabled:opacity-50">
+                        <span x-show="!submitting"><i class="fas fa-check mr-1.5" aria-hidden="true"></i> Submit Advance</span>
+                        <span x-show="submitting"><i class="fas fa-circle-notch fa-spin mr-1.5"></i> Submitting...</span>
                     </button>
                 </div>
             </form>

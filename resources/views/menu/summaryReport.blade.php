@@ -1,45 +1,50 @@
+<!-- resources/views/menu/summaryReport.blade.php -->
 @extends('layouts.main')
 
 @section('title', 'Summary Report')
 
 @section('content')
-    <div x-data="summaryReportData()" class="space-y-6" x-init="init()">
+    <div x-data="summaryReportData()" class="space-y-6 kp-fade-in" x-init="init()">
         <!-- Page Header -->
-        <div
-            class="bg-gradient-to-r from-primary-700 via-primary-600 to-primary-500 rounded-2xl shadow-lg p-6 sm:p-8 text-white">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <header>
+            <div class="kp-page-header">
                 <div>
-                    <h1 class="text-2xl sm:text-3xl font-bold">Summary Report</h1>
-                    <p class="mt-2 text-primary-100 text-sm sm:text-base">View and filter crop production summaries</p>
+                    <p class="kp-eyebrow">Production Accounting</p>
+                    <h1 class="kp-page-title mt-1">Summary Report</h1>
+                    <p class="kp-page-sub">Consolidated crop production summaries, net tonnage metrics, and planter net settlements.</p>
                 </div>
-                <div class="mt-4 sm:mt-0 flex items-center space-x-3">
-                    <span class="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2 text-sm">
-                        Total Records: <span class="font-bold" x-text="totalRecords"></span>
+                <div class="flex items-center gap-3">
+                    <span class="kp-badge kp-badge--forest text-xs py-1.5 px-3">
+                        <i class="fas fa-database mr-1.5" aria-hidden="true"></i> Records: <strong class="ml-1" x-text="totalRecords">0</strong>
                     </span>
-                    {{-- <span class="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2 text-sm">
-                    Showing: <span class="font-bold" x-text="displayedRecords"></span>
-                </span> --}}
+                    <button type="button" @click="previewPDF()" class="kp-btn kp-btn-secondary text-xs">
+                        <i class="fas fa-file-pdf mr-1.5 text-rose-600" aria-hidden="true"></i> PDF Report
+                    </button>
                 </div>
             </div>
-        </div>
+            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+        </header>
 
         <!-- Filter Card -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div class="flex items-center gap-2 mb-4">
-                <div class="bg-primary-100 rounded-lg p-2">
-                    <i class="fas fa-filter text-primary-600 text-sm"></i>
+        <div class="kp-card p-5">
+            <div class="flex items-center gap-2.5 pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                <div class="w-7 h-7 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-xs font-semibold">
+                    <i class="fas fa-filter" aria-hidden="true"></i>
                 </div>
-                <h2 class="text-lg font-bold text-gray-900">Filters</h2>
+                <div>
+                    <h2 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Report Parameters</h2>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <!-- Crop Year -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Crop
-                        Year</label>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                        <i class="fas fa-calendar-alt text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Crop Year
+                    </label>
                     <select x-model="filters.cropYear" @change="onCropYearChange()"
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                        <option value="">All Years</option>
+                        class="kp-input w-full">
+                        <option value="">All Crop Years</option>
                         @foreach ($cropYears as $year)
                             <option value="{{ $year }}">{{ $year }}</option>
                         @endforeach
@@ -48,25 +53,28 @@
 
                 <!-- Week From -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Week
-                        From</label>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                        <i class="fas fa-play-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week From
+                    </label>
                     <select x-model="filters.weekFrom" @change="loadData(1)"
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
+                        class="kp-input w-full">
                         <option value="">All Weeks</option>
                         <template x-for="week in availableWeeks" :key="'from_' + week">
                             <option :value="week" x-text="'Week ' + week"></option>
                         </template>
                     </select>
-                    <p x-show="availableWeeks.length === 0 && filters.cropYear" class="text-xs text-amber-600 mt-1">
-                        <i class="fas fa-info-circle mr-1"></i> No weeks found for this crop year
+                    <p x-show="availableWeeks.length === 0 && filters.cropYear" class="text-[11px] text-amber-600 dark:text-amber-400 mt-1" x-cloak>
+                        <i class="fas fa-info-circle mr-1" aria-hidden="true"></i> No weeks recorded for year
                     </p>
                 </div>
 
                 <!-- Week To -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Week To</label>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                        <i class="fas fa-stop-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week To
+                    </label>
                     <select x-model="filters.weekTo" @change="loadData(1)"
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
+                        class="kp-input w-full">
                         <option value="">All Weeks</option>
                         <template x-for="week in availableWeeks" :key="'to_' + week">
                             <option :value="week" x-text="'Week ' + week"></option>
@@ -76,150 +84,133 @@
 
                 <!-- Per Page -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Show
-                        Entries</label>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                        <i class="fas fa-list text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Page Size
+                    </label>
                     <select x-model="filters.perPage" @change="loadData(1)"
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="250">250</option>
-                        <option value="500">500</option>
-                        <option value="1000">1000</option>
+                        class="kp-input w-full">
+                        <option value="50">50 entries</option>
+                        <option value="100">100 entries</option>
+                        <option value="250">250 entries</option>
+                        <option value="500">500 entries</option>
+                        <option value="1000">1000 entries</option>
                     </select>
                 </div>
 
                 <!-- Action Buttons -->
                 <div class="flex items-end gap-2">
-                    <button @click="previewPDF()"
-                        class="flex-1 inline-flex items-center justify-center gap-2 bg-primary-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-primary-700 transition-colors shadow-sm">
-                        <i class="fas fa-eye"></i> Preview
+                    <button type="button" @click="previewPDF()"
+                        class="kp-btn kp-btn-primary flex-1 justify-center text-xs">
+                        <i class="fas fa-eye mr-1" aria-hidden="true"></i> Preview
                     </button>
-                    <button @click="downloadPDF()"
-                        class="flex-1 inline-flex items-center justify-center gap-2 bg-red-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:bg-red-600 transition-colors shadow-sm">
-                        <i class="fas fa-download"></i> Download
+                    <button type="button" @click="downloadPDF()"
+                        class="kp-btn kp-btn-secondary flex-1 justify-center text-xs">
+                        <i class="fas fa-download mr-1" aria-hidden="true"></i> Export
                     </button>
                 </div>
             </div>
         </div>
 
         <!-- Table Card -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <!-- Table Header -->
-            <div class="p-4 sm:p-6 border-b border-gray-100">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div class="flex items-center gap-2">
-                        <div class="bg-blue-100 rounded-lg p-2">
-                            <i class="fas fa-table text-blue-600 text-sm"></i>
-                        </div>
-                        <h2 class="text-lg font-bold text-gray-900">Records</h2>
+        <div class="kp-card overflow-hidden">
+            <!-- Table Action Toolbar -->
+            <div class="px-5 py-3.5 border-b border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Settlement Records</span>
+                    <span class="text-xs text-[#52705F] dark:text-[#8AA895]">(Sorted by ledger index)</span>
+                </div>
+                <div class="relative w-full sm:w-72">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#52705F] dark:text-[#8AA895]">
+                        <i class="fas fa-search text-xs" aria-hidden="true"></i>
                     </div>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-search text-gray-400 text-sm"></i>
-                        </div>
-                        <input type="text" x-model="filters.search" @input.debounce.500ms="loadData(1)"
-                            class="w-full sm:w-72 pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-gray-50"
-                            placeholder="Search records...">
-                    </div>
+                    <input type="text" x-model="filters.search" @input.debounce.500ms="loadData(1)"
+                        class="kp-input w-full pl-8 py-1.5 text-xs"
+                        placeholder="Search planter name or code...">
                 </div>
             </div>
 
             <!-- Loading Indicator -->
-            <div x-show="loading" class="flex items-center justify-center py-12">
-                <div class="flex items-center space-x-3">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                    <span class="text-gray-500">Loading records...</span>
+            <div x-show="loading" class="flex items-center justify-center py-16" x-cloak>
+                <div class="flex flex-col items-center gap-2">
+                    <i class="fas fa-circle-notch fa-spin text-2xl text-[#005B2A] dark:text-[#52C97E]"></i>
+                    <span class="text-xs font-medium text-[#52705F] dark:text-[#8AA895]">Loading summary records...</span>
                 </div>
             </div>
 
             <!-- Table Body -->
-            <div x-show="!loading" class="overflow-x-auto" style="max-height: 600px; overflow-y: auto;">
-                <table class="min-w-full divide-y divide-gray-100" id="summaryTable">
-                    <thead class="bg-gray-50 sticky top-0 z-10">
+            <div x-show="!loading" class="kp-table-wrap overflow-x-auto" style="max-height: 640px; overflow-y: auto;">
+                <table class="kp-table w-full" id="summaryTable">
+                    <thead>
                         <tr>
-                            <th class="sorting px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                @click="sortBy('id')">
-                                # <i :class="sortField === 'id' ? (sortDirection === 'asc' ?
-                                        'fas fa-sort-up text-primary-500' : 'fas fa-sort-down text-primary-500') :
-                                    'fas fa-sort text-gray-300'"
-                                    class="ml-1"></i>
+                            <th class="cursor-pointer select-none" @click="sortBy('id')">
+                                <div class="flex items-center gap-1.5">
+                                    <span>#</span>
+                                    <i :class="sortField === 'id' ? (sortDirection === 'asc' ? 'fas fa-sort-up text-[#005B2A] dark:text-[#52C97E]' : 'fas fa-sort-down text-[#005B2A] dark:text-[#52C97E]') : 'fas fa-sort opacity-40'" class="text-xs"></i>
+                                </div>
                             </th>
-                            <th class="sorting px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                @click="sortBy('crop_year')">
-                                Crop Year <i
-                                    :class="sortField === 'crop_year' ? (sortDirection === 'asc' ?
-                                            'fas fa-sort-up text-primary-500' : 'fas fa-sort-down text-primary-500') :
-                                        'fas fa-sort text-gray-300'"
-                                    class="ml-1"></i>
+                            <th class="cursor-pointer select-none" @click="sortBy('crop_year')">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Crop Year</span>
+                                    <i :class="sortField === 'crop_year' ? (sortDirection === 'asc' ? 'fas fa-sort-up text-[#005B2A] dark:text-[#52C97E]' : 'fas fa-sort-down text-[#005B2A] dark:text-[#52C97E]') : 'fas fa-sort opacity-40'" class="text-xs"></i>
+                                </div>
                             </th>
-                            <th class="sorting px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                @click="sortBy('week_no')">
-                                Week No <i
-                                    :class="sortField === 'week_no' ? (sortDirection === 'asc' ?
-                                            'fas fa-sort-up text-primary-500' : 'fas fa-sort-down text-primary-500') :
-                                        'fas fa-sort text-gray-300'"
-                                    class="ml-1"></i>
+                            <th class="cursor-pointer select-none" @click="sortBy('week_no')">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Week No</span>
+                                    <i :class="sortField === 'week_no' ? (sortDirection === 'asc' ? 'fas fa-sort-up text-[#005B2A] dark:text-[#52C97E]' : 'fas fa-sort-down text-[#005B2A] dark:text-[#52C97E]') : 'fas fa-sort opacity-40'" class="text-xs"></i>
+                                </div>
                             </th>
-                            <th class="sorting px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                @click="sortBy('planter_code')">
-                                Planter Code <i
-                                    :class="sortField === 'planter_code' ? (sortDirection === 'asc' ?
-                                            'fas fa-sort-up text-primary-500' : 'fas fa-sort-down text-primary-500') :
-                                        'fas fa-sort text-gray-300'"
-                                    class="ml-1"></i>
+                            <th class="cursor-pointer select-none" @click="sortBy('planter_code')">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Planter Code</span>
+                                    <i :class="sortField === 'planter_code' ? (sortDirection === 'asc' ? 'fas fa-sort-up text-[#005B2A] dark:text-[#52C97E]' : 'fas fa-sort-down text-[#005B2A] dark:text-[#52C97E]') : 'fas fa-sort opacity-40'" class="text-xs"></i>
+                                </div>
                             </th>
-                            <th class="sorting px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                @click="sortBy('planter_name')">
-                                Planter Name <i
-                                    :class="sortField === 'planter_name' ? (sortDirection === 'asc' ?
-                                            'fas fa-sort-up text-primary-500' : 'fas fa-sort-down text-primary-500') :
-                                        'fas fa-sort text-gray-300'"
-                                    class="ml-1"></i>
+                            <th class="cursor-pointer select-none" @click="sortBy('planter_name')">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Planter Name</span>
+                                    <i :class="sortField === 'planter_name' ? (sortDirection === 'asc' ? 'fas fa-sort-up text-[#005B2A] dark:text-[#52C97E]' : 'fas fa-sort-down text-[#005B2A] dark:text-[#52C97E]') : 'fas fa-sort opacity-40'" class="text-xs"></i>
+                                </div>
                             </th>
-                            <th class="sorting px-4 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                @click="sortBy('net_cane')">
-                                Net Cane <i
-                                    :class="sortField === 'net_cane' ? (sortDirection === 'asc' ?
-                                            'fas fa-sort-up text-primary-500' : 'fas fa-sort-down text-primary-500') :
-                                        'fas fa-sort text-gray-300'"
-                                    class="ml-1"></i>
+                            <th class="cursor-pointer select-none text-right" @click="sortBy('net_cane')">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <span>Net Cane (TC)</span>
+                                    <i :class="sortField === 'net_cane' ? (sortDirection === 'asc' ? 'fas fa-sort-up text-[#005B2A] dark:text-[#52C97E]' : 'fas fa-sort-down text-[#005B2A] dark:text-[#52C97E]') : 'fas fa-sort opacity-40'" class="text-xs"></i>
+                                </div>
                             </th>
-                            <th class="sorting px-4 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                                @click="sortBy('net_amount')">
-                                Net Amount <i
-                                    :class="sortField === 'net_amount' ? (sortDirection === 'asc' ?
-                                            'fas fa-sort-up text-primary-500' : 'fas fa-sort-down text-primary-500') :
-                                        'fas fa-sort text-gray-300'"
-                                    class="ml-1"></i>
+                            <th class="cursor-pointer select-none text-right" @click="sortBy('net_amount')">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <span>Net Proceeds (₱)</span>
+                                    <i :class="sortField === 'net_amount' ? (sortDirection === 'asc' ? 'fas fa-sort-up text-[#005B2A] dark:text-[#52C97E]' : 'fas fa-sort-down text-[#005B2A] dark:text-[#52C97E]') : 'fas fa-sort opacity-40'" class="text-xs"></i>
+                                </div>
                             </th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-50">
+                    <tbody>
                         <template x-for="(summary, index) in summaries" :key="summary.id">
-                            <tr class="hover:bg-gray-50/50 transition-colors">
-                                <td class="px-4 py-3 text-sm text-gray-500"
+                            <tr class="hover:bg-[#EAF5ED]/50 dark:hover:bg-[#1A3324]/50 transition-colors">
+                                <td class="text-xs text-[#52705F] dark:text-[#8AA895] font-mono"
                                     x-text="(currentPage - 1) * filters.perPage + index + 1"></td>
-                                <td class="px-4 py-3 text-sm">
-                                    <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium"
+                                <td>
+                                    <span class="kp-badge kp-badge--forest text-xs font-mono"
                                         x-text="summary.crop_year"></span>
                                 </td>
-                                <td class="px-4 py-3 text-sm text-gray-700" x-text="'Week ' + summary.week_no"></td>
-                                <td class="px-4 py-3 text-sm text-gray-600 font-mono" x-text="summary.planter_code"></td>
-                                <td class="px-4 py-3 text-sm font-medium text-gray-900" x-text="summary.planter_name">
-                                </td>
-                                <td class="px-4 py-3 text-sm text-gray-700 text-right font-semibold"
+                                <td class="text-xs font-medium text-[#172B20] dark:text-[#EAF5ED]" x-text="'Week ' + summary.week_no"></td>
+                                <td class="text-xs font-mono text-[#52705F] dark:text-[#8AA895]" x-text="summary.planter_code"></td>
+                                <td class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]" x-text="summary.planter_name"></td>
+                                <td class="text-xs text-right kp-num font-medium text-[#172B20] dark:text-[#EAF5ED]"
                                     x-text="formatNumber(summary.net_cane, 3)"></td>
-                                <td class="px-4 py-3 text-sm text-right">
-                                    <span class="text-green-600 font-semibold"
-                                        x-text="'₱' + formatNumber(summary.net_amount, 2)"></span>
-                                </td>
+                                <td class="text-xs text-right kp-num font-bold text-[#005B2A] dark:text-[#52C97E]"
+                                    x-text="'₱' + formatNumber(summary.net_amount, 2)"></td>
                             </tr>
                         </template>
-                        <tr x-show="summaries.length === 0">
-                            <td colspan="7" class="px-4 py-12 text-center">
+                        <tr x-show="summaries.length === 0" x-cloak>
+                            <td colspan="7" class="py-12 text-center">
                                 <div class="flex flex-col items-center">
-                                    <i class="fas fa-inbox text-4xl text-gray-200 mb-3"></i>
-                                    <p class="text-gray-500">No summary data found.</p>
+                                    <div class="w-12 h-12 rounded-xl bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-xl mb-3">
+                                        <i class="fas fa-inbox" aria-hidden="true"></i>
+                                    </div>
+                                    <p class="text-xs font-medium text-[#52705F] dark:text-[#8AA895]">No crop summary records found for the specified criteria.</p>
                                 </div>
                             </td>
                         </tr>
@@ -227,57 +218,57 @@
                 </table>
             </div>
 
-            <!-- Pagination -->
-            <div x-show="!loading && totalPages > 1"
-                class="px-4 sm:px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <button @click="loadData(1)" :disabled="currentPage === 1"
-                        class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                        <i class="fas fa-angle-double-left"></i>
+            <!-- Pagination Bar -->
+            <div x-show="!loading && totalPages > 1" x-cloak
+                class="px-5 py-3 border-t border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324] flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="flex items-center gap-1.5">
+                    <button type="button" @click="loadData(1)" :disabled="currentPage === 1"
+                        class="kp-btn kp-btn-secondary text-xs px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fas fa-angle-double-left" aria-hidden="true"></i>
                     </button>
-                    <button @click="loadData(currentPage - 1)" :disabled="currentPage === 1"
-                        class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                        <i class="fas fa-angle-left"></i>
+                    <button type="button" @click="loadData(currentPage - 1)" :disabled="currentPage === 1"
+                        class="kp-btn kp-btn-secondary text-xs px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fas fa-angle-left" aria-hidden="true"></i>
                     </button>
 
                     <template x-for="page in visiblePages" :key="page">
-                        <button @click="loadData(page)" x-text="page"
-                            :class="page === currentPage ? 'bg-primary-600 text-white' :
-                                'border border-gray-200 hover:bg-gray-100'"
-                            class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"></button>
+                        <button type="button" @click="loadData(page)" x-text="page"
+                            :class="page === currentPage ? 'kp-btn-primary' : 'kp-btn-secondary'"
+                            class="kp-btn text-xs px-3 py-1"></button>
                     </template>
 
-                    <button @click="loadData(currentPage + 1)" :disabled="currentPage === totalPages"
-                        class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                        <i class="fas fa-angle-right"></i>
+                    <button type="button" @click="loadData(currentPage + 1)" :disabled="currentPage === totalPages"
+                        class="kp-btn kp-btn-secondary text-xs px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fas fa-angle-right" aria-hidden="true"></i>
                     </button>
-                    <button @click="loadData(totalPages)" :disabled="currentPage === totalPages"
-                        class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                        <i class="fas fa-angle-double-right"></i>
+                    <button type="button" @click="loadData(totalPages)" :disabled="currentPage === totalPages"
+                        class="kp-btn kp-btn-secondary text-xs px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fas fa-angle-double-right" aria-hidden="true"></i>
                     </button>
                 </div>
-                <p class="text-xs text-gray-500">
-                    Page <span x-text="currentPage"></span> of <span x-text="totalPages"></span>
-                    (Total: <span x-text="totalRecords"></span> records)
+                <p class="text-xs text-[#52705F] dark:text-[#8AA895]">
+                    Page <span class="font-bold text-[#172B20] dark:text-[#EAF5ED]" x-text="currentPage"></span> of <span class="font-bold text-[#172B20] dark:text-[#EAF5ED]" x-text="totalPages"></span>
+                    (<span class="kp-num" x-text="totalRecords"></span> records total)
                 </p>
             </div>
         </div>
 
-        <!-- PDF Modal -->
-        <div x-show="showPdfModal" x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <!-- PDF Preview Modal -->
+        <div x-show="showPdfModal" x-transition x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
             <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-                <div class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity" @click="showPdfModal = false">
-                </div>
-                <div
-                    class="relative inline-block w-full max-w-6xl bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all">
-                    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                        <h3 class="text-lg font-bold text-gray-900">Summary Report PDF Preview</h3>
-                        <button @click="showPdfModal = false"
-                            class="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100">
-                            <i class="fas fa-times text-lg"></i>
+                <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showPdfModal = false"></div>
+                <div class="kp-modal relative inline-block w-full max-w-6xl overflow-hidden text-left align-middle shadow-2xl">
+                    <div class="flex items-center justify-between px-6 py-4 border-b border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324]">
+                        <div class="flex items-center gap-2.5">
+                            <i class="fas fa-file-pdf text-rose-600 dark:text-rose-400 text-lg" aria-hidden="true"></i>
+                            <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Summary Report Document Preview</h3>
+                        </div>
+                        <button type="button" @click="showPdfModal = false"
+                            class="text-[#52705F] hover:text-[#172B20] dark:text-[#8AA895] dark:hover:text-[#EAF5ED] p-1.5 rounded-lg">
+                            <i class="fas fa-times text-base" aria-hidden="true"></i>
                         </button>
                     </div>
-                    <div style="height: 85vh;">
+                    <div style="height: 82vh;" class="bg-[#E8EDE9] dark:bg-[#0D1812]">
                         <iframe id="pdfFrame" src="" frameborder="0" style="width:100%; height:100%;"></iframe>
                     </div>
                 </div>
@@ -297,7 +288,7 @@
                     showPdfModal: false,
                     sortField: 'id',
                     sortDirection: 'desc',
-                    availableWeeks: [], // Dynamic weeks based on selected crop year
+                    availableWeeks: [],
                     filters: {
                         cropYear: '',
                         weekFrom: '',
@@ -308,7 +299,6 @@
 
                     init() {
                         this.loadData(1);
-                        // Load initial weeks if a crop year is pre-selected
                         if (this.filters.cropYear) {
                             this.loadWeeks();
                         }
@@ -330,20 +320,13 @@
                         return pages;
                     },
 
-                    // Called when crop year changes
                     async onCropYearChange() {
-                        // Reset week filters when crop year changes
                         this.filters.weekFrom = '';
                         this.filters.weekTo = '';
-
-                        // Load weeks for the selected crop year
                         await this.loadWeeks();
-
-                        // Reload data with new crop year filter
                         this.loadData(1);
                     },
 
-                    // Load weeks based on selected crop year
                     async loadWeeks() {
                         if (!this.filters.cropYear) {
                             this.availableWeeks = [];
@@ -416,7 +399,7 @@
                     },
 
                     formatNumber(number, decimals = 2) {
-                        if (number === null || number === undefined) return '0';
+                        if (number === null || number === undefined) return '0.00';
                         return parseFloat(number).toLocaleString('en-US', {
                             minimumFractionDigits: decimals,
                             maximumFractionDigits: decimals
@@ -425,7 +408,12 @@
 
                     previewPDF() {
                         if (!this.filters.cropYear) {
-                            alert("Please select a Crop Year.");
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Missing Parameter',
+                                text: 'Please select a Crop Year first.',
+                                confirmButtonColor: '#005B2A'
+                            });
                             return;
                         }
                         const url =
@@ -436,7 +424,12 @@
 
                     downloadPDF() {
                         if (!this.filters.cropYear) {
-                            alert("Please select a Crop Year.");
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Missing Parameter',
+                                text: 'Please select a Crop Year first.',
+                                confirmButtonColor: '#005B2A'
+                            });
                             return;
                         }
                         const downloadUrl =
