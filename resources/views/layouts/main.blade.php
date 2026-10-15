@@ -518,6 +518,9 @@
         const APP_BASE_URL = '{{ url('/') }}'.replace(/\/$/, '');
         const GET_WEEKS_URL = '{{ url('/get-weeks') }}';
         const UPLOAD_BASE_URL = '{{ url('/upload') }}';
+        // Tracks which upload modal is open. Used by checkUploadReady() instead of
+        // guessing the type from the modal title text (fragile).
+        let currentUploadType = '';
 
         function openQuedanPriceModal() {
             Swal.fire({
@@ -828,6 +831,7 @@
         }
 
         function openUploadModal(type) {
+            currentUploadType = type;
             const titles = {
                 'summary': '📊 Upload Summary CSV',
                 'trucking': '🚛 Upload Trucking Allowance CSV',
@@ -966,8 +970,24 @@
                     if (needsCropWeek.includes(type)) {
                         const cropYear = document.getElementById('uploadCropYear')?.value;
                         const weekNo = document.getElementById('uploadWeekNo')?.value;
-                        if (!cropYear || !weekNo) {
+                        if (!cropYear && !weekNo) {
                             Swal.showValidationMessage('Please select Crop Year and Week No');
+                            return false;
+                        }
+                        if (!cropYear) {
+                            Swal.showValidationMessage('Please select a Crop Year');
+                            return false;
+                        }
+                        if (!weekNo) {
+                            const weekSelect = document.getElementById('uploadWeekNo');
+                            const optionCount = weekSelect ? weekSelect.options.length : 0;
+                            if (optionCount <= 1) {
+                                Swal.showValidationMessage(
+                                    'No weeks loaded for this Crop Year. Reselect the Crop Year or add weeks first.'
+                                );
+                            } else {
+                                Swal.showValidationMessage('Please select a Week No');
+                            }
                             return false;
                         }
                         formData.append('crop_year', cropYear);
@@ -1035,11 +1055,15 @@
                 weekSelect.innerHTML = '<option value="">Select Week</option>';
                 weekSelect.disabled = true;
                 weekSelect.style.opacity = '0.6';
+                if (uploadHint) delete uploadHint.dataset.locked;
+                checkUploadReady();
                 return;
             }
 
             weekSelect.disabled = false;
             weekSelect.style.opacity = '1';
+            weekSelect.innerHTML = '<option value="">Loading weeks...</option>';
+            if (uploadHint) delete uploadHint.dataset.locked;
 
             // Fetch weeks from WeekNo model - already sorted
             fetch(GET_WEEKS_URL + '?crop_year=' + encodeURIComponent(cropYear), {
@@ -1072,17 +1096,38 @@
                     // Sort numerically
                     weeks.sort((a, b) => parseInt(a) - parseInt(b));
 
-                    weekSelect.innerHTML = '<option value="">Select Week</option>';
-                    weeks.forEach(week => {
-                        weekSelect.innerHTML += `<option value="${week}">Week ${week}</option>`;
-                    });
+                    if (!weeks.length) {
+                        weekSelect.innerHTML =
+                            '<option value="">No weeks found for this crop year</option>';
+                        if (uploadHint) {
+                            uploadHint.dataset.locked = '1';
+                            uploadHint.style.color = '#dc2626';
+                            uploadHint.innerHTML =
+                                '<i class="fas fa-exclamation-circle mr-1"></i>No weeks found for this Crop Year — add weeks first';
+                        }
+                    } else {
+                        weekSelect.innerHTML = '<option value="">Select Week</option>';
+                        weeks.forEach(week => {
+                            weekSelect.innerHTML +=
+                                `<option value="${week}">Week ${week}</option>`;
+                        });
+                    }
                     checkUploadReady();
                 })
                 .catch(error => {
                     console.error('Error fetching weeks:', error);
                     const msg = error && error.message ? error.message : 'network error';
-                    weekSelect.innerHTML = '<option value="">Error loading weeks</option>';
+                    weekSelect.innerHTML =
+                        '<option value="">Error loading weeks — reselect Crop Year to retry</option>';
                     weekSelect.title = msg;
+                    if (uploadHint) {
+                        uploadHint.dataset.locked = '1';
+                        uploadHint.style.color = '#dc2626';
+                        uploadHint.innerHTML =
+                            '<i class="fas fa-exclamation-circle mr-1"></i>Could not load weeks (' +
+                            msg + ')';
+                    }
+                    checkUploadReady();
                 });
         }
 
@@ -1096,17 +1141,43 @@
             const fileInput = document.getElementById('csvFileInput');
             const hasFile = fileInput && fileInput.files.length > 0;
 
-            // Check if current modal type needs crop/week
+            // Check if current modal type needs crop/week (explicit variable set by
+            // openUploadModal — do NOT sniff the title text, it breaks for some types)
             const needsCropWeek = ['summary', 'trucking', 'fci', 'fuel', 'rentals', 'underload', 'transloading', 'mudpress',
                 'quedan', 'molasses', 'consolidated'
             ];
-            const currentType = document.querySelector('.swal2-title')?.textContent?.toLowerCase() || '';
+            let typeNeedsCropWeek;
+            if (currentUploadType) {
+                typeNeedsCropWeek = needsCropWeek.includes(currentUploadType);
+            } else {
+                const currentType = document.querySelector('.swal2-title')?.textContent
+                    ?.toLowerCase() || '';
+                typeNeedsCropWeek = false;
+                for (const t of needsCropWeek) {
+                    if (currentType.includes(t)) {
+                        typeNeedsCropWeek = true;
+                        break;
+                    }
+                }
+            }
 
-            let typeNeedsCropWeek = false;
-            for (const t of needsCropWeek) {
-                if (currentType.includes(t)) {
-                    typeNeedsCropWeek = true;
-                    break;
+            // Keep the hint in sync so it never looks like a stuck error:
+            // amber = still missing something, green = ready.
+            const hint = document.getElementById('uploadHint');
+            if (hint && typeNeedsCropWeek && !hint.dataset.locked) {
+                if (cropYear && weekNo && hasFile) {
+                    hint.style.color = '#16a34a';
+                    hint.innerHTML =
+                        '<i class="fas fa-check-circle mr-1"></i>Ready to upload';
+                } else {
+                    const missing = [];
+                    if (!cropYear) missing.push('Crop Year');
+                    if (!weekNo) missing.push('Week No');
+                    if (!hasFile) missing.push('CSV file');
+                    hint.style.color = '#f59e0b';
+                    hint.innerHTML =
+                        '<i class="fas fa-exclamation-circle mr-1"></i>Please select: ' +
+                        missing.join(', ');
                 }
             }
 
