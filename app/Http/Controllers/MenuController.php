@@ -671,10 +671,8 @@ public function voucherPDF(Request $request)
     
     $quedanPriceQuery = QuedanPrice::orderBy('created_at', 'desc');
     $molassesPriceQuery = MolassesPrice::orderBy('created_at', 'desc');
-    if ($filterCropYear) {
-        $quedanPriceQuery->where('crop_year', $filterCropYear);
-        $molassesPriceQuery->where('crop_year', $filterCropYear);
-    }
+    $quedanPriceQuery->where('crop_year', $currentCropYear);
+    $molassesPriceQuery->where('crop_year', $currentCropYear);
     if ($filterWeekNo) {
         $quedanPriceQuery->where('week_no', $filterWeekNo);
         $molassesPriceQuery->where('week_no', $filterWeekNo);
@@ -698,11 +696,11 @@ public function voucherPDF(Request $request)
         $yearlyData[] = (float) $yQuery->sum(DB::raw('CAST(ta_wt AS DECIMAL(12,3))'));
     }
     
-    $weeklyData = $this->getWeeklyData($currentCropYear);
+    $weeklyData = $this->getWeeklyData($currentCropYear, $filterWeekNo);
     $topPlanters = $this->getTopPlanters($currentCropYear, $filterWeekNo);
-    $recentPrices = $this->getRecentPrices($filterCropYear, $filterWeekNo);
-    $alerts = $this->getAlerts($currentCropYear, $totalTAWT, $totalSummary, $activePlantersCount);
-    $riskPlanters = $this->getRiskPlanters($currentCropYear);
+    $recentPrices = $this->getRecentPrices($currentCropYear, $filterWeekNo);
+    $alerts = $this->getAlerts($currentCropYear, $totalTAWT, $totalSummary, $activePlantersCount, $filterWeekNo);
+    $riskPlanters = $this->getRiskPlanters($currentCropYear, $filterWeekNo);
     $loanStats = $this->getLoanStatsOverview();
     
     $activities = $this->getActivities($currentCropYear, $filterWeekNo, $quedanPrice, $quedanType, 
@@ -715,7 +713,7 @@ public function voucherPDF(Request $request)
             'activePlanters' => $activePlantersCount,
             'totalPlanters' => $totalPlanters,
             'currentCropYear' => $currentCropYear,
-            'currentWeek' => (int) $maxWeek,
+            'currentWeek' => $filterWeekNo ? (int) $filterWeekNo : 0,
             'bestWeek' => $bestWeek,
             'bestWeekCane' => $bestWeekCane,
             'caneChange' => round($caneChange, 1),
@@ -735,7 +733,7 @@ public function voucherPDF(Request $request)
         ],
         'yearlyData' => ['labels' => $yearlyLabels, 'datasets' => [['data' => $yearlyData]]],
         'weeklyData' => $weeklyData,
-        'monthlyData' => $this->getMonthlyAverageData($currentCropYear),
+        'monthlyData' => $this->getMonthlyAverageData($currentCropYear, $filterWeekNo),
         'activities' => $activities,
         'topPlanters' => $topPlanters,
         'recentPrices' => $recentPrices,
@@ -748,9 +746,11 @@ public function voucherPDF(Request $request)
     ]);
 }
 
-private function getWeeklyData($cropYear)
+private function getWeeklyData($cropYear, $weekNo = null)
 {
-    $weeks = ConsolidatedUpload::where('crop_year', $cropYear)
+    $query = ConsolidatedUpload::where('crop_year', $cropYear);
+    if ($weekNo) $query->where('week_no', $weekNo);
+    $weeks = $query
         ->select('week_no', DB::raw('SUM(CAST(ta_wt AS DECIMAL(12,3))) as total_cane'))
         ->groupBy('week_no')
         ->orderByRaw('CAST(week_no AS UNSIGNED) ASC')
@@ -791,9 +791,11 @@ private function getTopPlanters($cropYear, $weekNo = null)
     })->values()->toArray();
 }
 
-private function getRiskPlanters($cropYear)
+private function getRiskPlanters($cropYear, $weekNo = null)
 {
-    return ConsolidatedUpload::where('crop_year', $cropYear)
+    $query = ConsolidatedUpload::where('crop_year', $cropYear);
+    if ($weekNo) $query->where('week_no', $weekNo);
+    return $query
         ->select('planter_code', 'planter_name', DB::raw('SUM(CAST(ta_wt AS DECIMAL(12,3))) as total_cane'))
         ->groupBy('planter_code', 'planter_name')
         ->having('total_cane', '<', 5)
@@ -855,7 +857,7 @@ private function getDistributionData($cropYear, $weekNo = null)
     ];
 }
 
-private function getAlerts($cropYear, $totalCane, $totalAmount, $activePlanters)
+private function getAlerts($cropYear, $totalCane, $totalAmount, $activePlanters, $weekNo = null)
 {
     $alerts = [];
     
@@ -873,7 +875,9 @@ private function getAlerts($cropYear, $totalCane, $totalAmount, $activePlanters)
         $alerts[] = ['type' => 'danger', 'title' => 'Overdue Loan Payments', 'message' => $overduePayments . ' overdue amortization(s) require attention.'];
     }
     
-    if (!QuedanPrice::where('crop_year', $cropYear)->exists()) {
+    $quedanPriceQuery = QuedanPrice::where('crop_year', $cropYear);
+    if ($weekNo) $quedanPriceQuery->where('week_no', $weekNo);
+    if (!$quedanPriceQuery->exists()) {
         $alerts[] = ['type' => 'warning', 'title' => 'Quedan Price Not Set', 'message' => 'No quedan price configured for ' . $cropYear . '.'];
     }
     
@@ -927,7 +931,7 @@ private function getLoanCollectionRate()
     return $totalDue > 0 ? round(($totalPaid / $totalDue) * 100, 1) : 0;
 }
 
-private function getMonthlyAverageData($cropYear)
+private function getMonthlyAverageData($cropYear, $weekNo = null)
 {
     $months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     $monthlyData = array_fill(0, 12, 0);
@@ -947,7 +951,9 @@ private function getMonthlyAverageData($cropYear)
         49 => 11, 50 => 11, 51 => 11, 52 => 11,
     ];
     
-    $weeklyData = ConsolidatedUpload::where('crop_year', $cropYear)
+    $query = ConsolidatedUpload::where('crop_year', $cropYear);
+    if ($weekNo) $query->where('week_no', $weekNo);
+    $weeklyData = $query
         ->select('week_no', DB::raw('SUM(CAST(ta_wt AS DECIMAL(12,3))) as total_ta_wt'))
         ->groupBy('week_no')
         ->get();
@@ -972,7 +978,7 @@ private function getActivities($cropYear, $weekNo, $quedanPrice, $quedanType, $m
     $weekLabel = $weekNo ? "Week {$weekNo}" : ($maxWeek > 0 ? "Week {$maxWeek}" : 'N/A');
     
     // Check if there's actual production data for this crop year
-    $hasProductionData = $totalPlanters > 0;
+    $hasProductionData = $activePlanters > 0;
     
     return [
         [
