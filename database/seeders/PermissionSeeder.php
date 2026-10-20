@@ -179,6 +179,16 @@ class PermissionSeeder extends Seeder
                 'slug' => 'manage-cash-advance-settings',
                 'description' => 'Can configure cash advance settings',
             ],
+            [
+                'name' => 'View Hauling Liquidity',
+                'slug' => 'view-hauling-liquidity',
+                'description' => 'Can view haulers and hauling liquidation entries',
+            ],
+            [
+                'name' => 'Manage Hauling Liquidity',
+                'slug' => 'manage-hauling-liquidity',
+                'description' => 'Can add haulers and create, edit, and delete hauling liquidation entries',
+            ],
         ];
 
         // Use updateOrCreate to avoid duplicate key errors

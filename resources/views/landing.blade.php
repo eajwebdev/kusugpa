@@ -28,7 +28,7 @@
         html { scroll-behavior: smooth; }
         html { scroll-padding-top: 86px; }
         body {
-            font-family: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+            font-family: var(--kp-font-sans);
             background-color: var(--kp-bg);
             color: var(--kp-text);
             letter-spacing: -0.005em;

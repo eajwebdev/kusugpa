@@ -99,6 +99,127 @@
                         </table>
                     </div>
                 </div>
+
+                @php
+                    $statusBadges = [
+                        'active' => 'kp-badge kp-badge-emerald',
+                        'pending' => 'kp-badge kp-badge-amber',
+                        'approved' => 'kp-badge kp-badge-info',
+                        'completed' => 'kp-badge kp-badge-neutral',
+                        'rejected' => 'kp-badge kp-badge-rose',
+                        'cancelled' => 'kp-badge kp-badge-rose',
+                    ];
+                @endphp
+
+                <!-- Loans Table -->
+                <div class="kp-card overflow-hidden">
+                    <div class="p-5 border-b flex items-center justify-between" style="border-color: var(--kp-border)">
+                        <div>
+                            <h2 class="font-display text-base font-semibold" style="color: var(--kp-text)">Loans</h2>
+                            <p class="text-xs" style="color: var(--kp-muted)">{{ $loans->count() }} loan record(s) for this planter.</p>
+                        </div>
+                        <i class="fas fa-hand-holding-usd text-base" style="color: var(--kp-forest)"></i>
+                    </div>
+
+                    <div class="kp-table-wrap">
+                        <table class="kp-table">
+                            <thead>
+                                <tr>
+                                    <th>Loan No.</th>
+                                    <th>Type</th>
+                                    <th>Applied</th>
+                                    <th class="text-right">Principal</th>
+                                    <th class="text-right">Balance</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($loans as $loan)
+                                    <tr class="hover:bg-[var(--kp-hover)] transition-colors">
+                                        <td class="font-mono font-medium">
+                                            <a href="{{ route('loans.show', $loan) }}" class="hover:underline" style="color: var(--kp-forest)">
+                                                {{ $loan->loan_number }}
+                                            </a>
+                                        </td>
+                                        <td style="color: var(--kp-muted)">{{ $loan->loanType->name ?? '—' }}</td>
+                                        <td style="color: var(--kp-muted)">{{ $loan->application_date?->format('M d, Y') ?? '—' }}</td>
+                                        <td class="text-right font-mono tabular" style="color: var(--kp-text)">
+                                            ₱{{ number_format($loan->principal_amount, 2) }}
+                                        </td>
+                                        <td class="text-right font-mono font-semibold tabular" style="color: var(--kp-text)">
+                                            ₱{{ number_format($loan->balance, 2) }}
+                                        </td>
+                                        <td>
+                                            <span class="{{ $statusBadges[$loan->status] ?? 'kp-badge kp-badge-neutral' }}">{{ ucfirst($loan->status) }}</span>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                            <i class="fas fa-hand-holding-usd text-3xl mb-2 block opacity-30"></i>
+                                            No loans found for this planter.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Cash Advances Table -->
+                <div class="kp-card overflow-hidden">
+                    <div class="p-5 border-b flex items-center justify-between" style="border-color: var(--kp-border)">
+                        <div>
+                            <h2 class="font-display text-base font-semibold" style="color: var(--kp-text)">Cash Advances</h2>
+                            <p class="text-xs" style="color: var(--kp-muted)">{{ $cashAdvances->count() }} cash advance record(s) for this planter.</p>
+                        </div>
+                        <i class="fas fa-money-bill-wave text-base" style="color: var(--kp-forest)"></i>
+                    </div>
+
+                    <div class="kp-table-wrap">
+                        <table class="kp-table">
+                            <thead>
+                                <tr>
+                                    <th>CA No.</th>
+                                    <th>Applied</th>
+                                    <th>Purpose</th>
+                                    <th class="text-right">Amount</th>
+                                    <th class="text-right">Balance</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($cashAdvances as $ca)
+                                    <tr class="hover:bg-[var(--kp-hover)] transition-colors">
+                                        <td class="font-mono font-medium">
+                                            <a href="{{ route('cash-advances.show', $ca) }}" class="hover:underline" style="color: var(--kp-forest)">
+                                                {{ $ca->ca_number }}
+                                            </a>
+                                        </td>
+                                        <td style="color: var(--kp-muted)">{{ $ca->application_date?->format('M d, Y') ?? '—' }}</td>
+                                        <td style="color: var(--kp-muted)">{{ \Illuminate\Support\Str::limit($ca->purpose, 30) ?: '—' }}</td>
+                                        <td class="text-right font-mono tabular" style="color: var(--kp-text)">
+                                            ₱{{ number_format($ca->amount, 2) }}
+                                        </td>
+                                        <td class="text-right font-mono font-semibold tabular" style="color: var(--kp-text)">
+                                            ₱{{ number_format($ca->balance, 2) }}
+                                        </td>
+                                        <td>
+                                            <span class="{{ $statusBadges[$ca->status] ?? 'kp-badge kp-badge-neutral' }}">{{ ucfirst($ca->status) }}</span>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                                            <i class="fas fa-money-bill-wave text-3xl mb-2 block opacity-30"></i>
+                                            No cash advances found for this planter.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <!-- Right: Summaries & Member Info -->
@@ -130,6 +251,32 @@
                             <span class="font-mono tabular">
                                 {{ number_format($totalCane, 2) }} t <span class="opacity-40">|</span> ₱{{ number_format($totalAmount, 2) }}
                             </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Outstanding Balances Card -->
+                <div class="kp-card p-5">
+                    <div class="flex items-center justify-between pb-3 mb-3 border-b" style="border-color: var(--kp-border)">
+                        <h3 class="font-display text-sm font-semibold uppercase tracking-wider" style="color: var(--kp-text)">
+                            Outstanding Balances
+                        </h3>
+                        <i class="fas fa-wallet text-xs" style="color: var(--kp-forest)"></i>
+                    </div>
+
+                    <div class="space-y-2.5 text-xs">
+                        <div class="flex justify-between items-center py-1.5 border-b" style="border-color: var(--kp-border)">
+                            <span class="font-medium" style="color: var(--kp-muted)">Loans</span>
+                            <span class="font-mono font-semibold tabular" style="color: var(--kp-text)">₱{{ number_format($loanBalance, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between items-center py-1.5 border-b" style="border-color: var(--kp-border)">
+                            <span class="font-medium" style="color: var(--kp-muted)">Cash Advances</span>
+                            <span class="font-mono font-semibold tabular" style="color: var(--kp-text)">₱{{ number_format($cashAdvanceBalance, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between items-center pt-3 mt-1 border-t text-sm font-bold"
+                            style="border-color: var(--kp-border); color: var(--kp-forest)">
+                            <span>Total Outstanding</span>
+                            <span class="font-mono tabular">₱{{ number_format($loanBalance + $cashAdvanceBalance, 2) }}</span>
                         </div>
                     </div>
                 </div>

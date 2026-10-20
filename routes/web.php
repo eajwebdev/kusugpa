@@ -17,6 +17,7 @@ use App\Http\Controllers\ConsolidatedReportController;
 use App\Http\Controllers\TruckingAllowanceController;
 use App\Http\Controllers\CashAdvanceController;
 use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\HaulingLiquidityController;
 use Illuminate\Http\Request;
 
 
@@ -27,12 +28,10 @@ use Illuminate\Http\Request;
 */
 
 // Public pages are available with or without an active login session.
-Route::get('/', [QuotationController::class, 'index'])->name('quotation');
-
 Route::get('/quotation', [QuotationController::class, 'index']);
 Route::get('/quotation/download', [QuotationController::class, 'download'])->name('quotation.download');
 
-Route::get('/landing', function () {
+Route::get('/', function () {
     return view('landing');
 });
 
@@ -118,6 +117,19 @@ Route::middleware(['login_auth'])->group(function () {
     Route::post('/cash-advances/{cashAdvance}/reject', [CashAdvanceController::class, 'reject'])->name('cash-advances.reject');
     Route::post('/cash-advances/{cashAdvance}/payment', [CashAdvanceController::class, 'recordPayment'])->name('cash-advances.payment');
     Route::delete('/cash-advances/{cashAdvance}', [CashAdvanceController::class, 'destroy'])->name('cash-advances.destroy');
+
+    // Hauling Liquidity - writes use POST only (shared hosts may block PUT/DELETE)
+    Route::get('/hauling-liquidity', [HaulingLiquidityController::class, 'index'])->name('hauling-liquidity.index');
+    Route::post('/hauling-liquidity/haulers', [HaulingLiquidityController::class, 'storeHauler'])->name('hauling-liquidity.haulers.store');
+    Route::post('/hauling-liquidity/haulers/{hauler}/update', [HaulingLiquidityController::class, 'updateHauler'])->name('hauling-liquidity.haulers.update');
+    Route::post('/hauling-liquidity/haulers/{hauler}/toggle', [HaulingLiquidityController::class, 'toggleHauler'])->name('hauling-liquidity.haulers.toggle');
+    Route::post('/hauling-liquidity/haulers/{hauler}/delete', [HaulingLiquidityController::class, 'destroyHauler'])->name('hauling-liquidity.haulers.destroy');
+    Route::post('/hauling-liquidity/entries/{entry}/update', [HaulingLiquidityController::class, 'updateEntry'])->name('hauling-liquidity.entries.update');
+    Route::post('/hauling-liquidity/entries/{entry}/delete', [HaulingLiquidityController::class, 'destroyEntry'])->name('hauling-liquidity.entries.destroy');
+    Route::get('/hauling-liquidity/entries/{entry}/pdf', [HaulingLiquidityController::class, 'slipPDF'])->name('hauling-liquidity.entries.pdf');
+    Route::get('/hauling-liquidity/{hauler}/pdf', [HaulingLiquidityController::class, 'weekSlipsPDF'])->whereNumber('hauler')->name('hauling-liquidity.week-pdf');
+    Route::get('/hauling-liquidity/{hauler}', [HaulingLiquidityController::class, 'show'])->whereNumber('hauler')->name('hauling-liquidity.show');
+    Route::post('/hauling-liquidity/{hauler}/entries', [HaulingLiquidityController::class, 'storeEntry'])->whereNumber('hauler')->name('hauling-liquidity.entries.store');
 
 
 

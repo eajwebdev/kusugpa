@@ -4,8 +4,10 @@
     <meta charset="utf-8">
     <title>{{ $title }}</title>
     <style>
+        @include('pdf.partials.formal-font')
+
         @page { margin: 28px 30px 35px; }
-        body { font-family: DejaVu Sans, sans-serif; color: #183126; font-size: 9px; }
+        body { font-family: 'Tinos', 'Times New Roman', serif; color: #183126; font-size: 9px; }
         .header { border-bottom: 2px solid #006b38; padding-bottom: 10px; margin-bottom: 14px; }
         .eyebrow { color: #007a42; font-size: 8px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
         h1 { font-size: 19px; margin: 4px 0 6px; }

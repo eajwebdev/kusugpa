@@ -5,7 +5,9 @@
     <meta charset="utf-8">
     <title>Statement of Account - {{ $loan->loan_number }}</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; margin: 25px; color: #333; }
+        @include('pdf.partials.formal-font')
+
+        body { font-family: 'Tinos', 'Times New Roman', serif; font-size: 11px; margin: 25px; color: #333; }
         .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #7c3aed; padding-bottom: 10px; }
         .header h2 { color: #7c3aed; margin: 0; font-size: 18px; }
         .soa-title { text-align: center; font-size: 14px; font-weight: bold; margin: 10px 0; }

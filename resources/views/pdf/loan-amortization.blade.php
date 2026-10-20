@@ -5,7 +5,9 @@
     <meta charset="utf-8">
     <title>Amortization Schedule - {{ $loan->loan_number }}</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 10px; margin: 20px; color: #333; }
+        @include('pdf.partials.formal-font')
+
+        body { font-family: 'Tinos', 'Times New Roman', serif; font-size: 10px; margin: 20px; color: #333; }
         .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
         .header h2 { color: #2563eb; margin: 0; font-size: 18px; }
         .header p { margin: 3px 0 0; color: #666; font-size: 10px; }

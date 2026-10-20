@@ -5,7 +5,9 @@
     <meta charset="utf-8">
     <title>Active Loans Report</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 10px; margin: 20px; color: #333; }
+        @include('pdf.partials.formal-font')
+
+        body { font-family: 'Tinos', 'Times New Roman', serif; font-size: 10px; margin: 20px; color: #333; }
         .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #dc2626; padding-bottom: 10px; }
         .header h2 { color: #dc2626; margin: 0; font-size: 18px; }
         .summary { margin: 15px 0; padding: 10px; background: #fef2f2; border: 1px solid #fecaca; font-size: 10px; display: flex; justify-content: space-around; }
