@@ -129,6 +129,7 @@
                                     <i class="fas text-[10px]" :class="sortField === 'application_date' ? (sortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
                                 </div>
                             </th>
+                            <th>Deduction Weeks</th>
                             <th class="text-center">Actions</th>
                         </tr>
                     </thead>
@@ -151,16 +152,36 @@
                                     <span :class="statusClass(ca.status)" x-text="ca.status.charAt(0).toUpperCase() + ca.status.slice(1)"></span>
                                 </td>
                                 <td class="text-xs font-mono" style="color: var(--kp-muted)" x-text="formatDate(ca.application_date)"></td>
+                                <td class="text-xs" style="color: var(--kp-text)">
+                                    <template x-for="d in (ca.deductions || [])" :key="d.id">
+                                        <div class="whitespace-nowrap"><span class="font-semibold" x-text="'Wk ' + d.week_no"></span> = <span class="font-mono" x-text="formatNumber(d.amount)"></span></div>
+                                    </template>
+                                    <span x-show="!(ca.deductions || []).length" style="color: var(--kp-faint)">—</span>
+                                </td>
                                 <td class="text-center">
-                                    <a :href="'/cash-advances/' + ca.id"
-                                        class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1">
-                                        <i class="fas fa-eye text-[11px]"></i> View
-                                    </a>
+                                    <div class="flex items-center justify-center gap-1">
+                                        <a :href="'/cash-advances/' + ca.id"
+                                            class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1">
+                                            <i class="fas fa-eye text-[11px]"></i> View
+                                        </a>
+                                        <button x-show="ca.status !== 'rejected'" @click="previewReceipt(ca)"
+                                            class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs font-semibold"
+                                            style="color: var(--kp-forest)" title="Print CA Receipt">
+                                            <i class="fas fa-file-pdf"></i>
+                                        </button>
+                                        @if ($userPermissions['canEditReceipt'])
+                                            <button x-show="ca.status !== 'rejected'" @click="openReceiptDetails(ca)"
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs font-semibold"
+                                                style="color: var(--kp-cane)" title="CV / Check No. and deduction weeks">
+                                                <i class="fas fa-file-signature"></i>
+                                            </button>
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         </template>
                         <tr x-show="filteredCA.length === 0">
-                            <td colspan="7" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                            <td colspan="8" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
                                 <i class="fas fa-money-bill-wave text-3xl mb-2 block opacity-30"></i>
                                 No cash advance records match the selected filters.
                             </td>
@@ -186,6 +207,87 @@
         </div>
 
         @include('modal.cashAdvanceModal')
+
+        @if ($userPermissions['canEditReceipt'])
+            <!-- CA Receipt details: CV / Check No. and deduction weeks -->
+            <div x-show="receiptModal" @keydown.escape.window="receiptModal = false"
+                class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+                <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="receiptModal = false"></div>
+                <div class="relative rounded-xl border max-w-xl w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto"
+                    style="background: var(--kp-surface); border-color: var(--kp-border); color: var(--kp-text)">
+                    <div class="flex items-start justify-between pb-3 mb-4 border-b" style="border-color: var(--kp-border)">
+                        <div>
+                            <h3 class="font-display text-lg font-semibold">CA Receipt Details</h3>
+                            <p class="text-xs" style="color: var(--kp-muted)"
+                                x-text="receiptCA ? receiptCA.ca_number + ' · ' + receiptCA.planter_name + ' · ₱' + formatNumber(receiptCA.amount) : ''"></p>
+                        </div>
+                        <button @click="receiptModal = false" class="text-xs p-1 rounded hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
+                            <i class="fas fa-times text-sm"></i>
+                        </button>
+                    </div>
+
+                    <form @submit.prevent="saveReceiptDetails()" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">CV No.</label>
+                                <input type="text" x-model="receiptForm.cv_no" placeholder="e.g. 00016625" class="kp-input w-full">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Check No.</label>
+                                <input type="text" x-model="receiptForm.check_no" class="kp-input w-full">
+                            </div>
+                        </div>
+
+                        <div class="rounded-lg border overflow-hidden" style="border-color: var(--kp-border)">
+                            <div class="flex items-center justify-between px-4 py-2" style="background: var(--kp-surface-2)">
+                                <div>
+                                    <p class="text-sm font-bold">Deduction Weeks</p>
+                                    <p class="text-[11px]" style="color: var(--kp-muted)">Filled into Hauling Liquidity's "Cash Adv." for this planter and week.</p>
+                                </div>
+                                <button type="button" @click="receiptForm.deductions.push({ week_no: '', amount: '' })" class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs">
+                                    <i class="fas fa-plus mr-1"></i> Add Week
+                                </button>
+                            </div>
+                            <div class="px-4 py-3 space-y-2">
+                                <div class="grid grid-cols-[1fr_9rem_2rem] gap-2 text-xs font-semibold" style="color: var(--kp-muted)">
+                                    <span x-text="'Week (crop year ' + (receiptCA ? receiptCA.crop_year : '') + ')'"></span><span class="text-right pr-1">Amount</span><span></span>
+                                </div>
+                                <template x-for="(row, i) in receiptForm.deductions" :key="i">
+                                    <div class="grid grid-cols-[1fr_9rem_2rem] gap-2 items-center">
+                                        <select x-model="row.week_no" required class="kp-select w-full">
+                                            <option value="">Select week…</option>
+                                            <template x-for="w in receiptWeeks" :key="w.week_no">
+                                                <option :value="w.week_no" x-text="'Week ' + w.week_no" :selected="w.week_no === row.week_no"></option>
+                                            </template>
+                                        </select>
+                                        <input type="number" x-model="row.amount" step="0.01" min="0.01" required class="kp-input w-full text-right" placeholder="0.00">
+                                        <button type="button" @click="receiptForm.deductions.splice(i, 1)" class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-red-500" title="Remove week">
+                                            <i class="fas fa-trash-alt text-xs"></i>
+                                        </button>
+                                    </div>
+                                </template>
+                                <p x-show="receiptForm.deductions.length === 0" class="text-xs py-1" style="color: var(--kp-muted)">No deduction weeks yet.</p>
+                                <p x-show="receiptCA && receiptWeeks.length === 0" class="text-xs text-red-500">
+                                    No weeks are set up for this crop year in Crop &amp; Week Management.
+                                </p>
+                            </div>
+                            <div class="flex justify-between px-4 py-2 border-t text-xs" style="border-color: var(--kp-border)">
+                                <span style="color: var(--kp-muted)">Scheduled</span>
+                                <span class="font-mono font-semibold" :class="scheduledTotal > (receiptCA ? +receiptCA.amount : 0) ? 'text-red-500' : ''"
+                                    x-text="formatNumber(scheduledTotal) + ' of ' + formatNumber(receiptCA ? receiptCA.amount : 0)"></span>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2 pt-3 border-t" style="border-color: var(--kp-border)">
+                            <button type="button" @click="receiptModal = false" class="kp-btn kp-btn-secondary flex-1">Cancel</button>
+                            <button type="submit" :disabled="receiptSaving" class="kp-btn kp-btn-primary flex-1 disabled:opacity-50">
+                                <i class="fas fa-save mr-1.5"></i> <span x-text="receiptSaving ? 'Saving…' : 'Save Details'"></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
     </div>
 
     @push('scripts')
@@ -201,6 +303,11 @@
                     perPage: 15,
                     allCA: @json($cashAdvances->items()),
                     showModal: false,
+                    weeks: @json($weeks),
+                    receiptModal: false,
+                    receiptSaving: false,
+                    receiptCA: null,
+                    receiptForm: { cv_no: '', check_no: '', deductions: [] },
 
                     init() {
                         this.filterCA();
@@ -275,101 +382,59 @@
                             day: '2-digit',
                             year: 'numeric'
                         });
-                    }
-                };
-            }
-
-            function newCAForm() {
-                return {
-                    showModal: false,
-                    selectedPlanter: '',
-                    planterName: '',
-                    amount: '',
-                    interestRate: {{ $settings['default_interest'] ?? 3 }},
-                    termMonths: 3,
-                    purpose: '',
-                    submitting: false,
-
-                    updatePlanterName() {
-                        const select = document.querySelector('select[name="planter_code"]');
-                        const option = select?.options[select.selectedIndex];
-                        this.planterName = option?.getAttribute('data-name') || '';
-                    },
-                    calculateMonthly() {
-                        const p = parseFloat(this.amount) || 0;
-                        const r = (parseFloat(this.interestRate) || 0) / 100 / 12;
-                        const n = parseInt(this.termMonths) || 1;
-                        if (p === 0) return 0;
-                        if (r === 0) return p / n;
-                        return p * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-                    },
-                    calculateTotal() {
-                        return this.calculateMonthly() * (parseInt(this.termMonths) || 1);
-                    },
-                    calculateTotalInterest() {
-                        return this.calculateTotal() - (parseFloat(this.amount) || 0);
-                    },
-                    formatNumber(num) {
-                        return parseFloat(num || 0).toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
                     },
 
-                    async submitCAForm() {
-                        this.submitting = true;
+                    // ---------- CA Receipt (Cash Advance Receipt and Sugar Assignment) ----------
+                    get receiptWeeks() {
+                        return this.receiptCA ? this.weeks.filter(w => w.crop_year === this.receiptCA.crop_year) : [];
+                    },
+                    get scheduledTotal() {
+                        return this.receiptForm.deductions.reduce((t, d) => t + (parseFloat(d.amount) || 0), 0);
+                    },
+                    previewReceipt(ca) {
+                        window.KusugpaPdfPreview.open('/cash-advances/' + ca.id + '/receipt-pdf', 'CA Receipt · ' + ca.ca_number + ' · ' + ca.planter_name);
+                    },
+                    openReceiptDetails(ca) {
+                        this.receiptCA = ca;
+                        this.receiptForm = {
+                            cv_no: ca.cv_no || '',
+                            check_no: ca.check_no || '',
+                            deductions: (ca.deductions || []).map(d => ({ week_no: String(d.week_no), amount: d.amount })),
+                        };
+                        this.receiptModal = true;
+                    },
+                    async saveReceiptDetails() {
+                        this.receiptSaving = true;
                         try {
-                            const formData = new FormData();
-                            formData.append('planter_code', document.querySelector('select[name="planter_code"]').value);
-                            formData.append('planter_name', this.planterName);
-                            formData.append('amount', this.amount);
-                            formData.append('interest_rate', this.interestRate);
-                            formData.append('term_months', this.termMonths);
-                            formData.append('crop_year', document.querySelector('select[name="crop_year"]').value);
-                            formData.append('purpose', this.purpose);
-                            formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
-
-                            const response = await fetch('{{ route('cash-advances.store') }}', {
+                            const r = await fetch('/cash-advances/' + this.receiptCA.id + '/receipt-details', {
                                 method: 'POST',
                                 headers: {
+                                    'Content-Type': 'application/json',
                                     'Accept': 'application/json',
                                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                                 },
-                                body: formData
+                                body: JSON.stringify(this.receiptForm)
                             });
-                            const data = await response.json();
-                            if (!response.ok) throw new Error(data.message || 'Failed to create cash advance');
-
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Success!',
-                                text: 'Cash advance application submitted successfully.',
-                                timer: 2000,
-                                showConfirmButton: false
+                            const d = await r.json();
+                            if (!r.ok) throw new Error(d.message || 'Request failed');
+                            Object.assign(this.receiptCA, d.cash_advance);
+                            this.receiptModal = false;
+                            const res = await Swal.fire({
+                                icon: 'success', title: 'Saved!', text: d.message,
+                                showCancelButton: true,
+                                confirmButtonText: '<i class="fas fa-file-pdf"></i> Print Receipt',
+                                cancelButtonText: 'Close'
                             });
-                            this.$parent.showModal = false;
-                            this.resetForm();
-                            location.reload();
-                        } catch (error) {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                text: error.message || 'Something went wrong'
-                            });
+                            if (res.isConfirmed) this.previewReceipt(this.receiptCA);
+                        } catch (e) {
+                            Swal.fire({ icon: 'error', title: 'Error', text: e.message });
                         } finally {
-                            this.submitting = false;
+                            this.receiptSaving = false;
                         }
-                    },
-                    resetForm() {
-                        this.selectedPlanter = '';
-                        this.planterName = '';
-                        this.amount = '';
-                        this.interestRate = {{ $settings['default_interest'] ?? 3 }};
-                        this.termMonths = 3;
-                        this.purpose = '';
                     }
                 };
             }
+            // The "New Cash Advance" form's newCAForm() lives in modal/cashAdvanceModal.blade.php
         </script>
     @endpush
 @endsection

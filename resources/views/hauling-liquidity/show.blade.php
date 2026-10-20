@@ -214,7 +214,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Crop Year *</label>
-                                    <select x-model="form.crop_year" @change="form.week_no = ''" required class="kp-select w-full">
+                                    <select x-model="form.crop_year" @change="form.week_no = ''; autoInfo = null" required class="kp-select w-full">
                                         <option value="">Select…</option>
                                         <template x-for="cy in cropYears" :key="cy">
                                             <option :value="cy" x-text="cropYearLabel(cy)" :selected="cy === form.crop_year"></option>
@@ -223,7 +223,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Week No. *</label>
-                                    <select x-model="form.week_no" required :disabled="!form.crop_year" class="kp-select w-full disabled:opacity-50">
+                                    <select x-model="form.week_no" @change="loadAutoDeductions()" required :disabled="!form.crop_year" class="kp-select w-full disabled:opacity-50">
                                         <option value="">Select…</option>
                                         <template x-for="w in weeksFor(form.crop_year)" :key="w.week_no">
                                             <option :value="w.week_no" x-text="weekLabel(w)" :selected="w.week_no === form.week_no"></option>
@@ -247,7 +247,7 @@
                             <div class="grid grid-cols-2 md:grid-cols-12 gap-3">
                                 <div class="col-span-2 md:col-span-4">
                                     <label for="hl-payee" class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Payee Name *</label>
-                                    <select id="hl-payee" x-model="form.planter_code" required class="kp-select w-full">
+                                    <select id="hl-payee" x-model="form.planter_code" @change="loadAutoDeductions()" required class="kp-select w-full">
                                         <option value="">Select planter…</option>
                                         <template x-for="p in planters" :key="p.planter_code">
                                             <option :value="p.planter_code" x-text="planterLabel(p)" :selected="p.planter_code === form.planter_code"></option>
@@ -313,6 +313,9 @@
                                                 </div>
                                             </template>
                                             <p x-show="form[section.key].length === 0" class="text-xs py-1" style="color: var(--kp-muted)">No rows.</p>
+                                            <p x-show="section.key === 'less_items' && autoInfo" class="text-[11px] pt-1" style="color: var(--kp-forest)">
+                                                <i class="fas fa-link mr-1"></i><span x-text="autoInfoText"></span>
+                                            </p>
                                         </div>
                                     </div>
                                 </template>
@@ -373,6 +376,8 @@
                     saving: false,
                     editingEntry: null,
                     form: {},
+                    autoInfo: null,
+                    autoRequest: 0,
 
                     init() {
                         this.form = this.blankForm();
@@ -462,8 +467,49 @@
                     get netAmount() {
                         return this.round2(this.grossAmount + this.totalOf('add_items') - this.totalOf('less_items'));
                     },
+                    // Fill "Cash Adv." (deduction weeks set on All Cash Advances) and "Fuel Account" (Fuel Allowance upload)
+                    // for the chosen planter + week. Runs only when the user changes payee or week, so saved amounts are never overwritten on open.
+                    async loadAutoDeductions() {
+                        const { planter_code, crop_year, week_no } = this.form;
+                        const token = ++this.autoRequest;
+                        this.autoInfo = null;
+                        if (!planter_code || !crop_year || !week_no) return;
+                        try {
+                            const r = await fetch('/hauling-liquidity/auto-deductions?' + new URLSearchParams({ planter_code, crop_year, week_no }), {
+                                headers: { 'Accept': 'application/json' }
+                            });
+                            if (!r.ok || token !== this.autoRequest) return;
+                            const d = await r.json();
+                            this.setLessRow('Cash Adv.', d.cash_advance.amount);
+                            this.setLessRow('Fuel Account', d.fuel.amount);
+                            this.autoInfo = d;
+                        } catch (e) {
+                            // Leave the rows as they are; the user can still type the amounts
+                        }
+                    },
+                    setLessRow(label, amount) {
+                        const key = s => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+                        let row = this.form.less_items.find(r => key(r.description) === key(label));
+                        if (!row) {
+                            row = { description: label, amount: '0.00' };
+                            this.form.less_items.push(row);
+                        }
+                        row.amount = (Number(amount) || 0).toFixed(2);
+                    },
+                    get autoInfoText() {
+                        const d = this.autoInfo;
+                        if (!d) return '';
+                        const ca = d.cash_advance.amount > 0
+                            ? 'Cash Adv. ₱' + this.formatNumber(d.cash_advance.amount, 2) + ' from ' + d.cash_advance.sources.join(', ')
+                            : 'No cash advance due this week';
+                        const fuel = d.fuel.rows > 0
+                            ? 'Fuel ₱' + this.formatNumber(d.fuel.amount, 2) + ' from Fuel Allowance upload'
+                            : 'no fuel allowance uploaded for this week';
+                        return ca + ' · ' + fuel + ' — you can still edit the amounts.';
+                    },
                     openAddModal() {
                         this.editingEntry = null;
+                        this.autoInfo = null;
                         this.form = this.blankForm();
                         this.showModal = true;
                     },
@@ -472,6 +518,7 @@
                             .filter(i => i.type === type)
                             .map(i => ({ description: i.description, amount: i.amount }));
                         this.editingEntry = entry;
+                        this.autoInfo = null;
                         this.form = {
                             crop_year: entry.crop_year,
                             week_no: String(entry.week_no),

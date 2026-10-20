@@ -18,6 +18,7 @@ use App\Http\Controllers\TruckingAllowanceController;
 use App\Http\Controllers\CashAdvanceController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\HaulingLiquidityController;
+use App\Http\Controllers\CaReceiptController;
 use Illuminate\Http\Request;
 
 
@@ -118,8 +119,13 @@ Route::middleware(['login_auth'])->group(function () {
     Route::post('/cash-advances/{cashAdvance}/payment', [CashAdvanceController::class, 'recordPayment'])->name('cash-advances.payment');
     Route::delete('/cash-advances/{cashAdvance}', [CashAdvanceController::class, 'destroy'])->name('cash-advances.destroy');
 
+    // CA Receipt (Cash Advance Receipt and Sugar Assignment + voucher), printed from All Cash Advances
+    Route::get('/cash-advances/{cashAdvance}/receipt-pdf', [CaReceiptController::class, 'pdf'])->name('cash-advances.receipt.pdf');
+    Route::post('/cash-advances/{cashAdvance}/receipt-details', [CaReceiptController::class, 'update'])->name('cash-advances.receipt.update');
+
     // Hauling Liquidity - writes use POST only (shared hosts may block PUT/DELETE)
     Route::get('/hauling-liquidity', [HaulingLiquidityController::class, 'index'])->name('hauling-liquidity.index');
+    Route::get('/hauling-liquidity/auto-deductions', [HaulingLiquidityController::class, 'autoDeductions'])->name('hauling-liquidity.auto-deductions');
     Route::post('/hauling-liquidity/haulers', [HaulingLiquidityController::class, 'storeHauler'])->name('hauling-liquidity.haulers.store');
     Route::post('/hauling-liquidity/haulers/{hauler}/update', [HaulingLiquidityController::class, 'updateHauler'])->name('hauling-liquidity.haulers.update');
     Route::post('/hauling-liquidity/haulers/{hauler}/toggle', [HaulingLiquidityController::class, 'toggleHauler'])->name('hauling-liquidity.haulers.toggle');

@@ -8,6 +8,7 @@ use App\Models\CashAdvanceAmortization;
 use App\Models\LoanSetting;
 use App\Models\Summary;
 use App\Models\CropYear;
+use App\Models\WeekNo;
 use App\Models\User;
 use App\Models\AuditLog;
 use App\Models\PlanterProfile;
@@ -72,7 +73,7 @@ class CashAdvanceController extends Controller
 
     public function index(Request $request)
     {
-        $query = CashAdvance::with(['approvedByUser']);
+        $query = CashAdvance::with(['approvedByUser', 'deductions']);
 
         if ($request->search) {
             $search = $request->search;
@@ -109,9 +110,15 @@ class CashAdvanceController extends Controller
             'canCreate' => $this->canProcessCA(),
             'canApprove' => $this->canApproveCA(),
             'canManageSettings' => $this->canManageSettings(),
+            'canEditReceipt' => CaReceiptController::canManageReceipt($this->user()),
         ];
 
-        return view('cash-advances.index', compact('cashAdvances', 'cropYears', 'planters', 'stats', 'userPermissions'));
+        // Weeks per crop year for the receipt's deduction-week picker (Crop & Week Management)
+        $weeks = WeekNo::orderByRaw('CAST(week_no AS UNSIGNED) ASC')
+            ->get(['crop_year', 'week_no'])
+            ->map(fn ($w) => ['crop_year' => $w->crop_year, 'week_no' => (string) $w->week_no]);
+
+        return view('cash-advances.index', compact('cashAdvances', 'cropYears', 'planters', 'stats', 'userPermissions', 'weeks'));
     }
 
     public function create()
@@ -359,6 +366,7 @@ class CashAdvanceController extends Controller
         'ca_max_term_months' => LoanSetting::get('ca_max_term_months', 6),
         'ca_min_amount' => LoanSetting::get('ca_min_amount', 500),
         'ca_max_amount' => LoanSetting::get('ca_max_amount', 10000),
+        'ca_receipt_weekly_interest' => LoanSetting::get('ca_receipt_weekly_interest', 1),
     ];
 
     return view('cash-advances.settings', compact('settings'));
@@ -375,6 +383,7 @@ class CashAdvanceController extends Controller
         'ca_max_term_months' => 'required|integer|min:1',
         'ca_min_amount' => 'required|numeric|min:0',
         'ca_max_amount' => 'required|numeric|min:0',
+        'ca_receipt_weekly_interest' => 'required|numeric|min:0|max:100',
         'ca_auto_deduct' => 'nullable|boolean',
     ]);
 

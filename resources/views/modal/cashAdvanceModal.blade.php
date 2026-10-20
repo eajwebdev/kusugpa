@@ -185,7 +185,7 @@
                     Swal.fire({
                         icon: 'success',
                         title: 'Success!',
-                        text: 'Cash advance created successfully.',
+                        text: 'Cash advance application submitted successfully.',
                         timer: 2000,
                         showConfirmButton: false
                     });

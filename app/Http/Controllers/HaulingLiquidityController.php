@@ -9,6 +9,8 @@ use App\Models\Hauler;
 use App\Models\HaulingLiquidation;
 use App\Models\CropYear;
 use App\Models\PlanterProfile;
+use App\Models\CashAdvanceDeduction;
+use App\Models\FuelAllowance;
 use App\Models\WeekNo;
 use App\Models\User;
 use App\Models\AuditLog;
@@ -247,6 +249,45 @@ class HaulingLiquidityController extends Controller
         AuditLog::log('delete', 'hauling_liquidity', 'Deleted hauling liquidation for ' . $payee, ['hauler' => $hauler]);
 
         return response()->json(['message' => 'Liquidation deleted']);
+    }
+
+    /**
+     * Deductions owed by a planter for one crop year + week, used to fill the LESS rows:
+     *  - Cash Adv.     from the deduction weeks of approved/active cash advances (Cash Advances > All Cash Advances > receipt details)
+     *  - Fuel Account  from the weekly Fuel Allowance upload
+     */
+    public function autoDeductions(Request $request)
+    {
+        $this->authorizeManage();
+
+        $data = $request->validate([
+            'planter_code' => 'required|string',
+            'crop_year' => 'required|string',
+            'week_no' => 'required|string',
+        ]);
+
+        $caDeductions = CashAdvanceDeduction::with('cashAdvance:id,ca_number')
+            ->where('crop_year', $data['crop_year'])
+            ->where('week_no', $data['week_no'])
+            ->whereHas('cashAdvance', fn ($q) => $q
+                ->where('planter_code', $data['planter_code'])
+                ->whereIn('status', ['approved', 'active']))
+            ->get();
+
+        $fuel = FuelAllowance::where('planter_code', $data['planter_code'])
+            ->where('crop_year', $data['crop_year'])
+            ->where('week_no', $data['week_no']);
+
+        return response()->json([
+            'cash_advance' => [
+                'amount' => round((float) $caDeductions->sum('amount'), 2),
+                'sources' => $caDeductions->map(fn ($d) => $d->cashAdvance->ca_number)->unique()->values(),
+            ],
+            'fuel' => [
+                'amount' => round((float) (clone $fuel)->sum('fuel_amount'), 2),
+                'rows' => (clone $fuel)->count(),
+            ],
+        ]);
     }
 
     // ==================== PDF SLIPS ====================
