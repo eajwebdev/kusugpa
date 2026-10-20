@@ -72,8 +72,10 @@
 <head>
     <title>Check Voucher</title>
     <style>
+        @include('pdf.partials.formal-font')
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Tinos', 'Times New Roman', serif;
             margin: 0;
             padding: 0;
         }

@@ -27,4 +27,14 @@ class PlanterProfile extends Model
     protected $casts = [
         'membership_date' => 'date',
     ];
+
+    public function loans()
+    {
+        return $this->hasMany(Loan::class, 'planter_code', 'planter_code');
+    }
+
+    public function cashAdvances()
+    {
+        return $this->hasMany(CashAdvance::class, 'planter_code', 'planter_code');
+    }
 }

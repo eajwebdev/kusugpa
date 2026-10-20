@@ -5,7 +5,9 @@
     <meta charset="utf-8">
     <title>Monthly Loan Report - {{ $month }}</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 10px; margin: 20px; color: #333; }
+        @include('pdf.partials.formal-font')
+
+        body { font-family: 'Tinos', 'Times New Roman', serif; font-size: 10px; margin: 20px; color: #333; }
         .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #ea580c; padding-bottom: 10px; }
         .header h2 { color: #ea580c; margin: 0; font-size: 18px; }
         .summary { margin: 15px 0; padding: 10px; background: #fff7ed; border: 1px solid #fed7aa; font-size: 10px; display: flex; justify-content: space-around; }

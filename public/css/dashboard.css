@@ -1,0 +1,95 @@
+/* Dashboard treatment inspired by the cane-field reference. */
+.kp-dashboard { --kp-dashboard-gold: #c79520; }
+
+.kp-dashboard-hero {
+    position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    min-height: 152px; padding: 24px 28px; overflow: hidden;
+    border: 1px solid #d6e5d7; border-radius: 12px;
+    background: linear-gradient(90deg, rgba(247, 251, 246, .96) 0%, rgba(247, 251, 246, .77) 36%, rgba(247, 251, 246, .08) 72%),
+        url('../img/dashboard/cane-panorama.webp') center 56% / cover no-repeat;
+}
+.kp-dashboard-hero-copy, .kp-dashboard-motto, .kp-dashboard-clock { position: relative; z-index: 1; }
+.kp-dashboard-hero-copy { max-width: 590px; }
+.kp-dashboard-greeting { font-weight: 700; font-size: 16px; color: #173126; }
+.kp-dashboard-hero h1 { font: 800 clamp(22px, 2vw, 30px)/1.15 var(--kp-font-display); color: #102b22; letter-spacing: -.04em; margin: 2px 0 6px; }
+.kp-dashboard-hero-copy > p:last-child { color: #365349; font-size: 13px; line-height: 1.4; }
+.kp-dashboard-motto { margin: 0 auto; font: italic 600 20px/1.06 Georgia, serif; color: #123f2c; text-align: center; transform: rotate(-6deg); text-shadow: 0 1px 8px #fff; white-space: nowrap; }
+.kp-dashboard-motto::after { content: ''; display: block; width: 88%; height: 3px; margin: 10px auto 0; border-radius: 50%; background: var(--kp-dashboard-gold); transform: rotate(-5deg); }
+.kp-dashboard-clock { display: flex; align-items: center; gap: 14px; flex-shrink: 0; padding: 12px 16px; border: 1px solid #d6e5d7; border-radius: 9px; background: rgba(255,255,255,.94); box-shadow: 0 4px 16px rgba(0,63,32,.12); }
+.kp-dashboard-clock-date { display: flex; flex-direction: column; color: #66786c; font-size: 10px; line-height: 1.35; text-transform: uppercase; letter-spacing: .06em; }
+.kp-dashboard-clock-date strong { color: #172b20; font-size: 11px; letter-spacing: 0; text-transform: none; }
+.kp-dashboard-clock-time { padding-left: 14px; border-left: 1px solid #cbd9cf; color: #087a3d; font: 700 18px var(--kp-font-mono); }
+
+.kp-dashboard-kpis { gap: 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+.kp-dashboard-kpis .kp-dashboard-kpi { min-height: 106px; padding: 17px 18px; isolation: isolate; overflow: hidden; border: 1px solid #dce8df !important; border-radius: 10px; background: linear-gradient(120deg, #fff 0%, #f6fbf6 100%); box-shadow: 0 2px 10px rgba(24,71,40,.04); }
+.kp-dashboard-kpis .kp-dashboard-kpi--gold { border-color: #f0dfba !important; background: linear-gradient(120deg, #fff 0%, #fffaf0 100%); }
+.kp-dashboard-kpi::after { content: ''; position: absolute; z-index: -1; right: -10px; bottom: -44px; width: 124px; height: 144px; background: url('../img/dashboard/cane-cluster.webp') center bottom / contain no-repeat; opacity: .34; pointer-events: none; }
+.kp-dashboard-kpi:nth-child(3n)::after { opacity: .16; }
+.kp-dashboard-kpi .kp-kpi-label { min-height: 24px; color: #234b39; font-size: 10px; letter-spacing: .07em; }
+.kp-dashboard-kpi .kp-kpi-label i { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 4px; border-radius: 9px; color: #087a3d; background: #e3f5e6; font-size: 14px; }
+.kp-dashboard-cane-mark { width: 30px; height: 30px; margin-right: 4px; object-fit: contain; border-radius: 9px; background: #e3f5e6; }
+.kp-dashboard-kpi--gold .kp-kpi-label i { color: #a16a06; background: #fff0cd; }
+.kp-dashboard-kpi .kp-kpi-value { margin-top: 7px; font-size: 26px; font-weight: 750; color: #102b22; }
+.kp-dashboard-kpi .kp-kpi-foot { margin-top: 3px; font-size: 11px; }
+.kp-dashboard-kpis--quiet .kp-dashboard-kpi { min-height: 83px; padding: 12px 16px; }
+.kp-dashboard-kpis--quiet .kp-dashboard-kpi .kp-kpi-value { font-size: 21px; margin-top: 4px; }
+.kp-dashboard-kpis--quiet .kp-dashboard-kpi::after { width: 95px; height: 110px; right: -2px; bottom: -48px; opacity: .2; }
+
+.kp-dashboard .kp-card { overflow: hidden; border-color: #dce8df; box-shadow: 0 2px 10px rgba(24,71,40,.04); }
+.kp-dashboard .kp-card-head { min-height: 55px; padding: 12px 16px; }
+.kp-dashboard .kp-card-title { font-size: 13px; font-weight: 700; }
+.kp-dashboard .kp-card-sub { font-size: 11px; }
+.kp-dashboard-chart-body { height: 250px; }
+.kp-dashboard-donut-body { height: 220px; }
+.kp-dashboard-donut-empty { position: absolute; left: 50%; bottom: 11px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); padding: 4px 8px; border-radius: 5px; background: var(--kp-surface); color: var(--kp-muted); font-size: 11px; text-align: center; pointer-events: none; }
+.kp-dashboard-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.kp-dashboard-panel-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+.kp-dashboard-panels .kp-card { min-width: 0; }
+.kp-dashboard-chart-empty { position: absolute; inset: 52px 18px 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; background: linear-gradient(180deg, transparent, rgba(255,255,255,.64)); }
+.kp-dashboard-chart-empty img { width: 75px; height: 90px; object-fit: contain; opacity: .35; }
+.kp-dashboard-chart-empty strong { color: #172b20; font-size: 12px; }
+.kp-dashboard-chart-empty span { color: #66786c; font-size: 11px; }
+.kp-dashboard .kp-empty { background-image: linear-gradient(180deg, transparent, rgba(247,250,248,.7)), url('../img/dashboard/cane-cluster.webp'); background-size: auto, 75px auto; background-position: center, right -16px bottom -45px; background-repeat: no-repeat; }
+
+.dark .kp-dashboard-hero { border-color: #35503f; background-image: linear-gradient(90deg, rgba(10,31,21,.95), rgba(10,31,21,.72) 43%, rgba(10,31,21,.18) 75%), url('../img/dashboard/cane-panorama.webp'); }
+.dark .kp-dashboard-greeting, .dark .kp-dashboard-hero h1, .dark .kp-dashboard-hero-copy > p:last-child, .dark .kp-dashboard-motto { color: #f4fbf4; }
+.dark .kp-dashboard-clock { background: rgba(18,34,26,.96); border-color: #35503f; }
+.dark .kp-dashboard-clock-date strong { color: #e6f0e9; }
+.dark .kp-dashboard-kpis .kp-dashboard-kpi, .dark .kp-dashboard-kpis .kp-dashboard-kpi--gold { background: linear-gradient(120deg, #12221a, #192d1d); border-color: #35503f !important; }
+.dark .kp-dashboard-kpi .kp-kpi-label, .dark .kp-dashboard-kpi .kp-kpi-value, .dark .kp-dashboard-chart-empty strong { color: #e6f0e9; }
+.dark .kp-dashboard-chart-empty { background: linear-gradient(180deg, transparent, rgba(18,34,26,.72)); }
+.dark .kp-dashboard .kp-empty { background-image: url('../img/dashboard/cane-cluster.webp'); }
+
+@media (min-width: 768px) {
+    .kp-dashboard-panel-group--pair, .kp-dashboard-panel-group--trio { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kp-dashboard-panel-group--trio > :last-child { grid-column: 1 / -1; }
+    .kp-dashboard-panel-group--feature { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
+@media (min-width: 1280px) {
+    .kp-dashboard-kpis { grid-template-columns: repeat(4, minmax(0,1fr)); }
+    .kp-dashboard-panel-group--trio { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .kp-dashboard-panel-group--trio > :last-child { grid-column: auto; }
+}
+@media (min-width: 1536px) {
+    .kp-dashboard-panels { grid-template-columns: repeat(4, minmax(0,1fr)); align-items: stretch; }
+    .kp-dashboard-panel-group { display: contents !important; }
+    .kp-dashboard-panels .kp-card.p-5 { padding: 15px; }
+    .kp-dashboard-panels .kp-card.p-5 .kp-card-title { margin-bottom: 9px; }
+    .kp-dashboard-panels .kp-empty { padding: 18px 10px !important; }
+    .kp-dashboard-donut-body { height: 190px; }
+}
+@media (max-width: 1279px) {
+    .kp-dashboard-motto { display: none; }
+    .kp-dashboard-kpis { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 767px) {
+    .kp-dashboard-hero { min-height: 198px; flex-direction: column; align-items: flex-start; justify-content: center; padding: 20px; background-position: 55% center; }
+    .kp-dashboard-hero h1 { font-size: 23px; }
+    .kp-dashboard-clock { padding: 8px 11px; gap: 10px; }
+    .kp-dashboard-clock-time { font-size: 14px; padding-left: 10px; }
+    .kp-dashboard-kpis .kp-dashboard-kpi { min-height: 98px; padding: 13px; }
+    .kp-dashboard-kpi .kp-kpi-label i { width: 24px; height: 24px; font-size: 11px; }
+    .kp-dashboard-cane-mark { width: 24px; height: 24px; }
+    .kp-dashboard-kpi .kp-kpi-value { font-size: 21px; }
+}
+@media (max-width: 380px) { .kp-dashboard-kpis { grid-template-columns: 1fr; } }

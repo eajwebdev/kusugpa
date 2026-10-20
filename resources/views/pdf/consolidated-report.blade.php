@@ -4,8 +4,10 @@
     <meta charset="utf-8">
     <title>KUSUG-PA Consolidated Report</title>
     <style>
+        @include('pdf.partials.formal-font')
+
         @page { margin: 25px 22px 30px; }
-        body { font-family: DejaVu Sans, sans-serif; color: #193126; font-size: 7px; }
+        body { font-family: 'Tinos', 'Times New Roman', serif; color: #193126; font-size: 7px; }
         .header { border-bottom: 2px solid #006c38; padding-bottom: 10px; margin-bottom: 12px; }
         .eyebrow { color: #007a42; font-size: 7px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
         h1 { margin: 3px 0 4px; font-size: 18px; line-height: 1.2; }

@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link
-    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
     rel="stylesheet">
 
 <script src="https://cdn.tailwindcss.com"></script>
@@ -57,9 +57,10 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'sans-serif'],
-                        display: ['Fraunces', 'Georgia', 'serif'],
-                        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+                        // Keep in sync with --kp-font-* in public/css/kusugpa.css
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Roboto', 'sans-serif'],
+                        display: ['"Plus Jakarta Sans"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
                     },
                     colors: {
                         primary: brand, green: brand, emerald: brand, teal: brand, lime: brand,
@@ -91,3 +92,5 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="{{ asset('css/kusugpa.css') }}?v={{ @filemtime(public_path('css/kusugpa.css')) }}">
+{{-- Makes every <select> searchable (desktop popover / phone bottom sheet); add data-native to opt out --}}
+<script defer src="{{ asset('js/kp-searchable-select.js') }}?v={{ @filemtime(public_path('js/kp-searchable-select.js')) }}"></script>

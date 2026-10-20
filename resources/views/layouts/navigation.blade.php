@@ -22,8 +22,8 @@
         </div>
 
         <!-- Right: Crop Year & Week filters -->
-        <div class="flex items-center gap-3">
-            <div class="hidden items-center gap-2 md:flex" x-data="filterData()">
+        <div class="kp-topbar-filters flex items-center gap-3">
+            <div class="kp-filter-bar flex items-center gap-2" x-data="filterData()">
                 <!-- Crop Year Dropdown -->
                 <div class="relative" x-data="{ open: false }" @keydown.escape="open = false">
                     <button @click="open = !open" type="button" class="kp-filter-btn" aria-haspopup="listbox"
@@ -81,7 +81,8 @@
                                     aria-hidden="true"></i>
                             </button>
                         </template>
-                        <div x-show="weeks.length === 0" class="px-4 py-2 text-sm" style="color: var(--kp-faint)">Loading...</div>
+                        <div x-show="weeks.length === 0" class="px-4 py-2 text-sm" style="color: var(--kp-faint)"
+                            x-text="weeksLoading ? 'Loading weeks...' : 'No weeks configured for this crop year'"></div>
                     </div>
                 </div>
             </div>
@@ -96,6 +97,8 @@
             weeks: [],
             selectedCropYear: '',
             selectedWeek: '',
+            weeksLoading: false,
+            weekRequestId: 0,
 
             init() {
                 this.loadFilterOptions();
@@ -112,19 +115,20 @@
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         }
                     });
+                    if (!response.ok) throw new Error('Could not load crop years');
                     const data = await response.json();
 
                     if (data.stats && !this.selectedCropYear) {
                         this.selectedCropYear = data.stats.currentCropYear || '';
                     }
-                    if (data.stats && !this.selectedWeek) {
-                        this.selectedWeek = data.stats.currentWeek || '';
-                    }
-
                     if (data.availableYears) {
                         this.cropYears = data.availableYears;
                     } else if (data.yearlyData && data.yearlyData.labels) {
                         this.cropYears = data.yearlyData.labels;
+                    }
+                    if (!this.cropYears.includes(this.selectedCropYear)) {
+                        this.selectedCropYear = data.stats?.currentCropYear || this.cropYears[0] || '';
+                        this.selectedWeek = '';
                     }
 
                     await this.loadWeeksForYear(this.selectedCropYear);
@@ -134,24 +138,31 @@
             },
 
             async loadWeeksForYear(cropYear) {
-                if (!cropYear) return;
+                const requestId = ++this.weekRequestId;
+                this.weeks = [];
+                if (!cropYear) {
+                    this.weeksLoading = false;
+                    return;
+                }
+                this.weeksLoading = true;
 
                 try {
-                    const response = await fetch('{{ route('dashboard.weekly') }}?year=' + cropYear, {
+                    const url = new URL(@json(route('get.weeks')), window.location.origin);
+                    url.searchParams.set('crop_year', cropYear);
+                    const response = await fetch(url, {
                         headers: {
                             'Accept': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         }
                     });
+                    if (!response.ok) throw new Error('Could not load weeks');
                     const data = await response.json();
-
-                    if (data.labels) {
-                        this.weeks = data.labels.map(label =>
-                            parseInt(label.replace('Week ', ''))
-                        ).filter(w => !isNaN(w));
-                    }
+                    if (requestId !== this.weekRequestId) return;
+                    this.weeks = (data.weeks || []).map(Number).filter(Number.isInteger);
                 } catch (error) {
-                    console.error('Error loading weeks:', error);
+                    if (requestId === this.weekRequestId) console.error('Error loading weeks:', error);
+                } finally {
+                    if (requestId === this.weekRequestId) this.weeksLoading = false;
                 }
             },
 

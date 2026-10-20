@@ -19,7 +19,7 @@ class CashAdvance extends Model
         'monthly_amortization', 'total_amount', 'balance',
         'status', 'application_date', 'approved_date', 'approved_by',
         'start_date', 'end_date', 'purpose', 'remarks',
-        'crop_year', 'created_by'
+        'crop_year', 'cv_no', 'check_no', 'created_by'
     ];
 
     protected $casts = [
@@ -42,6 +42,16 @@ class CashAdvance extends Model
     public function amortizations()
     {
         return $this->hasMany(CashAdvanceAmortization::class, 'cash_advance_id');
+    }
+
+    public function deductions()
+    {
+        return $this->hasMany(CashAdvanceDeduction::class)->orderByRaw('CAST(week_no AS UNSIGNED)');
+    }
+
+    public function planter()
+    {
+        return $this->belongsTo(PlanterProfile::class, 'planter_code', 'planter_code');
     }
 
     public static function generateCANumber()

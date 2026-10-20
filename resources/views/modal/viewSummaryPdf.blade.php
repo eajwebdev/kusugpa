@@ -5,8 +5,10 @@
     <meta charset="utf-8">
     <title>Summary Report</title>
     <style>
+        @include('pdf.partials.formal-font')
+
         body {
-            font-family: DejaVu Sans, sans-serif;
+            font-family: 'Tinos', 'Times New Roman', serif;
             font-size: 11px;
             margin: 20px;
         }

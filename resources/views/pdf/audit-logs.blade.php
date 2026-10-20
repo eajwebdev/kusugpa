@@ -5,7 +5,9 @@
     <meta charset="utf-8">
     <title>Audit Logs Report</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 9px; margin: 15px; }
+        @include('pdf.partials.formal-font')
+
+        body { font-family: 'Tinos', 'Times New Roman', serif; font-size: 9px; margin: 15px; }
         .header { text-align: center; margin-bottom: 10px; border-bottom: 2px solid #334155; padding-bottom: 8px; }
         .header h2 { color: #334155; margin: 0; font-size: 16px; }
         table { width: 100%; border-collapse: collapse; }

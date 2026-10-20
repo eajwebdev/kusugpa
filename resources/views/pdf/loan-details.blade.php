@@ -5,7 +5,9 @@
     <meta charset="utf-8">
     <title>Loan Details - {{ $loan->loan_number }}</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; margin: 30px; color: #333; }
+        @include('pdf.partials.formal-font')
+
+        body { font-family: 'Tinos', 'Times New Roman', serif; font-size: 12px; margin: 30px; color: #333; }
         .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #16a34a; padding-bottom: 15px; }
         .header h2 { color: #16a34a; margin: 0; font-size: 20px; }
         .header p { margin: 5px 0 0; color: #666; font-size: 11px; }

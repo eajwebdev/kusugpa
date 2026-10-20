@@ -124,7 +124,17 @@ class PlanterProfileController extends Controller
         $totalCane = $yearlyTotals->sum('total_cane');
         $totalAmount = $yearlyTotals->sum('total_amount');
 
-        return view('planter-profiles.show', compact('planter', 'productionHistory', 'yearlyTotals', 'totalCane', 'totalAmount'));
+        // Get loans and cash advances
+        $loans = $planter->loans()->with('loanType')->latest('application_date')->get();
+        $cashAdvances = $planter->cashAdvances()->latest('application_date')->get();
+
+        $loanBalance = $loans->whereIn('status', ['approved', 'active'])->sum('balance');
+        $cashAdvanceBalance = $cashAdvances->whereIn('status', ['approved', 'active'])->sum('balance');
+
+        return view('planter-profiles.show', compact(
+            'planter', 'productionHistory', 'yearlyTotals', 'totalCane', 'totalAmount',
+            'loans', 'cashAdvances', 'loanBalance', 'cashAdvanceBalance'
+        ));
     }
 
     /**

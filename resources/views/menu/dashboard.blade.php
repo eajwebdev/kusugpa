@@ -3,37 +3,31 @@
 
 @section('title', 'Dashboard')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/dashboard.css') }}?v={{ @filemtime(public_path('css/dashboard.css')) }}">
+@endpush
+
 @section('content')
-    <div x-data="dashboardData()" class="space-y-6 kp-fade-in">
+    <div x-data="dashboardData()" data-dashboard-url="{{ route('dashboard.data') }}" class="space-y-4 kp-fade-in kp-dashboard">
 
         <!-- Page header -->
-        <header>
-            <div class="kp-page-header" style="margin-bottom: 14px">
-                <div>
-                    <p class="kp-eyebrow">Crop production overview</p>
-                    <h1 class="kp-page-title mt-1">Welcome back, {{ auth()->user()->fname }}</h1>
-                    <p class="kp-page-sub">Season <span class="font-semibold tabular" style="color: var(--kp-text)"
-                            x-text="stats.currentCropYear"></span> at a glance.</p>
-                </div>
-
-                <!-- Live clock -->
-                <div x-data="clockData()" x-init="startClock()" class="flex items-center gap-4 rounded-lg border px-4 py-2.5"
-                    style="border-color: var(--kp-border); background: var(--kp-surface)" role="timer" aria-label="Current date and time">
-                    <div class="text-right leading-tight">
-                        <p class="text-[11px] font-semibold uppercase tracking-widest" style="color: var(--kp-faint)" x-text="dayName"></p>
-                        <p class="text-sm font-semibold tabular" style="color: var(--kp-text)" x-text="dateFormatted"></p>
-                    </div>
-                    <div class="h-8 w-px" style="background: var(--kp-border)"></div>
-                    <p class="font-mono text-xl font-medium tabular" style="color: var(--kp-forest)" x-text="timeFormatted"></p>
-                </div>
+        <header class="kp-dashboard-hero">
+            <div class="kp-dashboard-hero-copy">
+                <p class="kp-dashboard-greeting">Good day,</p>
+                <h1>Welcome back, {{ auth()->user()->fname }}!</h1>
+                <p>Here's an overview of your sugarcane production for crop year <span x-text="stats.currentCropYear || '—'"></span>.</p>
             </div>
-            <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>
+            <p class="kp-dashboard-motto">Stronger Planters<br>Brighter Harvests</p>
+            <div x-data="clockData()" x-init="startClock()" class="kp-dashboard-clock" role="timer" aria-label="Current date and time">
+                <span class="kp-dashboard-clock-date"><span x-text="dayName"></span><strong x-text="dateFormatted"></strong></span>
+                <span class="kp-dashboard-clock-time tabular" x-text="timeFormatted"></span>
+            </div>
         </header>
 
         <!-- Primary figures -->
-        <section aria-label="Production and value" class="kp-kpis">
-            <div class="kp-kpi">
-                <p class="kp-kpi-label"><i class="fas fa-seedling" aria-hidden="true"></i> Total Net Cane</p>
+        <section aria-label="Production and value" class="kp-kpis kp-dashboard-kpis">
+            <div class="kp-kpi kp-dashboard-kpi kp-dashboard-kpi--green">
+                <p class="kp-kpi-label"><img class="kp-dashboard-cane-mark" src="{{ asset('img/dashboard/cane-cluster.webp') }}" alt="" width="30" height="30" aria-hidden="true"> Total Net Cane</p>
                 <p class="kp-kpi-value" x-text="formatNumber(stats.totalNetCane, 0)"></p>
                 <p class="kp-kpi-foot">
                     <span>Tons</span>
@@ -45,19 +39,19 @@
                 </p>
             </div>
 
-            <div class="kp-kpi">
+            <div class="kp-kpi kp-dashboard-kpi kp-dashboard-kpi--gold">
                 <p class="kp-kpi-label"><i class="fas fa-peso-sign" aria-hidden="true"></i> Net Amount</p>
                 <p class="kp-kpi-value"><small>₱</small><span x-text="formatNumber(stats.totalNetAmount, 0)"></span></p>
                 <p class="kp-kpi-foot"><span>Total value, Philippine Peso</span></p>
             </div>
 
-            <div class="kp-kpi">
+            <div class="kp-kpi kp-dashboard-kpi kp-dashboard-kpi--green">
                 <p class="kp-kpi-label"><i class="fas fa-users" aria-hidden="true"></i> Total Planters</p>
                 <p class="kp-kpi-value" x-text="stats.totalPlanters"></p>
                 <p class="kp-kpi-foot"><span>Registered members</span></p>
             </div>
 
-            <div class="kp-kpi">
+            <div class="kp-kpi kp-dashboard-kpi kp-dashboard-kpi--gold">
                 <p class="kp-kpi-label"><i class="fas fa-tags" aria-hidden="true"></i> Quedan Price</p>
                 <p class="kp-kpi-value"><small>₱</small><span x-text="formatNumber(stats.quedanPrice, 2)"></span></p>
                 <p class="kp-kpi-foot">
@@ -68,30 +62,30 @@
         </section>
 
         <!-- Secondary figures -->
-        <section aria-label="Prices and portfolio" class="kp-kpis kp-kpis--quiet">
-            <div class="kp-kpi">
+        <section aria-label="Prices and portfolio" class="kp-kpis kp-kpis--quiet kp-dashboard-kpis kp-dashboard-kpis--quiet">
+            <div class="kp-kpi kp-dashboard-kpi kp-dashboard-kpi--gold">
                 <p class="kp-kpi-label"><i class="fas fa-flask" aria-hidden="true"></i> Molasses Price</p>
                 <p class="kp-kpi-value"><small>₱</small><span x-text="formatNumber(stats.molassesPrice, 2)"></span></p>
             </div>
-            <div class="kp-kpi">
+            <div class="kp-kpi kp-dashboard-kpi kp-dashboard-kpi--gold">
                 <p class="kp-kpi-label"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> Active Loans</p>
                 <p class="kp-kpi-value" x-text="stats.activeLoans"></p>
             </div>
-            <div class="kp-kpi">
+            <div class="kp-kpi kp-dashboard-kpi kp-dashboard-kpi--green">
                 <p class="kp-kpi-label"><i class="fas fa-chart-line" aria-hidden="true"></i> Avg per Planter</p>
                 <p class="kp-kpi-value">
                     <span x-text="stats.activePlanters > 0 ? formatNumber(stats.totalNetCane / stats.activePlanters, 1) : '0'"></span>
                     <small>tons</small>
                 </p>
             </div>
-            <div class="kp-kpi">
+            <div class="kp-kpi kp-dashboard-kpi kp-dashboard-kpi--green">
                 <p class="kp-kpi-label"><i class="fas fa-calendar-alt" aria-hidden="true"></i> Crop Year</p>
                 <p class="kp-kpi-value" x-text="stats.currentCropYear"></p>
             </div>
         </section>
 
         <!-- Charts -->
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3 kp-dashboard-charts">
             <section class="kp-card" aria-labelledby="yearly-h">
                 <div class="kp-card-head">
                     <div>
@@ -100,8 +94,12 @@
                     </div>
                     <span class="kp-delta">Total: <span x-text="formatNumber(stats.totalNetCane, 0) + ' tons'"></span></span>
                 </div>
-                <div class="relative w-full p-5" style="height: 340px;">
+                <div class="relative w-full p-5 kp-dashboard-chart-body">
                     <canvas id="yearlyChart" role="img" aria-label="Bar chart of net cane production by crop year"></canvas>
+                    <div class="kp-dashboard-chart-empty" x-show="!yearlyData.datasets[0].data.some(value => Number(value) > 0)">
+                        <img src="{{ asset('img/dashboard/cane-cluster.webp') }}" alt="" loading="lazy" aria-hidden="true">
+                        <strong>No production data yet</strong><span>Upload weekly summaries to see yearly trends.</span>
+                    </div>
                 </div>
             </section>
 
@@ -112,27 +110,35 @@
                         <p class="kp-card-sub">Production trend per week</p>
                     </div>
                 </div>
-                <div class="relative w-full p-5" style="height: 340px;">
+                <div class="relative w-full p-5 kp-dashboard-chart-body">
                     <canvas id="weeklyChart" role="img" aria-label="Line chart of weekly production trend"></canvas>
+                    <div class="kp-dashboard-chart-empty" x-show="!weeklyData.datasets[0].data.some(value => Number(value) > 0)">
+                        <img src="{{ asset('img/dashboard/cane-cluster.webp') }}" alt="" loading="lazy" aria-hidden="true">
+                        <strong>No weekly data yet</strong><span>Add weekly production records to view trends.</span>
+                    </div>
                 </div>
             </section>
-        </div>
-
-        <!-- Monthly -->
-        <section class="kp-card" aria-labelledby="monthly-h">
+            <!-- Monthly -->
+            <section class="kp-card" aria-labelledby="monthly-h">
             <div class="kp-card-head">
                 <div>
                     <h2 id="monthly-h" class="kp-card-title">Monthly Production Total</h2>
                     <p class="kp-card-sub">Total net cane per month for <span x-text="stats.currentCropYear"></span></p>
                 </div>
             </div>
-            <div class="relative w-full p-5" style="height: 290px;">
+            <div class="relative w-full p-5 kp-dashboard-chart-body">
                 <canvas id="monthlyChart" role="img" aria-label="Bar chart of total net cane per month"></canvas>
+                <div class="kp-dashboard-chart-empty" x-show="!monthlyData.datasets[0].data.some(value => Number(value) > 0)">
+                    <img src="{{ asset('img/dashboard/cane-cluster.webp') }}" alt="" loading="lazy" aria-hidden="true">
+                    <strong>No monthly data yet</strong><span>Monthly production will appear here.</span>
+                </div>
             </div>
-        </section>
+            </section>
+        </div>
 
-        <!-- Distribution & Loan overview -->
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <!-- Portfolio and operations -->
+        <div class="kp-dashboard-panels">
+        <div class="kp-dashboard-panel-group kp-dashboard-panel-group--pair">
             <section class="kp-card" aria-labelledby="dist-h">
                 <div class="kp-card-head">
                     <div>
@@ -140,8 +146,9 @@
                         <p class="kp-card-sub">How top planters contribute to total production</p>
                     </div>
                 </div>
-                <div class="relative flex w-full items-center justify-center p-5" style="height: 320px;">
+                <div class="relative flex w-full items-center justify-center p-5 kp-dashboard-donut-body">
                     <canvas id="distributionChart" role="img" aria-label="Doughnut chart of production share by top planters"></canvas>
+                    <p class="kp-dashboard-donut-empty" x-show="!distributionData.datasets[0].data.some(value => Number(value) > 0)">No planter contributions yet</p>
                 </div>
             </section>
 
@@ -153,14 +160,15 @@
                                 class="tabular" x-text="formatNumber(loanStats.total_principal || 0, 0)"></span></p>
                     </div>
                 </div>
-                <div class="relative w-full p-5" style="height: 320px;">
+                <div class="relative w-full p-5 kp-dashboard-donut-body">
                     <canvas id="loanChart" role="img" aria-label="Doughnut chart of collected versus remaining loan balance"></canvas>
+                    <p class="kp-dashboard-donut-empty" x-show="!Number(loanStats.total_principal)">No loan data yet</p>
                 </div>
             </section>
         </div>
 
         <!-- Alerts, key metrics, at-risk -->
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="kp-dashboard-panel-group kp-dashboard-panel-group--trio">
             <section class="kp-card p-5" aria-labelledby="alerts-h">
                 <h2 id="alerts-h" class="kp-card-title mb-3 flex items-center gap-2">
                     <i class="fas fa-bell text-amber-600" aria-hidden="true"></i> Alerts &amp; Notifications
@@ -239,8 +247,8 @@
         </div>
 
         <!-- Top planters & activity -->
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-5">
-            <section class="kp-card lg:col-span-3" aria-labelledby="top-h">
+        <div class="kp-dashboard-panel-group kp-dashboard-panel-group--feature">
+            <section class="kp-card" aria-labelledby="top-h">
                 <div class="kp-card-head">
                     <div>
                         <h2 id="top-h" class="kp-card-title">Top Planters</h2>
@@ -283,7 +291,7 @@
                 </div>
             </section>
 
-            <div class="space-y-6 lg:col-span-2">
+            <div class="kp-dashboard-panel-group kp-dashboard-panel-group--stack">
                 <section class="kp-card" aria-labelledby="act-h">
                     <div class="kp-card-head"><h2 id="act-h" class="kp-card-title">Recent Activities</h2></div>
                     <div class="divide-y divide-gray-100">
@@ -362,6 +370,7 @@
                     </div>
                 </section>
             </div>
+        </div>
         </div>
     </div>
 

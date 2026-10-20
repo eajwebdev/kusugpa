@@ -24,6 +24,9 @@ function dashboardData() {
         riskPlanters: [],
         loanStats: {},
         loanChart: null,
+        selectedCropYear: null,
+        selectedWeek: null,
+        dataRequestId: 0,
 
         init() {
             this.loadDashboardData();
@@ -35,9 +38,12 @@ function dashboardData() {
             });
         },
 
-        async loadDashboardData(cropYear = null, week = null) {
+        async loadDashboardData(cropYear = this.selectedCropYear, week = this.selectedWeek) {
+            this.selectedCropYear = cropYear;
+            this.selectedWeek = week;
+            const requestId = ++this.dataRequestId;
             try {
-                let url = '/dashboard/data';
+                let url = this.$el.dataset.dashboardUrl || '/dashboard/data';
                 let params = new URLSearchParams();
                 if (cropYear) params.append('crop_year', cropYear);
                 if (week) params.append('week_no', week);
@@ -51,6 +57,7 @@ function dashboardData() {
                 });
                 if (!response.ok) throw new Error('Failed to load');
                 const data = await response.json();
+                if (requestId !== this.dataRequestId) return;
 
                 this.stats = data.stats;
                 this.yearlyData = data.yearlyData;
@@ -94,8 +101,8 @@ function dashboardData() {
     if (yCanvas) {
         const ctx1 = yCanvas.getContext('2d');
         const gradient1 = ctx1.createLinearGradient(0, 0, 0, 320);
-        gradient1.addColorStop(0, 'rgba(34, 197, 94, 0.3)');
-        gradient1.addColorStop(1, 'rgba(34, 197, 94, 0.02)');
+        gradient1.addColorStop(0, 'rgba(8, 122, 61, 0.58)');
+        gradient1.addColorStop(1, 'rgba(8, 122, 61, 0.14)');
         this.yearlyChart = new Chart(ctx1, {
             type: 'bar',
             data: {
@@ -104,7 +111,7 @@ function dashboardData() {
                     label: 'Net Cane (tons)',
                     data: this.yearlyData.datasets[0].data,
                     backgroundColor: gradient1,
-                    borderColor: '#22c55e',
+                    borderColor: '#087a3d',
                     borderWidth: 2,
                     borderRadius: 8,
                     borderSkipped: false
@@ -122,8 +129,8 @@ function dashboardData() {
     if (wCanvas) {
         const ctx2 = wCanvas.getContext('2d');
         const gradient2 = ctx2.createLinearGradient(0, 0, 0, 320);
-        gradient2.addColorStop(0, 'rgba(59, 130, 246, 0.2)');
-        gradient2.addColorStop(1, 'rgba(59, 130, 246, 0)');
+        gradient2.addColorStop(0, 'rgba(8, 122, 61, 0.18)');
+        gradient2.addColorStop(1, 'rgba(8, 122, 61, 0)');
         this.weeklyChart = new Chart(ctx2, {
             type: 'line',
             data: {
@@ -131,11 +138,11 @@ function dashboardData() {
                 datasets: [{
                     label: 'Net Cane (tons)',
                     data: this.weeklyData.datasets[0].data,
-                    borderColor: '#3b82f6',
+                    borderColor: '#087a3d',
                     backgroundColor: gradient2,
                     borderWidth: 2.5, tension: 0.4, fill: true,
                     pointRadius: 5, pointBackgroundColor: '#fff',
-                    pointBorderColor: '#3b82f6', pointBorderWidth: 2.5, pointHoverRadius: 7
+                    pointBorderColor: '#087a3d', pointBorderWidth: 2.5, pointHoverRadius: 7
                 }]
             },
             options: {
@@ -157,8 +164,8 @@ function dashboardData() {
                 datasets: [{
                     label: 'Monthly Total (tons)',
                     data: this.monthlyData.datasets[0].data,
-                    backgroundColor: monthlyHasData ? 'rgba(168, 85, 247, 0.4)' : 'rgba(229, 231, 235, 0.5)',
-                    borderColor: monthlyHasData ? '#a855f7' : '#d1d5db',
+                    backgroundColor: monthlyHasData ? 'rgba(183, 132, 31, 0.38)' : 'rgba(229, 231, 235, 0.5)',
+                    borderColor: monthlyHasData ? '#b7841f' : '#d1d5db',
                     borderWidth: 2,
                     borderRadius: 6
                 }]
@@ -181,10 +188,10 @@ function dashboardData() {
                 labels: this.distributionData.labels,
                 datasets: [{
                     data: this.distributionData.datasets[0].data,
-                    backgroundColor: distHasData ? (this.distributionData.datasets[0].backgroundColor || [
-                        '#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444',
-                        '#06b6d4', '#ec4899', '#8b5cf6', '#14b8a6', '#f97316'
-                    ]) : ['#e5e7eb'],
+                    backgroundColor: distHasData ? [
+                        '#087a3d', '#d9b54a', '#52a86c', '#b7841f', '#1e6b4b',
+                        '#88b3a0', '#e0c776', '#498d62', '#a0c999', '#6d894c'
+                    ] : ['#e5e7eb'],
                     borderWidth: 2,
                     borderColor: '#fff',
                     hoverBorderWidth: 3,
@@ -252,8 +259,8 @@ function dashboardData() {
                     labels: ['Remaining Balance', 'Collected'],
                     datasets: [{
                         data: [remainingBalance, collected],
-                        backgroundColor: ['rgba(239, 68, 68, 0.7)', 'rgba(34, 197, 94, 0.7)'],
-                        borderColor: ['#ef4444', '#22c55e'],
+                        backgroundColor: ['rgba(183, 132, 31, 0.68)', 'rgba(8, 122, 61, 0.7)'],
+                        borderColor: ['#b7841f', '#087a3d'],
                         borderWidth: 2,
                         hoverBorderWidth: 3,
                     }]

@@ -23,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        //
+        // PDFs embed the Tinos report font; embed only the glyphs each document uses to keep files small
+        config(['dompdf.options.enable_font_subsetting' => true]);
     }
 }

@@ -9,8 +9,10 @@
     <meta charset="utf-8">
     <title>KUSUG-PA System Quotation</title>
     <style>
+        @include('pdf.partials.formal-font')
+
         @page { margin: 29px 35px 32px; }
-        body { margin:0; color:#14203b; font-family:DejaVu Sans,sans-serif; font-size:10px; line-height:1.55; }
+        body { margin:0; color:#14203b; font-family: 'Tinos', 'Times New Roman', serif; font-size:10px; line-height:1.55; }
         h1,h2,h3,p { margin-top:0; }
         .top { background:#0b1434; color:#fff; padding:17px 20px; border-radius:7px; }
         .top table { width:100%; border-collapse:collapse; }

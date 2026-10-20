@@ -66,6 +66,14 @@
                     </div>
                 </div>
 
+                <div>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                        CA Receipt Interest (% per week)
+                    </label>
+                    <input type="number" name="ca_receipt_weekly_interest" step="0.01" min="0" max="100" value="{{ $settings['ca_receipt_weekly_interest'] }}" class="kp-input w-full">
+                    <p class="text-[11px] mt-1 text-[#52705F] dark:text-[#8AA895]">Printed on the Cash Advance Receipt and Sugar Assignment (printed from All Cash Advances).</p>
+                </div>
+
                 <div class="flex items-center justify-between p-3.5 bg-[#F7FAF8] dark:bg-[#13231B] rounded-xl border border-[#E3EBE5] dark:border-[#203A2B]">
                     <div>
                         <span class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]">Auto-deduct Amortizations</span>
