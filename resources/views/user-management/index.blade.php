@@ -193,7 +193,7 @@
                         const groups = {
                             'reports': ['view-reports'],
                             'uploads': ['upload-summary', 'upload-trucking', 'upload-fci', 'upload-fuel', 'upload-rentals',
-                                'upload-underload', 'upload-transloading'
+                                'upload-underload', 'upload-transloading', 'upload-tls'
                             ],
                             'settings': ['set-quedan-price', 'set-molasses-price', 'set-crop-year', 'set-week-number'],
                             'other': ['print-vouchers'],
@@ -213,6 +213,7 @@
                             'upload-rentals': 'fas fa-building',
                             'upload-underload': 'fas fa-weight-scale',
                             'upload-transloading': 'fas fa-exchange-alt',
+                            'upload-tls': 'fas fa-truck-moving',
                             'set-quedan-price': 'fas fa-tags',
                             'set-molasses-price': 'fas fa-flask',
                             'set-crop-year': 'fas fa-calendar-alt',

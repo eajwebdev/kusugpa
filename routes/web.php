@@ -14,6 +14,8 @@ use App\Http\Controllers\PriceController;
 use App\Http\Controllers\AuditLogController;  
 use App\Http\Controllers\PlanterProfileController;
 use App\Http\Controllers\ConsolidatedReportController;
+use App\Http\Controllers\CertificationController;
+use App\Http\Controllers\TlsReportController;
 use App\Http\Controllers\TruckingAllowanceController;
 use App\Http\Controllers\CashAdvanceController;
 use App\Http\Controllers\QuotationController;
@@ -201,6 +203,17 @@ Route::middleware(['login_auth'])->group(function () {
     Route::get('/consolidated-report/filters', [ConsolidatedReportController::class, 'getFilters'])->name('consolidated-report.filters');
 
 
+    // TLS Delivery Report (Summary of Transloading Delivery)
+    Route::get('/tls-report', [TlsReportController::class, 'index'])->name('tls-report');
+    Route::get('/tls-report/data', [TlsReportController::class, 'data'])->name('tls-report.data');
+    Route::get('/tls-report/pdf', [TlsReportController::class, 'pdf'])->name('tls-report.pdf');
+
+    // Production Certification
+    Route::get('/certification-report', [CertificationController::class, 'index'])->name('certification-report');
+    Route::get('/certification-report/planters', [CertificationController::class, 'planters'])->name('certification-report.planters');
+    Route::get('/certification-report/pdf', [CertificationController::class, 'pdf'])->name('certification-report.pdf');
+    Route::post('/certification-report/signatories', [CertificationController::class, 'saveSignatories'])->name('certification-report.signatories');
+
     // Trucking Allowance Report
     Route::get('/trucking-allowance-report', [TruckingAllowanceController::class, 'index'])->name('trucking-allowance-report');
     Route::get('/trucking-allowance-report/export', [TruckingAllowanceController::class, 'exportPDF'])->name('trucking-allowance-report.export');
@@ -293,11 +306,11 @@ Route::middleware(['login_auth:manage-crop-weeks'])->group(function () {
     Route::post('/molasses/bulk-update', [PriceController::class, 'bulkUpdateMolasses'])->name('molasses.bulk-update');
 
     Route::post('/upload/{type}', [UploadController::class, 'uploadCSV'])
-    ->where('type', 'summary|trucking|fuel|rentals|underload|transloading|fci|mudpress|consolidated|quedan|molasses')
+    ->where('type', 'summary|trucking|fuel|rentals|underload|transloading|fci|mudpress|consolidated|quedan|molasses|tls')
     ->name('upload.csv');
 
     Route::get('/upload/{type}/template', [UploadController::class, 'downloadTemplate'])
-    ->where('type', 'summary|trucking|fuel|rentals|underload|transloading|fci|mudpress|consolidated|quedan|molasses')
+    ->where('type', 'summary|trucking|fuel|rentals|underload|transloading|fci|mudpress|consolidated|quedan|molasses|tls')
     ->name('upload.template');
 
     Route::get('/quedan-registry/export', [PriceController::class, 'exportQuedanPDF'])->name('quedan-registry.export');

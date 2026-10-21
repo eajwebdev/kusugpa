@@ -1,7 +1,7 @@
 <!-- resources/views/hauling-liquidity/index.blade.php -->
 @extends('layouts.main')
 
-@section('title', 'Hauling Liquidity')
+@section('title', 'Hauler TLS LIQ')
 
 @section('content')
     <div x-data="haulerData()" class="space-y-6 kp-fade-in">
@@ -10,7 +10,7 @@
             <div class="kp-page-header">
                 <div>
                     <p class="kp-eyebrow">Hauling</p>
-                    <h1 class="kp-page-title mt-1">Hauling Liquidity</h1>
+                    <h1 class="kp-page-title mt-1">Hauler TLS LIQ</h1>
                     <p class="kp-page-sub">Manage haulers and their weekly hauling liquidation entries.</p>
                 </div>
                 <div class="flex items-center gap-2">

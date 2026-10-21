@@ -242,7 +242,7 @@
                             <div class="flex items-center justify-between px-4 py-2" style="background: var(--kp-surface-2)">
                                 <div>
                                     <p class="text-sm font-bold">Deduction Weeks</p>
-                                    <p class="text-[11px]" style="color: var(--kp-muted)">Filled into Hauling Liquidity's "Cash Adv." for this planter and week.</p>
+                                    <p class="text-[11px]" style="color: var(--kp-muted)">Filled into Hauler TLS LIQ's "Cash Adv." for this planter and week.</p>
                                 </div>
                                 <button type="button" @click="receiptForm.deductions.push({ week_no: '', amount: '' })" class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs">
                                     <i class="fas fa-plus mr-1"></i> Add Week

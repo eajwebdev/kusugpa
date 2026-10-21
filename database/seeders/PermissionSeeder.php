@@ -155,6 +155,11 @@ class PermissionSeeder extends Seeder
                 'description' => 'Can upload molasses CSV files',
             ],
             [
+                'name' => 'Upload TLS Hauling',
+                'slug' => 'upload-tls',
+                'description' => 'Can upload weekly TLS hauling CSV files (creates Hauling Liquidity entries)',
+            ],
+            [
                 'name' => 'View Cash Advances',
                 'slug' => 'view-cash-advances',
                 'description' => 'Can view cash advance records and details',

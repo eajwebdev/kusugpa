@@ -14,7 +14,7 @@
         (function() {
             try {
                 var t = localStorage.getItem('theme');
-                if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                if (t === 'dark') { // light by default; dark only when chosen via the toggle
                     document.documentElement.classList.add('dark');
                 }
                 if (localStorage.getItem('kp.sidebar') === '1') {
@@ -90,8 +90,7 @@
     <!-- Dark Mode & Profile Dropdown Script -->
     <script>
         // Check for saved theme preference
-        if (localStorage.getItem('theme') === 'dark' ||
-            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        if (localStorage.getItem('theme') === 'dark') { // light by default
             document.documentElement.classList.add('dark');
         }
 
@@ -315,10 +314,11 @@
                 'consolidated': 'Upload Consolidated Summary',
                 'quedan': 'Upload Quedan',
                 'molasses': 'Upload Molasses',
+                'tls': 'Upload TLS Hauling',
             };
             // Types that need crop_year and week_no selection
             const needsCropWeek = ['summary', 'trucking', 'fci', 'fuel', 'rentals', 'underload', 'transloading', 'mudpress',
-                'quedan', 'molasses', 'consolidated'
+                'quedan', 'molasses', 'consolidated', 'tls'
             ];
             const templateUrl = UPLOAD_TEMPLATE_BASE_URL + '/' + encodeURIComponent(type) + '/template';
 
@@ -326,7 +326,7 @@
                 title: titles[type] || 'Upload CSV',
                 html: `
                     <div class="kp-upload-toolbar">
-                        <p>Use the CSV template and keep its header row.</p>
+                        <p>${type === 'tls' ? 'Each plate no. per planter becomes a Hauler TLS LIQ entry. ' : ''}Use the CSV template columns; the header row is optional.</p>
                         <a href="${templateUrl}" download><i class="fas fa-download" aria-hidden="true"></i> Download template</a>
                     </div>
                     ${needsCropWeek.includes(type) ? `
@@ -455,18 +455,21 @@
                                 Swal.showValidationMessage(data.error);
                                 return false;
                             }
+                            // TLS results list the liquidation entries created, so keep them open until OK
+                            const keepOpen = data && data.liquidations != null;
                             Swal.fire({
                                 icon: 'success',
                                 title: 'Upload Complete!',
                                 text: data?.message || 'File uploaded successfully.',
-                                timer: 2500,
-                                showConfirmButton: false
+                                timer: keepOpen ? undefined : 2500,
+                                showConfirmButton: keepOpen,
+                                confirmButtonColor: '#16a34a'
                             }).then(() => {
                                 window.location.reload();
                             });
                         })
                         .catch(error => {
-                            Swal.showValidationMessage('Upload failed. Please try again.');
+                            Swal.showValidationMessage(error && error.message ? error.message : 'Upload failed. Please try again.');
                         });
                 }
             });
@@ -571,7 +574,7 @@
             // Check if current modal type needs crop/week (explicit variable set by
             // openUploadModal — do NOT sniff the title text, it breaks for some types)
             const needsCropWeek = ['summary', 'trucking', 'fci', 'fuel', 'rentals', 'underload', 'transloading', 'mudpress',
-                'quedan', 'molasses', 'consolidated'
+                'quedan', 'molasses', 'consolidated', 'tls'
             ];
             let typeNeedsCropWeek;
             if (currentUploadType) {
