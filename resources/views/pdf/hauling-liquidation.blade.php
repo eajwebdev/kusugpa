@@ -254,9 +254,6 @@
                 <tr>
                     <td class="lbl">Date Released</td>
                     <td class="val">{{ $date($entry->date_released) }}</td>
-                    <td></td>
-                    <td class="lbl">Check No.</td>
-                    <td class="val">{{ $entry->check_no }}</td>
                 </tr>
                 <tr>
                     <td class="lbl">Payee</td>
@@ -282,7 +279,7 @@
                         <td class="section">Hauling</td>
                         <td>
                             Gross Hauling Amount<br>
-                            <span class="muted" style="font-size: 8pt">Truck / Hauler Code: {{ $entry->truck_code ?: '—' }}</span>
+                            <span class="muted" style="font-size: 8pt">Plate #: {{ $entry->truck_code ?: '—' }}</span>
                         </td>
                         <td class="num">{{ number_format($entry->tonnage, 3) }}</td>
                         <td class="num">{{ number_format($entry->rate_per_ton, 2) }}</td>

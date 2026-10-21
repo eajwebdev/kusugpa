@@ -64,7 +64,7 @@
                     <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Search</label>
                     <div class="relative">
                         <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style="color: var(--kp-faint)"></i>
-                        <input type="text" x-model="search" placeholder="Payee, planter code, truck or CV no..." class="kp-input w-full pl-9">
+                        <input type="text" x-model="search" placeholder="Payee, planter code, plate # or CV no..." class="kp-input w-full pl-9">
                     </div>
                 </div>
                 <div class="w-44">
@@ -106,7 +106,7 @@
                             <th>Week Ending</th>
                             <th>Payee</th>
                             <th>CV No.</th>
-                            <th>Truck</th>
+                            <th>Plate #</th>
                             <th class="text-right">Tonnage</th>
                             <th class="text-right">Rate</th>
                             <th class="text-right">Gross</th>
@@ -260,7 +260,7 @@
                                             : 'Pick the payee (truck owner) for plate ' + (form.truck_code || '') + '. Next week’s upload remembers it.'"></p>
                                 </div>
                                 <div class="md:col-span-2">
-                                    <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Truck / Hauler Code</label>
+                                    <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Plate #</label>
                                     <input type="text" x-model="form.truck_code" list="truck-codes" placeholder="e.g. WHU612" class="kp-input w-full">
                                 </div>
                                 <div class="md:col-span-2">
