@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\PlanterProfile;
 use App\Models\Summary;
+use App\Models\ConsolidatedUpload;
+use Illuminate\Support\Facades\DB;
 use App\Models\AuditLog;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -223,85 +225,84 @@ class PlanterProfileController extends Controller
     }
 
     /**
-     * Sync planters from uploads
+     * Sync planters from the uploaded Consolidated report.
+     * Codes are compared without leading zeros ("0123" = "123") so an existing planter is never added twice.
      */
     public function syncPlanters()
 {
+    $normalize = function ($code) {
+        $code = trim((string) $code);
+        $stripped = ltrim($code, '0');
+        return $stripped === '' ? $code : $stripped;
+    };
+
+    $existing = PlanterProfile::pluck('planter_code')
+        ->mapWithKeys(fn ($code) => [$normalize($code) => true])
+        ->all();
+
+    // Latest upload first, so a planter gets the name from their most recent record
+    $rows = ConsolidatedUpload::select('planter_code', 'planter_name', 'crop_year')
+        ->orderByDesc('crop_year')
+        ->orderByRaw('CAST(week_no AS UNSIGNED) DESC')
+        ->orderByDesc('id')
+        ->get();
+
     $imported = 0;
     $skipped = 0;
     $errors = [];
+    $seen = [];
 
-    // Get ALL unique planters from trucking_allowance
-    $truckingPlanters = \App\Models\TruckingAllowance::select('planter_code', 'planter_name')
-        ->distinct()
-        ->get();
+    DB::transaction(function () use ($rows, $normalize, &$existing, &$seen, &$imported, &$skipped, &$errors) {
+        foreach ($rows as $row) {
+            $code = trim((string) $row->planter_code);
+            $name = trim((string) $row->planter_name);
+            $key = $normalize($code);
 
-    foreach ($truckingPlanters as $tp) {
-        try {
-            $code = trim($tp->planter_code);
-            $name = trim($tp->planter_name);
-            
-            if (empty($code) || empty($name)) {
+            if ($code === '' || $name === '') {
                 $errors[] = "Empty data: code={$code}, name={$name}";
                 continue;
             }
-            
-            $exists = PlanterProfile::where('planter_code', $code)->exists();
-            if (!$exists) {
+            // Same planter appears once per week in the upload; count each planter once
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            if (isset($existing[$key])) {
+                $skipped++;
+                continue;
+            }
+
+            try {
                 PlanterProfile::create([
                     'planter_code' => $code,
                     'planter_name' => $name,
                     'status' => 'active',
+                    'crop_year' => $row->crop_year,
                 ]);
+                $existing[$key] = true;
                 $imported++;
-            } else {
-                $skipped++;
+            } catch (\Exception $e) {
+                $errors[] = "Error on {$code}: " . $e->getMessage();
             }
-        } catch (\Exception $e) {
-            $errors[] = "Error on {$tp->planter_code}: " . $e->getMessage();
         }
-    }
+    });
 
-    // Also from summary table
-    $summaryPlanters = Summary::select('planter_code', 'planter_name')
-        ->distinct()
-        ->get();
-
-    foreach ($summaryPlanters as $sp) {
-        try {
-            $code = trim($sp->planter_code);
-            $name = trim($sp->planter_name);
-            
-            if (empty($code) || empty($name)) continue;
-            
-            $exists = PlanterProfile::where('planter_code', $code)->exists();
-            if (!$exists) {
-                PlanterProfile::create([
-                    'planter_code' => $code,
-                    'planter_name' => $name,
-                    'status' => 'active',
-                ]);
-                $imported++;
-            } else {
-                $skipped++;
-            }
-        } catch (\Exception $e) {
-            $errors[] = "Error on {$sp->planter_code}: " . $e->getMessage();
-        }
-    }
-
-    AuditLog::log('sync', 'planters', 'Synced planter profiles', [
+    AuditLog::log('sync', 'planters', 'Synced planter profiles from consolidated report', [
         'imported' => $imported,
         'skipped' => $skipped,
         'errors' => count($errors),
     ]);
 
     $totalProfiles = PlanterProfile::count();
-    $uniqueTrucking = \App\Models\TruckingAllowance::distinct('planter_code')->count('planter_code');
-    $uniqueSummary = Summary::distinct('planter_code')->count('planter_code');
+    $uniqueConsolidated = count($seen);
+
+    $message = $uniqueConsolidated === 0
+        ? 'No planters found in the uploaded Consolidated report. Upload a Consolidated Summary first.'
+        : "Sync complete! {$uniqueConsolidated} planter(s) in Consolidated report. Added: {$imported}, Already exist: {$skipped}. Total profiles: {$totalProfiles}.";
 
     return response()->json([
-        'message' => "Sync complete! Profiles: {$totalProfiles}. Trucking unique: {$uniqueTrucking}, Summary unique: {$uniqueSummary}. Imported: {$imported}, Already exist: {$skipped}",
+        'message' => $message,
         'imported' => $imported,
         'skipped' => $skipped,
         'errors' => $errors,

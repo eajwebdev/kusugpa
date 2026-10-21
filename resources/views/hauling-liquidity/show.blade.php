@@ -1,7 +1,7 @@
 <!-- resources/views/hauling-liquidity/show.blade.php -->
 @extends('layouts.main')
 
-@section('title', 'Hauling Liquidity - ' . $hauler->name)
+@section('title', 'Hauler TLS LIQ - ' . $hauler->name)
 
 @section('content')
     <div x-data="liquidationData()" x-init="init()" @keydown.escape.window="showModal = false" class="space-y-6 kp-fade-in">
@@ -64,7 +64,7 @@
                     <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Search</label>
                     <div class="relative">
                         <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style="color: var(--kp-faint)"></i>
-                        <input type="text" x-model="search" placeholder="Payee, planter code, truck or CV no..." class="kp-input w-full pl-9">
+                        <input type="text" x-model="search" placeholder="Payee, planter code, plate # or CV no..." class="kp-input w-full pl-9">
                     </div>
                 </div>
                 <div class="w-44">
@@ -106,7 +106,7 @@
                             <th>Week Ending</th>
                             <th>Payee</th>
                             <th>CV No.</th>
-                            <th>Truck</th>
+                            <th>Plate #</th>
                             <th class="text-right">Tonnage</th>
                             <th class="text-right">Rate</th>
                             <th class="text-right">Gross</th>
@@ -124,7 +124,8 @@
                                     <span class="text-xs" style="color: var(--kp-muted)" x-text="' · Wk ' + entry.week_no"></span>
                                 </td>
                                 <td class="whitespace-nowrap" style="color: var(--kp-muted)" x-text="formatDate(entry.week_ending)"></td>
-                                <td class="font-medium" style="color: var(--kp-text)" x-text="entry.payee_name"></td>
+                                <td class="font-medium" :style="entry.payee_name ? 'color: var(--kp-text)' : 'color: #B45309'"
+                                    x-text="entry.payee_name || 'Payee not set'"></td>
                                 <td class="font-mono" style="color: var(--kp-muted)" x-text="entry.cv_no || '—'"></td>
                                 <td class="font-mono" style="color: var(--kp-muted)" x-text="entry.truck_code || '—'"></td>
                                 <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="formatNumber(entry.tonnage, 3)"></td>
@@ -254,10 +255,12 @@
                                         </template>
                                     </select>
                                     <p x-show="editingEntry && !form.planter_code" class="text-[11px] mt-1 text-red-500"
-                                        x-text="'Was entered as “' + (editingEntry ? editingEntry.payee_name : '') + '” — pick the matching planter.'"></p>
+                                        x-text="editingEntry && editingEntry.payee_name
+                                            ? 'Was entered as “' + editingEntry.payee_name + '” — pick the matching planter.'
+                                            : 'Pick the payee (truck owner) for plate ' + (form.truck_code || '') + '. Next week’s upload remembers it.'"></p>
                                 </div>
                                 <div class="md:col-span-2">
-                                    <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Truck / Hauler Code</label>
+                                    <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Plate #</label>
                                     <input type="text" x-model="form.truck_code" list="truck-codes" placeholder="e.g. WHU612" class="kp-input w-full">
                                 </div>
                                 <div class="md:col-span-2">

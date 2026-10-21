@@ -80,6 +80,7 @@
                 'upload-consolidated',
                 'upload-quedan',
                 'upload-molasses',
+                'upload-tls',
             ]);
 @endphp
 @if ($canUpload)
@@ -170,6 +171,13 @@
                     <span>Mudpress</span>
                 </button>
             </li>
+            <li>
+                <button onclick="openUploadModal('tls')"
+                    class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
+                    <i class="fas fa-truck-moving w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
+                    <span>TLS Hauling</span>
+                </button>
+            </li>
         </ul>
     </li>
 @endif
@@ -251,7 +259,7 @@
 <!-- Reports -->
 @php
     $canViewReports = auth()->user()->role === 'Administrator' || auth()->user()->hasPermission('view-reports');
-    $reportsActive = request()->routeIs('summaryReport', 'consolidated-report*', 'trucking-allowance-report*');
+    $reportsActive = request()->routeIs('summaryReport', 'consolidated-report*', 'trucking-allowance-report*', 'certification-report*', 'tls-report*');
 @endphp
 
 @if ($canViewReports)
@@ -289,8 +297,15 @@
                 </a>
             </li>
             <li>
-                <a href="#"
-                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
+                <a href="{{ route('certification-report') }}"
+                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('certification-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
+                    <i class="fas fa-certificate w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
+                    <span>Production Certification</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ route('tls-report') }}"
+                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('tls-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
                     <i class="fas fa-truck w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
                     <span>TLS Reports</span>
                 </a>
@@ -424,7 +439,7 @@
         <a href="{{ route('hauling-liquidity.index') }}"
             class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('hauling-liquidity.*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
             <i class="fas fa-truck-moving w-5 h-5 shrink-0 flex items-center justify-center text-center"></i>
-            <span>Hauling Liquidity</span>
+            <span>Hauler TLS LIQ</span>
         </a>
     </li>
 @endif

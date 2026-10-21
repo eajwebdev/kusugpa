@@ -58,11 +58,38 @@
         <div class="kp-card p-4">
             <div class="flex flex-wrap gap-4 items-end justify-between">
                 <div class="flex flex-wrap gap-4 items-end flex-1">
-                    <div class="min-w-[240px] flex-1">
+                    <div class="w-40">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Crop Year</label>
+                        <select x-model="filters.cropYear" @change="onCropYearChange()" class="kp-select w-full">
+                            <option value="">All Crop Years</option>
+                            <template x-for="cy in availableCropYears" :key="'filter_' + cy">
+                                <option :value="cy" x-text="cy"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="w-36">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Week From</label>
+                        <select x-model="filters.weekFrom" @change="applyFilters()" class="kp-select w-full">
+                            <option value="">All Weeks</option>
+                            <template x-for="wk in filterWeeks" :key="'from_' + wk">
+                                <option :value="wk" x-text="'Week ' + wk"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="w-36">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Week To</label>
+                        <select x-model="filters.weekTo" @change="applyFilters()" class="kp-select w-full">
+                            <option value="">All Weeks</option>
+                            <template x-for="wk in filterWeeks" :key="'to_' + wk">
+                                <option :value="wk" x-text="'Week ' + wk"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="min-w-[220px] flex-1">
                         <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Search Planter</label>
                         <div class="relative">
                             <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style="color: var(--kp-faint)"></i>
-                            <input type="text" x-model="search" @input="applyFilters()"
+                            <input type="text" x-model="search" @input.debounce.500ms="applyFilters()"
                                 placeholder="Search by planter name or code..."
                                 class="kp-input w-full pl-9">
                         </div>
@@ -295,6 +322,12 @@
                     currentPage: {{ $uploads->currentPage() }},
                     totalPages: {{ $uploads->lastPage() }},
                     search: '',
+                    filters: {
+                        cropYear: '',
+                        weekFrom: '',
+                        weekTo: '',
+                    },
+                    filterWeeks: [],
                     sortField: 'planter_name',
                     sortDirection: 'asc',
                     perPage: {{ $uploads->perPage() }},
@@ -316,7 +349,28 @@
                     openPdfPreview() {
                         const url = new URL(@json(route('consolidated-report.export')), window.location.origin);
                         if (this.search.trim()) url.searchParams.set('search', this.search.trim());
+                        if (this.filters.cropYear) url.searchParams.set('crop_year', this.filters.cropYear);
+                        if (this.filters.weekFrom) url.searchParams.set('week_from', this.filters.weekFrom);
+                        if (this.filters.weekTo) url.searchParams.set('week_to', this.filters.weekTo);
                         window.KusugpaPdfPreview.open(url.toString(), 'Consolidated Report');
+                    },
+
+                    onCropYearChange() {
+                        this.filters.weekFrom = '';
+                        this.filters.weekTo = '';
+                        this.loadFilterWeeks();
+                        this.applyFilters();
+                    },
+
+                    loadFilterWeeks() {
+                        if (!this.filters.cropYear) {
+                            this.filterWeeks = [];
+                            return;
+                        }
+                        this.filterWeeks = [...new Set(this.allWeeksData
+                                .filter(w => w.crop_year === this.filters.cropYear)
+                                .map(w => w.week_no))]
+                            .sort((a, b) => parseInt(a) - parseInt(b));
                     },
 
                     async fetchAvailableFilters() {
@@ -385,6 +439,9 @@
                             const params = new URLSearchParams({
                                 page: page,
                                 per_page: this.perPage,
+                                crop_year: this.filters.cropYear,
+                                week_from: this.filters.weekFrom,
+                                week_to: this.filters.weekTo,
                                 search: this.search,
                                 sort_field: this.sortField,
                                 sort_direction: this.sortDirection,
@@ -423,6 +480,8 @@
 
                     clearFilters() {
                         this.search = '';
+                        this.filters = { cropYear: '', weekFrom: '', weekTo: '' };
+                        this.filterWeeks = [];
                         this.loadPage(1);
                     },
 

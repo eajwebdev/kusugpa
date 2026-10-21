@@ -50,18 +50,40 @@ class UploadHeaderTest extends TestCase
         $this->actingAs(new User(['fname' => 'Demo', 'role' => 'Administrator']));
     }
 
-    public function test_upload_skips_the_first_row_even_when_it_looks_numeric(): void
+    private function uploadSummary(string $csv)
     {
-        $csv = "20232024,1,111,Skip Me,10,100\n20232024,1,222,Import Me,20,200\n";
-
-        $response = $this->postJson(route('upload.csv', ['type' => 'summary']), [
+        return $this->postJson(route('upload.csv', ['type' => 'summary']), [
             'crop_year' => '20232024',
             'week_no' => '1',
             'file' => UploadedFile::fake()->createWithContent('summary.csv', $csv),
         ]);
+    }
 
-        $response->assertOk()->assertJsonPath('imported', 1);
-        $this->assertSame(['222'], DB::table('summary')->pluck('planter_code')->all());
+    public function test_first_row_is_imported_when_the_file_has_no_header(): void
+    {
+        $this->uploadSummary("20232024,1,111,First Row,10,100\n20232024,1,222,Second Row,20,200\n")
+            ->assertOk()->assertJsonPath('imported', 2);
+
+        $this->assertSame(['111', '222'], DB::table('summary')->orderBy('id')->pluck('planter_code')->all());
+    }
+
+    /** @dataProvider headerRows */
+    public function test_only_the_header_row_is_skipped(string $header): void
+    {
+        $this->uploadSummary("{$header}\n20232024,1,111,First Row,10,100\n20232024,1,222,Second Row,20,200\n")
+            ->assertOk()->assertJsonPath('imported', 2);
+
+        $this->assertSame(['111', '222'], DB::table('summary')->orderBy('id')->pluck('planter_code')->all());
+    }
+
+    public function headerRows(): array
+    {
+        return [
+            'template header' => ['crop_year,week_no,planter_code,planter_name,net_cane,net_amount'],
+            'header with BOM' => ["\xEF\xBB\xBFcrop_year,week_no,planter_code,planter_name,net_cane,net_amount"],
+            'title-case header' => ['Crop Year,Week No,Planter Code,Planter Name,Net Cane,Net Amount'],
+            'other wording' => ['CY,WK,CODE,NAME,CANE,AMOUNT'],
+        ];
     }
 
     public function test_header_only_csv_is_rejected(): void

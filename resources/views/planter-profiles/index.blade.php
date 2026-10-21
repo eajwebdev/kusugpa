@@ -456,14 +456,14 @@
                                 }
                             });
                             const d = await r.json();
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Synced!',
+                            if (!r.ok) throw new Error(d.message || 'Sync failed');
+                            await Swal.fire({
+                                icon: d.imported > 0 ? 'success' : 'info',
+                                title: d.imported > 0 ? 'Synced!' : 'Already up to date',
                                 text: d.message,
-                                timer: 2000,
-                                showConfirmButton: false
+                                confirmButtonColor: '#005B2A'
                             });
-                            setTimeout(() => location.reload(), 1500);
+                            if (d.imported > 0) location.reload();
                         } catch (e) {
                             Swal.fire({
                                 icon: 'error',

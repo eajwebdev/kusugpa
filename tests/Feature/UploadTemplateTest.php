@@ -44,6 +44,10 @@ class UploadTemplateTest extends TestCase
             ]],
             'quedan' => ['quedan', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg']],
             'molasses' => ['molasses', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'tin_no', 'mc_no', 'mol_net']],
+            'tls' => ['tls', [
+                'reference_no', 'planter_code', 'planter_name', 'assn_code', 'assn_name', 'vehicle_type', 'plate_no',
+                'tare_weight', 'gross_cane_weight', 'net_cane_wt', 'date_milled', 'trans_code', 'description', 'tdif_rate',
+            ]],
         ];
     }
 }

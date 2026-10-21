@@ -9,9 +9,8 @@ use App\Models\Hauler;
 use App\Models\HaulingLiquidation;
 use App\Models\CropYear;
 use App\Models\PlanterProfile;
-use App\Models\CashAdvanceDeduction;
-use App\Models\FuelAllowance;
 use App\Models\WeekNo;
+use App\Services\TlsHaulingLiquidationGenerator;
 use App\Models\User;
 use App\Models\AuditLog;
 use Carbon\Carbon;
@@ -266,28 +265,10 @@ class HaulingLiquidityController extends Controller
             'week_no' => 'required|string',
         ]);
 
-        $caDeductions = CashAdvanceDeduction::with('cashAdvance:id,ca_number')
-            ->where('crop_year', $data['crop_year'])
-            ->where('week_no', $data['week_no'])
-            ->whereHas('cashAdvance', fn ($q) => $q
-                ->where('planter_code', $data['planter_code'])
-                ->whereIn('status', ['approved', 'active']))
-            ->get();
-
-        $fuel = FuelAllowance::where('planter_code', $data['planter_code'])
-            ->where('crop_year', $data['crop_year'])
-            ->where('week_no', $data['week_no']);
-
-        return response()->json([
-            'cash_advance' => [
-                'amount' => round((float) $caDeductions->sum('amount'), 2),
-                'sources' => $caDeductions->map(fn ($d) => $d->cashAdvance->ca_number)->unique()->values(),
-            ],
-            'fuel' => [
-                'amount' => round((float) (clone $fuel)->sum('fuel_amount'), 2),
-                'rows' => (clone $fuel)->count(),
-            ],
-        ]);
+        // Same lookup the TLS upload uses when it generates entries
+        return response()->json(
+            TlsHaulingLiquidationGenerator::deductionsFor($data['planter_code'], $data['crop_year'], $data['week_no'])
+        );
     }
 
     // ==================== PDF SLIPS ====================
@@ -299,7 +280,7 @@ class HaulingLiquidityController extends Controller
     {
         $this->authorizeView();
 
-        $entry->load('hauler', 'items');
+        $entry->load('hauler', 'items', 'tlsTickets');
 
         return $this->renderSlips($request, collect([$entry]), 'hauling-liquidation-' . $entry->id . '.pdf');
     }
@@ -317,7 +298,7 @@ class HaulingLiquidityController extends Controller
         ]);
 
         $entries = $hauler->liquidations()
-            ->with('hauler', 'items')
+            ->with('hauler', 'items', 'tlsTickets')
             ->where('crop_year', $data['crop_year'])
             ->where('week_no', $data['week_no'])
             ->orderBy('payee_name')

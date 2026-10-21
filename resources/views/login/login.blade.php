@@ -9,7 +9,7 @@
         (function() {
             try {
                 var t = localStorage.getItem('theme');
-                if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                if (t === 'dark') { // light by default; dark only when chosen via the toggle
                     document.documentElement.classList.add('dark');
                 }
             } catch (e) {}

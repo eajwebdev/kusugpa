@@ -42,6 +42,32 @@ class HaulingLiquidation extends Model
         return $this->items()->where('type', 'add');
     }
 
+    /** TLS hauling tickets this entry was generated from */
+    public function tlsTickets()
+    {
+        return $this->hasMany(TlsHaulingUpload::class, 'hauling_liquidation_id')->orderBy('id');
+    }
+
+    /**
+     * Tickets listed on the printed slip: the linked TLS tickets, or for an entry
+     * entered by hand, that week's TLS tickets of the same plate no.
+     */
+    public function slipTickets()
+    {
+        if ($this->relationLoaded('tlsTickets') ? $this->tlsTickets->isNotEmpty() : $this->tlsTickets()->exists()) {
+            return $this->tlsTickets;
+        }
+        if (!$this->truck_code) {
+            return collect();
+        }
+
+        return TlsHaulingUpload::where('crop_year', $this->crop_year)
+            ->where('week_no', $this->week_no)
+            ->where('plate_no', $this->truck_code)
+            ->orderBy('id')
+            ->get();
+    }
+
     public function lessItems()
     {
         return $this->items()->where('type', 'less');

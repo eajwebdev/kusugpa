@@ -10,6 +10,8 @@ use App\Models\RentalAllowance;
 use App\Models\UnderloadAllowance;
 use App\Models\TransloadingAllowance;
 use App\Models\AuditLog;
+use App\Services\TlsHaulingLiquidationGenerator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\User;
 
@@ -32,6 +34,10 @@ class UploadController extends Controller
         ],
         'quedan' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg'],
         'molasses' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'tin_no', 'mc_no', 'mol_net'],
+        'tls' => [
+            'reference_no', 'planter_code', 'planter_name', 'assn_code', 'assn_name', 'vehicle_type', 'plate_no',
+            'tare_weight', 'gross_cane_weight', 'net_cane_wt', 'date_milled', 'trans_code', 'description', 'tdif_rate',
+        ],
     ];
 
     public function downloadTemplate(string $type)
@@ -59,9 +65,10 @@ class UploadController extends Controller
             'consolidated' => 'upload-consolidated',
             'quedan' => 'upload-quedan',
             'molasses' => 'upload-molasses',
+            'tls' => 'upload-tls',
         ];
 
-        $requiredPermission = $permissionMap[$type] ?? null;
+        $requiredPermission= $permissionMap[$type] ?? null;
 
         if ($requiredPermission) {
             /** @var \App\Models\User $user */
@@ -103,10 +110,25 @@ class UploadController extends Controller
                 return redirect()->back()->with('error', $message);
             }
 
+            // Liquidation slips need the week end date from Crop & Week Management
+            if ($type === 'tls' && !TlsHaulingLiquidationGenerator::weekEnding((string) $cropYear, (string) $weekNo)) {
+                $message = "Week {$weekNo} of crop year {$cropYear} has no week end date. Set it in Crop & Week Management, then upload again.";
+                if ($request->ajax() || $request->expectsJson()) {
+                    return response()->json(['error' => $message], 422);
+                }
+                return redirect()->back()->with('error', $message);
+            }
+
             $file = $request->file('file');
             $csvData = file_get_contents($file);
-            
-            $delimiter = str_contains($csvData, "\t") ? "\t" : ',';
+
+            // Drop the UTF-8 BOM Excel adds, and read ANSI exports (Ñ saved as one byte) as Windows-1252
+            $csvData = preg_replace('/^\xEF\xBB\xBF/', '', $csvData);
+            if (!mb_check_encoding($csvData, 'UTF-8')) {
+                $csvData = mb_convert_encoding($csvData, 'UTF-8', 'Windows-1252');
+            }
+
+            $delimiter= str_contains($csvData, "\t") ? "\t" : ',';
             
             Log::info('CSV Upload started', [
                 'type' => $type,
@@ -121,10 +143,13 @@ class UploadController extends Controller
                 $lines[] = str_getcsv($row, $delimiter);
             }
             
-            // Every downloadable template starts with column headings. Always treat
-            // the first nonblank CSV row as the header, regardless of its contents.
-            $header = array_shift($lines);
-            Log::info('CSV header skipped', ['header' => $header, 'data_rows' => count($lines)]);
+            // Files may come with or without the template's heading row: skip the first
+            // row only when it is a header, otherwise import it as data.
+            $hasHeader = !empty($lines) && $this->isHeaderRow($lines, $type);
+            if ($hasHeader) {
+                $header = array_shift($lines);
+                Log::info('CSV header skipped', ['header' => $header, 'data_rows' => count($lines)]);
+            }
 
             if (empty($lines)) {
                 $message = 'The CSV has no data rows. Add records below the header and try again.';
@@ -141,7 +166,7 @@ class UploadController extends Controller
             foreach ($lines as $index => $line) {
                 if (empty(array_filter($line))) continue;
 
-                $rowNumber = $index + 2;
+                $rowNumber = $index + ($hasHeader ? 2 : 1);
                 
                 $method = 'process' . ucfirst($type === 'rentals' ? 'rental' : $type) . 'Line';
                 
@@ -165,32 +190,40 @@ class UploadController extends Controller
             ]);
             
             $importedCount = 0;
-            if (!empty($batchData)) {
-                Log::info('Inserting into model', ['model' => $model, 'first_record' => $batchData[0]]);
-                
-                foreach (array_chunk($batchData, 100) as $chunk) {
-                    try {
-                        $model::insert($chunk);
-                        $importedCount += count($chunk);
-                        Log::info('Chunk inserted', ['count' => count($chunk)]);
-                    } catch (\Exception $e) {
-                        Log::error('Bulk insert failed, trying individual records', ['error' => $e->getMessage()]);
-                        foreach ($chunk as $record) {
-                            try {
-                                $model::create($record);
-                                $importedCount++;
-                            } catch (\Exception $e2) {
-                                Log::warning('Row insert failed', [
-                                    'planter' => $record['planter_name'] ?? 'unknown',
-                                    'error' => $e2->getMessage()
-                                ]);
-                                $errors[] = 'Skipped: ' . ($record['planter_name'] ?? 'unknown');
+            $liquidation = null;
+            DB::transaction(function () use ($batchData, $model, $type, $cropYear, $weekNo, $userId, &$importedCount, &$errors, &$liquidation) {
+                if (!empty($batchData)) {
+                    Log::info('Inserting into model', ['model' => $model, 'first_record' => $batchData[0]]);
+
+                    foreach (array_chunk($batchData, 100) as $chunk) {
+                        try {
+                            $model::insert($chunk);
+                            $importedCount += count($chunk);
+                            Log::info('Chunk inserted', ['count' => count($chunk)]);
+                        } catch (\Exception $e) {
+                            Log::error('Bulk insert failed, trying individual records', ['error' => $e->getMessage()]);
+                            foreach ($chunk as $record) {
+                                try {
+                                    $model::create($record);
+                                    $importedCount++;
+                                } catch (\Exception $e2) {
+                                    Log::warning('Row insert failed', [
+                                        'planter' => $record['planter_name'] ?? 'unknown',
+                                        'error' => $e2->getMessage()
+                                    ]);
+                                    $errors[] = 'Skipped: ' . ($record['planter_name'] ?? 'unknown');
+                                }
                             }
                         }
                     }
                 }
-            }
-            
+
+                // TLS hauling rows become Hauling Liquidity entries in the same transaction
+                if ($type === 'tls' && $importedCount > 0) {
+                    $liquidation = app(TlsHaulingLiquidationGenerator::class)->generate((string) $cropYear, (string) $weekNo, $userId);
+                }
+            });
+
             AuditLog::log('upload', 'uploads', 'Uploaded ' . $type . ' CSV: ' . $importedCount . ' records imported', [
                 'type' => $type,
                 'file_name' => $file->getClientOriginalName(),
@@ -203,12 +236,32 @@ class UploadController extends Controller
             if (!empty($errors)) {
                 $message .= " " . count($errors) . " records skipped.";
             }
-            
+
+            if ($liquidation) {
+                AuditLog::log('create', 'hauling_liquidity', 'Generated ' . $liquidation['entries'] . ' hauling liquidation entries from TLS upload', [
+                    'crop_year' => $cropYear,
+                    'week_no' => $weekNo,
+                    'haulers' => $liquidation['haulers'],
+                ]);
+
+                $message .= " Created {$liquidation['entries']} Hauler TLS LIQ entries for " . rtrim(implode(', ', $liquidation['haulers']), '.') . '.';
+                if (!empty($liquidation['unassigned_plates'])) {
+                    $message .= ' ' . count($liquidation['unassigned_plates']) . ' truck(s) need a payee picked on Edit (remembered for next week): '
+                        . implode(', ', array_slice($liquidation['unassigned_plates'], 0, 8))
+                        . (count($liquidation['unassigned_plates']) > 8 ? ', ...' : '') . '.';
+                }
+                if (!empty($liquidation['suspect_plates'])) {
+                    $message .= ' Check plate no. ' . implode(', ', $liquidation['suspect_plates'])
+                        . ' (Excel may have turned the plate into a date).';
+                }
+            }
+
             if ($request->ajax() || $request->expectsJson()) {
                 return response()->json([
                     'message' => $message,
                     'imported' => $importedCount,
-                    'errors' => count($errors)
+                    'errors' => count($errors),
+                    'liquidations' => $liquidation['entries'] ?? null,
                 ]);
             }
             
@@ -228,6 +281,39 @@ class UploadController extends Controller
             
             return redirect()->back()->with('error', 'Failed to upload CSV: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * The first row is a header when it carries the template's column names (e.g. "planter_code"
+     * or "Planter Code"), or when its planter code cell is text while the next row's is a number.
+     */
+    private function isHeaderRow(array $lines, string $type): bool
+    {
+        $columns = array_map([$this, 'normalizeHeading'], self::TEMPLATE_COLUMNS[$type] ?? []);
+        $cells = array_map([$this, 'normalizeHeading'], $lines[0]);
+        $nonEmpty = array_filter($cells, fn ($c) => $c !== '');
+
+        if (empty($nonEmpty) || empty($columns)) {
+            return false;
+        }
+
+        if (count(array_intersect($nonEmpty, $columns)) >= min(2, count($nonEmpty))) {
+            return true;
+        }
+
+        $codeIndex = array_search('planter_code', $columns, true);
+        if ($codeIndex === false) {
+            return false;
+        }
+        $isCode = fn ($row) => is_numeric(trim((string) ($row[$codeIndex] ?? '')));
+        $firstCode = trim((string) ($lines[0][$codeIndex] ?? ''));
+
+        return $firstCode !== '' && !$isCode($lines[0]) && (!isset($lines[1]) || $isCode($lines[1]));
+    }
+
+    private function normalizeHeading($value): string
+    {
+        return trim(preg_replace('/[^a-z0-9]+/', '_', strtolower(trim((string) $value))), '_');
     }
 
     private function checkDuplicate($type, $record, $model)
@@ -464,6 +550,7 @@ class UploadController extends Controller
             'consolidated' => \App\Models\ConsolidatedUpload::class,
             'quedan' => \App\Models\Quedan::class,
             'molasses' => \App\Models\Molass::class,
+            'tls' => \App\Models\TlsHaulingUpload::class,
         ];
         
         if (!isset($models[$type])) {
@@ -582,6 +669,51 @@ private function processMolassesLine($line, $index, $userId)
             'tin_no' => trim($line[4]),
             'mc_no' => trim($line[5]),
             'mol_net' => (float) str_replace(',', '', trim($line[6])),
+            'user_id' => $userId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]
+    ];
+}
+
+private function processTlsLine($line, $index, $userId)
+{
+    if (count($line) < 14) {
+        return ['success' => false, 'error' => "Line {$index}: Expected 14 columns, got " . count($line)];
+    }
+
+    $clean = fn ($value) => trim(preg_replace('/\s+/u', ' ', preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', (string) $value)));
+    // Weights edited in Excel can turn into dates ("Jan-00"); keep those as 0 instead of failing the row
+    $number = fn ($value) => is_numeric($v = str_replace(',', '', trim((string) $value))) ? (float) $v : 0.0;
+
+    $planterCode = trim($line[1]);
+    $netCane = str_replace(',', '', trim($line[9]));
+
+    if ($planterCode === '') {
+        return ['success' => false, 'error' => "Line {$index}: Missing planter_code"];
+    }
+    if (!is_numeric($netCane)) {
+        return ['success' => false, 'error' => "Line {$index}: net_cane_wt is not a number"];
+    }
+
+    return [
+        'success' => true,
+        'data' => [
+            'reference_no' => trim($line[0]),
+            'planter_code' => $planterCode,
+            'planter_name' => $clean($line[2]),
+            'assn_code' => trim($line[3]),
+            'assn_name' => $clean($line[4]),
+            'vehicle_type' => trim($line[5]),
+            'plate_no' => strtoupper($clean($line[6])),
+            'tare_weight' => $number($line[7]),
+            'gross_cane_weight' => $number($line[8]),
+            'net_cane_wt' => (float) $netCane,
+            'date_milled' => trim($line[10]),
+            'trans_code' => trim($line[11]),
+            'description' => $clean($line[12]),
+            'tdif_rate' => $number($line[13]),
+            'hauling_liquidation_id' => null,
             'user_id' => $userId,
             'created_at' => now(),
             'updated_at' => now(),

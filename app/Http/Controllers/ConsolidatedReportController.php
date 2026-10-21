@@ -16,26 +16,18 @@ class ConsolidatedReportController extends Controller
     
     $perPage = $request->get('per_page', 50);
     
-    $query = ConsolidatedUpload::orderBy('planter_name');
-    
-    // Apply search
-    if ($request->search) {
-        $search = $request->search;
-        $query->where(function($q) use ($search) {
-            $q->where('planter_name', 'like', "%{$search}%")
-              ->orWhere('planter_code', 'like', "%{$search}%")
-              ->orWhere('assn_name', 'like', "%{$search}%");
-        });
-    }
+    $query = ConsolidatedUpload::query();
+    $this->applyFilters($query, $request);
     
     // Apply sorting
     $sortField = $request->get('sort_field', 'planter_name');
     $sortDirection = $request->get('sort_direction', 'asc');
     $allowedFields = ['planter_code', 'planter_name', 'crop_year', 'week_no', 'ta_wt', 'ta_amount', 'emi_wt', 'emi_amount', 'pat_wt', 'pat_amount', 'cci_fa_amt', 'cci_fb_amt', 'cci_fc_amt', 'fuel_issuance_amt', 'rental_amt', 'underload_amt', 'mudpress_amt', 'adj_amt', 'total_summary'];
     
-    if (in_array($sortField, $allowedFields)) {
-        $query->orderBy($sortField, $sortDirection === 'asc' ? 'asc' : 'desc');
+    if (!in_array($sortField, $allowedFields)) {
+        $sortField = 'planter_name';
     }
+    $query->orderBy($sortField, $sortDirection === 'asc' ? 'asc' : 'desc');
     
     $uploads = $query->paginate($perPage);
     
@@ -66,25 +58,51 @@ class ConsolidatedReportController extends Controller
     return view('reports.consolidated', compact('uploads', 'totals'));
 }
     
-    public function exportPDF(Request $request)
+    /**
+     * Apply crop year, week range and search filters (same logic as the summary report)
+     */
+    private function applyFilters($query, Request $request)
     {
-        $query = ConsolidatedUpload::orderBy('planter_name');
-        
-        if ($request->search) {
-            $search = $request->search;
+        $cropYear = $request->get('crop_year');
+        $weekFrom = $request->get('week_from');
+        $weekTo = $request->get('week_to');
+        $search = $request->get('search');
+
+        if ($cropYear) {
+            $query->where('crop_year', $cropYear);
+        }
+        // week_no is stored as a string, so compare numerically
+        if ($weekFrom && $weekTo) {
+            $query->whereRaw('CAST(week_no AS UNSIGNED) BETWEEN ? AND ?', [(int) $weekFrom, (int) $weekTo]);
+        } elseif ($weekFrom) {
+            $query->whereRaw('CAST(week_no AS UNSIGNED) >= ?', [(int) $weekFrom]);
+        } elseif ($weekTo) {
+            $query->whereRaw('CAST(week_no AS UNSIGNED) <= ?', [(int) $weekTo]);
+        }
+        if ($search) {
             $query->where(function($q) use ($search) {
                 $q->where('planter_name', 'like', "%{$search}%")
                   ->orWhere('planter_code', 'like', "%{$search}%")
                   ->orWhere('assn_name', 'like', "%{$search}%");
             });
         }
+
+        return $query;
+    }
+
+    public function exportPDF(Request $request)
+    {
+        $query = ConsolidatedUpload::orderBy('planter_name');
+        $this->applyFilters($query, $request);
         
         $uploads = $query->take(500)->get();
         
         $preview = $request->boolean('preview');
 
         AuditLog::log($preview ? 'view' : 'export', 'reports', $preview ? 'Previewed consolidated report PDF' : 'Exported consolidated report PDF', [
-            'records' => $uploads->count()
+            'records' => $uploads->count(),
+            'crop_year' => $request->crop_year,
+            'weeks' => $request->week_from . ' - ' . $request->week_to,
         ]);
         
         $pdf = Pdf::loadView('pdf.consolidated-report', [

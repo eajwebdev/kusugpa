@@ -152,6 +152,35 @@
             border-top: 1px solid #111;
             border-bottom: 3px double #111;
         }
+
+        /* TLS tickets behind the slip, printed like the mill's transloading summary */
+        .tickets {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 7.5pt;
+            margin-bottom: 14px;
+        }
+
+        .tickets th {
+            font-size: 7pt;
+            font-weight: bold;
+            border-bottom: 0.8px solid #111;
+            padding: 2px 3px;
+            vertical-align: bottom;
+        }
+
+        .tickets td {
+            padding: 1.5px 3px;
+        }
+
+        .tickets .subtotal td {
+            font-weight: bold;
+            padding-top: 2px;
+            padding-bottom: 5px;
+        }
+
+        .tickets .subtotal td.line {
+            border-top: 0.8px solid #111;
+        }
     </style>
 </head>
 
@@ -161,7 +190,52 @@
             $addItems = $entry->items->where('type', 'add')->values();
             $lessItems = $entry->items->where('type', 'less')->values();
         @endphp
+        @php
+            $tickets = $entry->slipTickets();
+            $assnNames = $tickets->pluck('assn_name')->unique();
+            $rates = $tickets->pluck('tdif_rate')->map(fn ($r) => (float) $r)->unique();
+        @endphp
         <div class="{{ $loop->last ? '' : 'page-break' }}">
+            <!-- TLS tickets covered by this liquidation -->
+            @if ($tickets->isNotEmpty())
+                <table class="tickets">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%; text-align: left">Hda Ticket</th>
+                            <th style="width: 8%; text-align: center">Planter Code</th>
+                            <th style="width: 30%; text-align: left">Planter Name</th>
+                            <th style="width: 10%; text-align: left">Plate No</th>
+                            <th style="width: 10%" class="num">Gross Cane Wt</th>
+                            <th style="width: 10%" class="num">Net Cane Wt</th>
+                            <th style="width: 17%" class="num">Date Milled</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($tickets as $ticket)
+                            <tr>
+                                <td>{{ $ticket->ticket_no }}</td>
+                                <td style="text-align: center">{{ $ticket->planter_code }}</td>
+                                <td>{{ $ticket->planter_name }}</td>
+                                <td>{{ $ticket->plate_no }}</td>
+                                <td class="num">{{ number_format($ticket->gross_cane_weight, 3) }}</td>
+                                <td class="num">{{ number_format($ticket->net_cane_wt, 3) }}</td>
+                                <td class="num">{{ $ticket->date_milled_label }}</td>
+                            </tr>
+                        @endforeach
+                        <!-- One total for the truck; net cane weight = tonnage on the slip -->
+                        <tr class="subtotal">
+                            <td>{{ $assnNames->count() === 1 ? $assnNames->first() : 'TOTAL' }}</td>
+                            <td colspan="3" style="text-align: right">Total No. of Records: &nbsp; {{ $tickets->count() }}</td>
+                            <td class="num line">{{ number_format($tickets->sum('gross_cane_weight'), 3) }}</td>
+                            <td class="num line">{{ number_format($tickets->sum('net_cane_wt'), 3) }}</td>
+                            <td class="num line">
+                                {{ $rates->count() === 1 ? number_format($rates->first(), 2) : '' }}&nbsp;&nbsp;{{ number_format($tickets->sum('tdif_rate'), 2) }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            @endif
+
             <!-- Header -->
             <div class="org">KABANKALAN UNITED SUGAR PLANTERS ASSOCIATION, INC. (KUSUG-PA)</div>
             <div class="hauler">{{ $entry->hauler->name }}</div>
@@ -180,9 +254,6 @@
                 <tr>
                     <td class="lbl">Date Released</td>
                     <td class="val">{{ $date($entry->date_released) }}</td>
-                    <td></td>
-                    <td class="lbl">Check No.</td>
-                    <td class="val">{{ $entry->check_no }}</td>
                 </tr>
                 <tr>
                     <td class="lbl">Payee</td>
@@ -208,7 +279,7 @@
                         <td class="section">Hauling</td>
                         <td>
                             Gross Hauling Amount<br>
-                            <span class="muted" style="font-size: 8pt">Truck / Hauler Code: {{ $entry->truck_code ?: '—' }}</span>
+                            <span class="muted" style="font-size: 8pt">Plate #: {{ $entry->truck_code ?: '—' }}</span>
                         </td>
                         <td class="num">{{ number_format($entry->tonnage, 3) }}</td>
                         <td class="num">{{ number_format($entry->rate_per_ton, 2) }}</td>

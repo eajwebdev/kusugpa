@@ -47,6 +47,11 @@
                 class="kp-btn kp-btn-primary text-xs py-2 disabled:opacity-40">
                 <i class="fas fa-search mr-1.5" aria-hidden="true"></i> Load Quedans
             </button>
+            <div class="relative w-full sm:w-64">
+                <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[#52705F] dark:text-[#8AA895] pointer-events-none" aria-hidden="true"></i>
+                <input type="text" x-model="search" @input="currentPage = 1" :disabled="data.length === 0"
+                    class="kp-input w-full pl-7 py-1.5 text-xs disabled:opacity-40" placeholder="Search planter, code or QDN #...">
+            </div>
             <div class="flex-1"></div>
             <div class="flex items-center gap-2" x-show="stats.total > 0" x-cloak>
                 <span class="kp-badge text-xs py-1 px-2.5">Total: <strong class="ml-1" x-text="stats.total"></strong></span>
@@ -108,6 +113,9 @@
                             </td>
                         </tr>
                     </template>
+                    <tr x-show="data.length > 0 && filteredData.length === 0" x-cloak>
+                        <td colspan="8" class="py-10 text-center text-xs text-[#52705F] dark:text-[#8AA895]">No records match your search.</td>
+                    </tr>
                     <tr x-show="data.length === 0" x-cloak>
                         <td colspan="8" class="py-12 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
                             <i class="fas fa-filter text-2xl mb-2 text-[#8AA895] block"></i>
@@ -138,12 +146,22 @@
             selectedIds: [],
             currentPage: 1,
             perPage: 25,
+            search: '',
 
+            get filteredData() {
+                const term = this.search.trim().toLowerCase();
+                if (!term) return this.data;
+                return this.data.filter(r =>
+                    String(r.planter_name || '').toLowerCase().includes(term) ||
+                    String(r.planter_code || '').toLowerCase().includes(term) ||
+                    String(r.qdn_no || '').toLowerCase().includes(term)
+                );
+            },
             get paginatedData() {
                 const start = (this.currentPage - 1) * this.perPage;
-                return this.data.slice(start, start + this.perPage);
+                return this.filteredData.slice(start, start + this.perPage);
             },
-            get totalPages() { return Math.max(1, Math.ceil(this.data.length / this.perPage)); },
+            get totalPages() { return Math.max(1, Math.ceil(this.filteredData.length / this.perPage)); },
             get isAllSelected() {
                 return this.paginatedData.length > 0 && this.paginatedData.every(r => this.selectedIds.includes(r.id));
             },
