@@ -6,11 +6,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Models\AuditLog;
+use App\Models\ConsolidatedUpload;
 use App\Models\CropYear;
 use App\Models\Molass;
 use App\Models\PlanterProfile;
 use App\Models\Quedan;
-use App\Models\Summary;
 use App\Models\SystemSetting;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -18,7 +18,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
  * Production Certification — certifies a planter's crop-year production.
  *
  * Figures come from the weekly mill uploads:
- *   Net Tons        = SUM(summary.net_cane)
+ *   Net Tons        = SUM(consolidated_uploads.ta_wt)   (TA Wt on the Consolidated Report)
  *   Gross Sugar LKG = SUM(quedans.sugar_lkg)
  *   Net Sugar LKG   = SUM(quedans.sugar_lkg - quedans.labor_lkg)   (same net LKG the voucher uses)
  *   Net Molasses MT = SUM(molasses.mol_net)
@@ -133,9 +133,9 @@ class CertificationController extends Controller
     {
         $scope = fn ($query) => $cropYear ? $query->where('crop_year', $cropYear) : $query;
 
-        $cane = $scope(Summary::query())
+        $cane = $scope(ConsolidatedUpload::query())
             ->select('crop_year', 'planter_code', DB::raw('MAX(planter_name) as planter_name'),
-                DB::raw('SUM(CAST(net_cane AS DECIMAL(14,3))) as net_tons'))
+                DB::raw('SUM(CAST(ta_wt AS DECIMAL(14,3))) as net_tons'))
             ->groupBy('crop_year', 'planter_code')
             ->get();
 

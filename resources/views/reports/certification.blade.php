@@ -182,7 +182,7 @@
                         <tr x-show="!loading && filteredPlanters.length === 0" x-cloak>
                             <td colspan="9" class="py-12 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
                                 <i class="fas fa-folder-open text-2xl mb-2 text-[#8AA895] block"></i>
-                                <span x-text="planters.length === 0 ? 'No summary, quedan or molasses records for this crop year.' : 'No planters match your search.'"></span>
+                                <span x-text="planters.length === 0 ? 'No consolidated, quedan or molasses records for this crop year.' : 'No planters match your search.'"></span>
                             </td>
                         </tr>
                     </tbody>
@@ -191,7 +191,7 @@
 
             <div class="px-5 py-3 border-t border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324] text-[11px] text-[#52705F] dark:text-[#8AA895] leading-relaxed">
                 <i class="fas fa-info-circle mr-1 text-[#087A3D]" aria-hidden="true"></i>
-                Net Tons = Summary net cane · Gross Sugar = Quedan sugar LKG · Net Sugar = Quedan sugar LKG − labor LKG · Net Mol = Molasses net.
+                Net Tons = Consolidated Report TA Wt · Gross Sugar = Quedan sugar LKG · Net Sugar = Quedan sugar LKG − labor LKG · Net Mol = Molasses net.
                 "Data Check" flags planters missing one of those uploads, so the certificate would show 0 for it.
             </div>
         </div>
@@ -237,7 +237,7 @@
                         return Object.values(byPlanter).map(p => ({
                             ...p,
                             missing: [
-                                p.net_tons === 0 ? 'summary' : null,
+                                p.net_tons === 0 ? 'consolidated' : null,
                                 p.gross_lkg === 0 ? 'quedan' : null,
                                 p.net_mol === 0 ? 'molasses' : null,
                             ].filter(Boolean),

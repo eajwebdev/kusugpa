@@ -174,6 +174,11 @@
                     <option value="{{ $code }}"></option>
                 @endforeach
             </datalist>
+            <datalist id="payee-names">
+                @foreach ($payeeNames as $name)
+                    <option value="{{ $name }}"></option>
+                @endforeach
+            </datalist>
 
             <!-- Hauling Liquidation Entry Modal -->
             <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
@@ -196,10 +201,6 @@
                             <div x-show="cropYears.length === 0" class="kp-alert kp-alert-warn text-sm">
                                 No crop years are set up yet. Add the crop year and its weeks in
                                 <a href="{{ route('crop-weeks.index') }}" class="font-semibold underline">Crop &amp; Week Management</a> first.
-                            </div>
-                            <div x-show="planters.length === 0" class="kp-alert kp-alert-warn text-sm">
-                                No planters to choose as payee yet. Add or sync planters in
-                                <a href="{{ route('planter-profiles.index') }}" class="font-semibold underline">Planter Profiles</a> first.
                             </div>
 
                             <!-- Period & references -->
@@ -248,16 +249,10 @@
                             <div class="grid grid-cols-2 md:grid-cols-12 gap-3">
                                 <div class="col-span-2 md:col-span-4">
                                     <label for="hl-payee" class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Payee Name *</label>
-                                    <select id="hl-payee" x-model="form.planter_code" @change="loadAutoDeductions()" required class="kp-select w-full">
-                                        <option value="">Select planter…</option>
-                                        <template x-for="p in planters" :key="p.planter_code">
-                                            <option :value="p.planter_code" x-text="planterLabel(p)" :selected="p.planter_code === form.planter_code"></option>
-                                        </template>
-                                    </select>
-                                    <p x-show="editingEntry && !form.planter_code" class="text-[11px] mt-1 text-red-500"
-                                        x-text="editingEntry && editingEntry.payee_name
-                                            ? 'Was entered as “' + editingEntry.payee_name + '” — pick the matching planter.'
-                                            : 'Pick the payee (truck owner) for plate ' + (form.truck_code || '') + '. Next week’s upload remembers it.'"></p>
+                                    <input type="text" id="hl-payee" x-model="form.payee_name" @change="loadAutoDeductions()" list="payee-names"
+                                        required maxlength="255" placeholder="Hauler / driver name" class="kp-input w-full">
+                                    <p x-show="editingEntry && !form.payee_name.trim()" class="text-[11px] mt-1 text-red-500"
+                                        x-text="'Enter the payee (hauler / driver) for plate ' + (form.truck_code || '') + '. Next week’s upload remembers it.'"></p>
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Plate #</label>
@@ -391,7 +386,7 @@
                             crop_year: latest ? latest.crop_year : (this.cropYears[0] || ''),
                             week_no: latest ? String(latest.week_no) : '',
                             date_released: '',
-                            planter_code: '',
+                            payee_name: '',
                             cv_no: '',
                             check_no: '',
                             truck_code: '',
@@ -426,13 +421,9 @@
                         cy = String(cy || '');
                         return /^\d{8}$/.test(cy) ? cy.slice(0, 4) + ' – ' + cy.slice(4) : cy;
                     },
-                    planterLabel(p) {
-                        const status = p.status && p.status !== 'active' ? ' (' + p.status + ')' : '';
-                        return p.planter_name + ' · ' + p.planter_code + status;
-                    },
-                    // Entries saved before payees came from Planter Profiles only have a typed name
+                    // A payee whose name matches a planter gets that planter's Cash Adv. / Fuel deductions
                     planterCodeByName(name) {
-                        const n = String(name || '').trim().toLowerCase();
+                        const n = String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
                         const match = n && this.planters.find(p => p.planter_name.trim().toLowerCase() === n);
                         return match ? match.planter_code : '';
                     },
@@ -471,9 +462,10 @@
                         return this.round2(this.grossAmount + this.totalOf('add_items') - this.totalOf('less_items'));
                     },
                     // Fill "Cash Adv." (deduction weeks set on All Cash Advances) and "Fuel Account" (Fuel Allowance upload)
-                    // for the chosen planter + week. Runs only when the user changes payee or week, so saved amounts are never overwritten on open.
+                    // when the payee is a planter. Runs only when the user changes payee or week, so saved amounts are never overwritten on open.
                     async loadAutoDeductions() {
-                        const { planter_code, crop_year, week_no } = this.form;
+                        const { crop_year, week_no } = this.form;
+                        const planter_code = this.planterCodeByName(this.form.payee_name);
                         const token = ++this.autoRequest;
                         this.autoInfo = null;
                         if (!planter_code || !crop_year || !week_no) return;
@@ -526,7 +518,7 @@
                             crop_year: entry.crop_year,
                             week_no: String(entry.week_no),
                             date_released: entry.date_released ? String(entry.date_released).slice(0, 10) : '',
-                            planter_code: entry.planter_code || this.planterCodeByName(entry.payee_name),
+                            payee_name: entry.payee_name || '',
                             cv_no: entry.cv_no || '',
                             check_no: entry.check_no || '',
                             truck_code: entry.truck_code || '',

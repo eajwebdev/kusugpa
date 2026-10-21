@@ -103,7 +103,7 @@ class TlsHaulingLiquidationGenerator
             ->where(fn ($q) => $q->where('crop_year', '!=', $cropYear)->orWhere('week_no', '!=', $weekNo))
             ->orderBy('id')
             ->get(['truck_code', 'planter_code', 'payee_name', 'rate_per_ton']);
-        $lastPayee = $previous->filter(fn ($e) => $e->planter_code)->keyBy(fn ($e) => self::plateKey($e->truck_code));
+        $lastPayee = $previous->filter(fn ($e) => trim((string) $e->payee_name) !== '')->keyBy(fn ($e) => self::plateKey($e->truck_code));
         $lastRate = $previous->filter(fn ($e) => (float) $e->rate_per_ton > 0)->keyBy(fn ($e) => self::plateKey($e->truck_code));
 
         // Payees that already have a slip this week keep their deductions where they are
@@ -142,10 +142,11 @@ class TlsHaulingLiquidationGenerator
         foreach ($groups as $group) {
             $plateKey = self::plateKey($group['plate_no']);
             $payee = $lastPayee[$plateKey] ?? null;
-            $profile = $payee ? ($profiles[self::codeKey($payee->planter_code)] ?? null) : null;
+            $profile = $payee && $payee->planter_code ? ($profiles[self::codeKey($payee->planter_code)] ?? null) : null;
             $lessAmounts = array_fill_keys(self::LESS_ROWS, 0.0);
 
-            if ($payee && !isset($deductedPayees[self::codeKey($payee->planter_code)])) {
+            // Only payees linked to a planter have cash advances / fuel to deduct
+            if ($payee && $payee->planter_code && !isset($deductedPayees[self::codeKey($payee->planter_code)])) {
                 $deductions = self::deductionsFor($profile->planter_code ?? $payee->planter_code, $cropYear, $weekNo);
                 $lessAmounts['Cash Adv.'] = $deductions['cash_advance']['amount'];
                 $lessAmounts['Fuel Account'] = $deductions['fuel']['amount'];
@@ -167,8 +168,8 @@ class TlsHaulingLiquidationGenerator
                 'crop_year' => $cropYear,
                 'week_no' => $weekNo,
                 'week_ending' => $weekEnding,
-                'planter_code' => $payee ? ($profile->planter_code ?? $payee->planter_code) : null,
-                'payee_name' => $payee ? ($profile->planter_name ?? $payee->payee_name) : '',
+                'planter_code' => $payee && $payee->planter_code ? ($profile->planter_code ?? $payee->planter_code) : null,
+                'payee_name' => $payee ? $payee->payee_name : '',
                 'truck_code' => $group['plate_no'],
                 'tonnage' => $group['tonnage'],
                 'rate_per_ton' => $group['rate'],
