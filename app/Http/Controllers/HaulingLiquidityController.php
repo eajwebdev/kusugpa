@@ -180,13 +180,17 @@ class HaulingLiquidityController extends Controller
                 'week_end_date' => $w->week_end_date ? Carbon::parse($w->week_end_date)->toDateString() : null,
             ]);
 
-        // Payees come from Planter Profiles (/planter-profiles)
+        // Payees are typed (hauler / driver / truck owner); a name matching a planter links it for Cash Adv. and Fuel deductions
         $planters = PlanterProfile::orderBy('planter_name')->get(['planter_code', 'planter_name', 'status']);
+        $payeeNames = HaulingLiquidation::where('payee_name', '!=', '')
+            ->distinct()
+            ->orderBy('payee_name')
+            ->pluck('payee_name');
         $truckCodes = $entries->pluck('truck_code')->filter()->unique()->sort()->values();
         $canManage = $this->canManage();
 
         return view('hauling-liquidity.show', compact(
-            'hauler', 'entries', 'cropYears', 'weeks', 'planters', 'truckCodes', 'canManage'
+            'hauler', 'entries', 'cropYears', 'weeks', 'planters', 'payeeNames', 'truckCodes', 'canManage'
         ));
     }
 
@@ -326,7 +330,7 @@ class HaulingLiquidityController extends Controller
             'crop_year' => 'required|string|exists:crop_year,crop_year',
             'week_no' => 'required|string',
             'date_released' => 'nullable|date',
-            'planter_code' => 'required|string|exists:planter_profiles,planter_code',
+            'payee_name' => 'required|string|max:255',
             'cv_no' => 'nullable|string|max:50',
             'check_no' => 'nullable|string|max:50',
             'truck_code' => 'nullable|string|max:50',
@@ -339,8 +343,7 @@ class HaulingLiquidityController extends Controller
             'less_items.*.description' => 'required|string|max:255',
             'less_items.*.amount' => 'required|numeric',
         ], [
-            'planter_code.required' => 'Select the payee from Planter Profiles.',
-            'planter_code.exists' => 'The selected payee is no longer in Planter Profiles. Choose another planter.',
+            'payee_name.required' => 'Enter the payee name.',
         ]);
 
         $week = WeekNo::where('crop_year', $data['crop_year'])
@@ -353,7 +356,9 @@ class HaulingLiquidityController extends Controller
             ]);
         }
 
-        $planter = PlanterProfile::where('planter_code', $data['planter_code'])->first();
+        // Link to a planter only when the typed name matches one, so their Cash Adv. / Fuel still apply
+        $payeeName = trim(preg_replace('/\s+/', ' ', $data['payee_name']));
+        $planter = PlanterProfile::whereRaw('LOWER(TRIM(planter_name)) = ?', [mb_strtolower($payeeName)])->first();
 
         $addItems = collect($data['add_items'] ?? []);
         $lessItems = collect($data['less_items'] ?? []);
@@ -367,8 +372,8 @@ class HaulingLiquidityController extends Controller
             'week_no' => $data['week_no'],
             'week_ending' => Carbon::parse($week->week_end_date)->toDateString(),
             'date_released' => $data['date_released'] ?? null,
-            'planter_code' => $planter->planter_code,
-            'payee_name' => $planter->planter_name, // snapshot of the name as printed on the slip
+            'planter_code' => $planter?->planter_code,
+            'payee_name' => $payeeName, // name as printed on the slip
             'cv_no' => $data['cv_no'] ?? null,
             'check_no' => $data['check_no'] ?? null,
             'truck_code' => $data['truck_code'] ?? null,
