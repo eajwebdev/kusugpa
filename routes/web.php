@@ -39,6 +39,9 @@ Route::get('/', function () {
     return view('landing');
 });
 
+// Logout: open to any signed-in user (any role, or none) and to an expired session
+Route::match(['get', 'post'], '/logout', [LoginAuthController::class, 'logout'])->name('logout');
+
 // Guest Routes
 Route::middleware(['guest'])->group(function () {
     Route::get('/login', [LoginAuthController::class, 'getLogin'])->name('getLogin');
@@ -58,10 +61,7 @@ Route::get('/home', function () {
 });
 
 // Authenticated Routes
-Route::middleware(['login_auth'])->group(function () {
-    // Logout
-    Route::get('/logout', [LoginAuthController::class, 'logout'])->name('logout');
-
+Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [MenuController::class, 'dashboard'])->name('dashboard');
 

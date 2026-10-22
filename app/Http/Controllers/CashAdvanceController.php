@@ -65,7 +65,10 @@ class CashAdvanceController extends Controller
     public function __construct()
     {
         $this->middleware(function ($request, $next) {
-            if ($this->currentRole() === 'Viewer') {
+            if ($this->currentRole() === 'Viewer' && !$this->user()->hasAnyPermission([
+                'access-all-cash-advances', 'create-cash-advances', 'approve-cash-advances',
+                'process-cash-advance-payments', 'manage-cash-advance-settings',
+            ])) {
                 if (!in_array($request->route()->getName(), ['cash-advances.index', 'cash-advances.show'])) {
                     return redirect()->route('cash-advances.index')
                         ->with('error', 'You only have view access to cash advances.');

@@ -2,10 +2,10 @@
 <div x-show="showPermissionsModal" x-transition class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" x-cloak>
     <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
         <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showPermissionsModal = false"></div>
-        <div class="kp-modal relative inline-block w-full max-w-2xl overflow-hidden text-left align-middle shadow-2xl">
+        <div class="kp-modal relative inline-block w-full max-w-3xl overflow-hidden text-left align-middle shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="permissions-title" @keydown.escape.window="showPermissionsModal = false">
             <div class="px-6 py-4 border-b border-[#E3EBE5] dark:border-[#203A2B] flex items-center justify-between bg-[#F7FAF8] dark:bg-[#1A3324]">
                 <div>
-                    <h3 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Access Rights & Delegation</h3>
+                    <h3 id="permissions-title" class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Access Rights & Delegation</h3>
                     <p class="text-xs text-[#52705F] dark:text-[#8AA895]">
                         Configure allowed module operations for <strong class="text-[#005B2A] dark:text-[#52C97E]" x-text="selectedUser?.fname + ' ' + selectedUser?.lname"></strong>
                     </p>
@@ -16,10 +16,13 @@
             </div>
             <div class="p-6">
                 <div class="flex items-center justify-between mb-4 pb-3 border-b border-[#E3EBE5] dark:border-[#203A2B]">
-                    <span class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Module Permissions</span>
+                    <div>
+                        <span class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Menu Access</span>
+                        <p class="text-xs text-[#52705F] dark:text-[#8AA895] mt-1">Choose All to allow every item in a menu, or select only the specific items this user can open.</p>
+                    </div>
                     <div class="flex items-center gap-2">
                         <button type="button" @click="selectAllPermissions()" class="kp-btn kp-btn-secondary text-xs py-1 px-2.5">
-                            <i class="fas fa-check-double mr-1" aria-hidden="true"></i> Select All
+                            <i class="fas fa-check-double mr-1" aria-hidden="true"></i> Grant All
                         </button>
                         <button type="button" @click="deselectAllPermissions()" class="kp-btn kp-btn-secondary text-xs py-1 px-2.5 text-rose-600">
                             <i class="fas fa-times-circle mr-1" aria-hidden="true"></i> Clear All
@@ -27,23 +30,30 @@
                     </div>
                 </div>
 
-                <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
-                    <template x-for="perm in availablePermissions" :key="perm.slug">
-                        <label class="flex items-center justify-between p-3 rounded-xl border border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#13231B] hover:border-[#005B2A] dark:hover:border-[#52C97E] transition cursor-pointer group">
+                <div class="space-y-5 max-h-[60vh] overflow-y-auto pr-1">
+                    <template x-for="group in groupedPermissions()" :key="group.key">
+                        <section>
+                            <h4 class="text-sm font-semibold text-[#172B20] dark:text-[#EAF5ED] mb-2" x-text="group.label"></h4>
+                            <div class="space-y-2">
+                    <template x-for="perm in group.permissions" :key="perm.slug">
+                        <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#13231B] hover:border-[#005B2A] dark:hover:border-[#52C97E] transition cursor-pointer group" :class="{ 'opacity-60': perm.slug !== group.all && isGroupAllGranted(group) }">
                             <div class="flex items-start gap-3">
                                 <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm flex-shrink-0">
                                     <i :class="getPermissionIcon(perm.slug)"></i>
                                 </div>
                                 <div>
-                                    <p class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED]" x-text="perm.label"></p>
+                                    <p class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED]" x-text="perm.slug === group.all ? 'All ' + group.label : perm.label"></p>
                                     <p class="text-[11px] text-[#52705F] dark:text-[#8AA895] mt-0.5" x-text="perm.description"></p>
                                 </div>
                             </div>
                             <div class="relative flex-shrink-0">
-                                <input type="checkbox" :checked="perm.granted" @change="togglePermission(perm)" class="sr-only peer">
+                                <input type="checkbox" :checked="perm.granted || (perm.slug !== group.all && isGroupAllGranted(group))" :disabled="perm.slug !== group.all && isGroupAllGranted(group)" @change="changePermission(perm, group, $event.target.checked)" :aria-label="perm.label" class="sr-only peer">
                                 <div class="w-11 h-6 bg-[#CFDCD3] dark:bg-[#203A2B] rounded-full peer peer-checked:bg-[#005B2A] transition-all duration-200 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-all after:duration-200 peer-checked:after:translate-x-full"></div>
                             </div>
                         </label>
+                    </template>
+                            </div>
+                        </section>
                     </template>
                 </div>
 

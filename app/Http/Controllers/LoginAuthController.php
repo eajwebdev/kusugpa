@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log; 
+use App\Models\AuditLog;
 use App\Models\User;
 
 class LoginAuthController extends Controller
@@ -72,11 +73,23 @@ class LoginAuthController extends Controller
         return redirect()->route('dashboard')->with('success', 'Signed in as demo ' . $user->role . '.');
     }
 
+    /**
+     * Sign out whoever is signed in, whatever their role; an expired session just lands on the start page
+     */
     public function logout(Request $request)
     {
-        auth()->guard('web')->logout();
+        if (auth()->guard('web')->check()) {
+            AuditLog::log('logout', 'auth', 'Signed out');
+            auth()->guard('web')->logout();
+        }
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'You have successfully logged out.']);
+        }
+
         return redirect('/')->with('success', 'You have successfully logged out.');
     }
 
