@@ -15,7 +15,12 @@ class CashAdvanceDeduction extends Model
         'cash_advance_id',
         'crop_year',
         'week_no',
+        'due_date',
         'amount',
+    ];
+
+    protected $casts = [
+        'due_date' => 'date:Y-m-d',
     ];
 
     public function cashAdvance()

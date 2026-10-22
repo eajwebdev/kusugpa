@@ -2,7 +2,7 @@
 <div x-show="showNewLoanModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" x-data="newLoanForm()" x-cloak>
     <div class="kp-viewport-modal-layout flex items-center justify-center">
         <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" @click="showNewLoanModal = false"></div>
-        <div class="kp-modal kp-viewport-modal-panel relative max-w-2xl w-full p-4 sm:p-6 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="new-loan-modal-title" @keydown.escape.window="showNewLoanModal = false">
+        <div class="kp-modal kp-viewport-modal-panel relative max-w-3xl w-full p-4 sm:p-6 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="new-loan-modal-title" @keydown.escape.window="showNewLoanModal = false">
             <div class="flex items-center justify-between pb-3 mb-5 border-b border-[#E3EBE5] dark:border-[#203A2B]">
                 <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg bg-[#EAF5ED] dark:bg-[#1A3324] text-[#005B2A] dark:text-[#52C97E] flex items-center justify-center text-sm font-semibold">
@@ -53,7 +53,7 @@
                     <!-- Principal Amount -->
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Principal Amount (₱) <span class="text-rose-600">*</span></label>
-                        <input type="number" name="principal_amount" x-model="principalAmount" step="0.01" required
+                        <input type="number" name="principal_amount" x-model="principalAmount" @input="if (!manualSplit) autoSplit()" step="any" min="0" required
                             class="kp-input w-full"
                             placeholder="0.00">
                         <p class="text-[11px] text-[#52705F] dark:text-[#8AA895] mt-1" x-show="maxAmount > 0">
@@ -64,15 +64,19 @@
                     <!-- Interest Rate -->
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Interest Rate (%) <span class="text-rose-600">*</span></label>
-                        <input type="number" name="interest_rate" x-model="interestRate" step="0.01" required
+                        <input type="number" name="interest_rate" x-model="interestRate" @input="if (!manualSplit) autoSplit()" step="any" min="0" required
                             class="kp-input w-full">
                     </div>
 
                     <!-- Term -->
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Term (Months) <span class="text-rose-600">*</span></label>
-                        <input type="number" name="term_months" x-model="termMonths" required
-                            class="kp-input w-full">
+                        <select name="term_months" x-model.number="termMonths" @change="buildSchedule()" required class="kp-input w-full">
+                            <template x-for="n in maxTerm" :key="n">
+                                <option :value="n" :selected="n === termMonths" x-text="n + (n === 1 ? ' Month' : ' Months')"></option>
+                            </template>
+                        </select>
+                        <p class="text-[11px] text-[#52705F] dark:text-[#8AA895] mt-1">Months start the month after today; each can be changed below.</p>
                     </div>
 
                     <!-- Crop Year -->
@@ -125,24 +129,77 @@
                         placeholder="Enter statement of loan purpose..."></textarea>
                 </div>
 
-                <!-- Estimated Summary -->
-                <div class="rounded-xl p-4 bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B]"
-                    x-show="principalAmount > 0 && interestRate > 0 && termMonths > 0">
-                    <h4 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider mb-2">Estimated Repayment Summary</h4>
-                    <div class="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div>
-                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Monthly Due</p>
-                            <p class="font-bold text-[#172B20] dark:text-[#EAF5ED] kp-num mt-0.5">₱<span x-text="formatNumber(calculateMonthly())"></span></p>
-                        </div>
-                        <div>
-                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Total Interest</p>
-                            <p class="font-bold text-amber-600 dark:text-amber-400 kp-num mt-0.5">₱<span x-text="formatNumber(calculateTotalInterest())"></span></p>
-                        </div>
-                        <div>
-                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Repayable Sum</p>
-                            <p class="font-bold text-[#005B2A] dark:text-[#52C97E] kp-num mt-0.5">₱<span x-text="formatNumber(calculateTotal())"></span></p>
+                <!-- Monthly Payment Schedule -->
+                <div class="rounded-xl p-4 bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B]">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+                        <h4 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Monthly Payment Schedule</h4>
+                        <button type="button" @click="manualSplit = false; autoSplit()" :disabled="!schedule.length"
+                            class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs disabled:opacity-50">
+                            <i class="fas fa-arrow-right-arrow-left mr-1.5" aria-hidden="true"></i> Auto Split Evenly
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-[#52705F] dark:text-[#8AA895] mb-3">
+                        Principal ₱<span x-text="formatNumber(principalAmount)"></span> + Interest ₱<span x-text="formatNumber(calculateTotalInterest())"></span>
+                        = <span class="font-bold text-[#172B20] dark:text-[#EAF5ED]">Total Repayable ₱<span x-text="formatNumber(totalRepayable())"></span></span>
+                    </p>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="text-[11px] uppercase tracking-wider text-[#52705F] dark:text-[#8AA895] bg-[#EAF5ED]/60 dark:bg-[#1A3324]/60">
+                                    <th class="text-left font-semibold px-2 py-2">Month</th>
+                                    <th class="text-left font-semibold px-2 py-2">Due Date</th>
+                                    <th class="text-left font-semibold px-2 py-2">Amount (₱)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="row in schedule" :key="row.uid">
+                                    <tr class="border-b border-[#E3EBE5] dark:border-[#203A2B]">
+                                        <td class="px-2 py-1.5">
+                                            {{-- Any month, so earlier manual schedules can be entered --}}
+                                            <select x-model="row.month" @change="row.due_date = monthEnd(row.month)"
+                                                class="kp-input py-1 text-xs font-semibold min-w-[8rem]"
+                                                :class="duplicateMonths().includes(row.month) ? 'border-rose-500 text-rose-700 dark:text-rose-400' : 'text-[#005B2A] dark:text-[#52C97E]'">
+                                                <template x-for="m in monthOptions" :key="m.value">
+                                                    <option :value="m.value" :selected="m.value === row.month" x-text="m.label"></option>
+                                                </template>
+                                            </select>
+                                        </td>
+                                        <td class="px-2 py-1.5">
+                                            <input type="date" x-model="row.due_date" class="kp-input w-full min-w-[9rem] py-1 text-xs">
+                                        </td>
+                                        <td class="px-2 py-1.5">
+                                            <input type="number" x-model="row.amount" @input="manualSplit = true" step="any" min="0"
+                                                class="kp-input w-full min-w-[7rem] py-1 text-xs text-right kp-num" placeholder="0.00">
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex items-center justify-between mt-2 px-3 py-2 rounded-lg"
+                        :class="isBalanced() ? 'bg-[#EAF5ED] dark:bg-[#1A3324]' : 'bg-rose-50 dark:bg-rose-950/30'">
+                        <span class="text-xs font-bold uppercase tracking-wider text-[#172B20] dark:text-[#EAF5ED]">Total Allocated</span>
+                        <div class="flex items-center gap-6">
+                            <span class="text-sm font-bold kp-num text-[#172B20] dark:text-[#EAF5ED]">₱ <span x-text="formatNumber(totalAllocated())"></span></span>
+                            <span class="text-xs font-bold kp-num w-14 text-right"
+                                :class="isBalanced() ? 'text-[#005B2A] dark:text-[#52C97E]' : 'text-rose-700 dark:text-rose-400'"
+                                x-text="allocatedPercent()"></span>
                         </div>
                     </div>
+                    <p x-show="duplicateMonths().length" class="text-xs mt-2 text-rose-700 dark:text-rose-400">
+                        <i class="fas fa-circle-xmark mr-1" aria-hidden="true"></i>
+                        <span x-text="duplicateMonths().map(monthLabel).join(', ')"></span> is listed more than once. Each month can only be used once.
+                    </p>
+                    <p x-show="isBalanced() && totalRepayable() > 0" class="text-xs mt-2 text-[#005B2A] dark:text-[#52C97E]">
+                        <i class="fas fa-circle-check mr-1" aria-hidden="true"></i> Monthly payments total is equal to the total repayable.
+                    </p>
+                    <p x-show="!isBalanced()" class="text-xs mt-2 text-rose-700 dark:text-rose-400">
+                        <i class="fas fa-circle-xmark mr-1" aria-hidden="true"></i>
+                        Monthly payments total is <span x-text="totalAllocated() < totalRepayable() ? 'short' : 'over'"></span>
+                        by ₱<span x-text="formatNumber(Math.abs(totalRepayable() - totalAllocated()))"></span>. It must equal the total repayable before you can submit.
+                    </p>
                 </div>
 
                 <!-- === DOCUMENT ATTACHMENT SECTION === -->
@@ -207,7 +264,7 @@
                         class="kp-btn kp-btn-secondary text-xs">
                         Cancel
                     </button>
-                    <button type="submit" :disabled="submitting"
+                    <button type="submit" :disabled="submitting || !canSubmit()" :title="canSubmit() ? '' : submitBlockReason()"
                         class="kp-btn kp-btn-primary text-xs disabled:opacity-50">
                         <span x-show="!submitting"><i class="fas fa-check mr-1.5" aria-hidden="true"></i> Submit Application</span>
                         <span x-show="submitting"><i class="fas fa-circle-notch fa-spin mr-1.5"></i> Submitting...</span>

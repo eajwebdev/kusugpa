@@ -1,4 +1,5 @@
 @php
+    if (!function_exists('convertToWords')) {
     function convertToWords($amount)
     {
         $isNegative = $amount < 0;
@@ -63,6 +64,7 @@
         $finalText = ($isNegative ? 'Negative ' : '') . "{$pesoWords} Pesos and {$centavos}/100";
 
         return ucfirst($finalText);
+    }
     }
 @endphp
 
@@ -199,65 +201,8 @@
 <body>
     @foreach ($summaryData as $record)
         @php
-            $sugar_lkg = $record['sugar_lkg'] ?? 0;
-
-            $quedan_a_lkg = $record['quedan_a_lkg'] ?? 0;
-            $quedan_a_price = $record['quedan_a_price'] ?? 0;
-            $quedan_a_gross = $quedan_a_lkg * $quedan_a_price;
-
-            $quedan_b_lkg = $record['quedan_b_lkg'] ?? 0;
-            $quedan_b_price = $record['quedan_b_price'] ?? 0;
-            $quedan_b_gross = $quedan_b_lkg * $quedan_b_price;
-            $quedan_b_liens = $record['quedan_b_liens'] ?? 0;
-            $trucking_additional_charge = $record['trucking_additional_charge'] ?? 0;
-
-            $quedan_b_service = $sugar_lkg * 8.0 + $trucking_additional_charge;
-            $quedan_b_insurance = $sugar_lkg * 3.0;
-            $quedan_b_tax = $sugar_lkg * $quedan_b_price * 0.01;
-            $quedan_b_total_deductions = $quedan_b_liens + $quedan_b_service + $quedan_b_insurance + $quedan_b_tax;
-            $quedan_b_net = $quedan_b_gross - $quedan_b_total_deductions;
-
-            $quedan_d_lkg = $record['quedan_d_lkg'] ?? 0;
-            $quedan_d_price = $record['quedan_d_price'] ?? 0;
-            $quedan_d_gross = $quedan_d_lkg * $quedan_d_price;
-            $quedan_d_liens = $record['quedan_d_liens'] ?? 0;
-            $quedan_d_service = $quedan_d_lkg * 8.0;
-            $quedan_d_insurance = $quedan_d_lkg * 3.0;
-            $quedan_d_tax = $quedan_d_lkg * $quedan_d_price * 0.01;
-            $quedan_d_total_deductions = $quedan_d_liens + $quedan_d_service + $quedan_d_insurance + $quedan_d_tax;
-            $quedan_d_net = $quedan_d_gross - $quedan_d_total_deductions;
-
-            $quedanGrossProceeds = $quedan_a_gross + $quedan_b_gross + $quedan_d_gross;
-            $quedanTotalLiens = $quedan_b_liens + $quedan_d_liens;
-            $quedanTotalServiceCharge = $quedan_b_service + $quedan_d_service;
-            $quedanTotalInsurance = $quedan_b_insurance + $quedan_d_insurance;
-            $quedanTotalTax = $quedan_b_tax + $quedan_d_tax;
-            $quedanTotalDeductions =
-                $quedanTotalLiens + $quedanTotalServiceCharge + $quedanTotalInsurance + $quedanTotalTax;
-            $quedanNetProceeds = $quedanGrossProceeds - $quedanTotalDeductions;
-
-            $mol_net = $record['mol_net'] ?? 0;
-            $mol_price = $record['mol_price'] ?? 0;
-            $molasses_gross = $mol_net * $mol_price;
-            $molasses_liens = $record['molasses_liens'] ?? 0;
-            $molasses_service = $mol_net * 20.0;
-            $molasses_insurance = $mol_net * 120.0 + 30.0;
-            $molasses_tax = $mol_net * $mol_price * 0.01;
-            $molasses_total_deductions = $molasses_liens + $molasses_service + $molasses_insurance + $molasses_tax;
-            $molasses_net = $molasses_gross - $molasses_total_deductions;
-
-            $trucking_net_cane = $record['trucking_net_cane'] ?? 0;
-            $consolidated_ta_wt = $record['consolidated_ta_wt'] ?? 0;
-            $consolidated_ta_amount = $record['consolidated_ta_amount'] ?? 0;
-            $consolidated_fuel_amount = $record['consolidated_fuel_amount'] ?? 0;
-            $consolidated_total = $record['consolidated_total'] ?? 0;
-
-            $consolidated_display = $consolidated_total >= 0 ? $consolidated_total : $consolidated_ta_amount;
-            $consolidated_net = $consolidated_display - $consolidated_fuel_amount;
-
-            $totalGrossProceeds = $quedanGrossProceeds + $molasses_gross + $consolidated_display;
-            $totalDeductions = $quedanTotalDeductions + $molasses_total_deductions + $consolidated_fuel_amount;
-            $totalNetProceeds = $totalGrossProceeds - $totalDeductions;
+            // Amounts per planter (shared with the Proceeds Sheet)
+            extract(\App\Services\PlanterProceeds::compute($record));
         @endphp
 
         <div class="page">
@@ -432,12 +377,12 @@
                             <table style="width: 100%; border-collapse: collapse;">
                                 <tr>
                                     <td style="text-align: right; padding: 3px 0;">
-                                        {{ number_format($record['loan_deduction'] ?? 0, 2) }}
+                                        {{ number_format($loanPayment, 2) }}
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style="text-align: right; padding: 3px 0;">
-                                        {{ number_format($record['ca_deduction'] ?? 0, 2) }}
+                                        {{ number_format($caPayment, 2) }}
                                     </td>
                                 </tr>
                                 <tr>
@@ -470,7 +415,7 @@
                         <!-- NET PROCEEDS amount column -->
                         <td style="width: 22%; vertical-align: middle; padding-top: 12px;">
                             <p style="font-size: 13px; font-weight: 800; margin: 0;" class="net-amount-value">
-                                {{ number_format($totalNetProceeds, 2) }}
+                                {{ number_format($netProceedsPaid, 2) }}
                             </p>
                         </td>
                         <!-- rightmost cell remains empty (Payment Approved already handled in row1) -->
@@ -482,7 +427,7 @@
                 <div style="margin-top: 28px; padding-top: 6px;">
                     <p style="font-size: 11px; margin-bottom: 5px;">
                         Received the sum of
-                        <strong> ₱ {{ number_format($totalNetProceeds, 2) }}</strong>
+                        <strong> ₱ {{ number_format($netProceedsPaid, 2) }}</strong>
                         in full payment of the above account
                     </p>
                 </div>
@@ -502,7 +447,7 @@
 
 
             <div class="amount-words">
-                <strong>Amount in Words:</strong> {{ convertToWords($totalNetProceeds) }}
+                <strong>Amount in Words:</strong> {{ convertToWords($netProceedsPaid) }}
             </div>
 
 

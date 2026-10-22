@@ -4,12 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use App\Models\CashAdvance;
-use App\Models\WeekNo;
 use App\Models\User;
 use App\Models\AuditLog;
 use App\Models\LoanSetting;
+use App\Services\CashAdvanceSchedule;
 use App\Support\AmountInWords;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -50,6 +49,36 @@ class CaReceiptController extends Controller
         return self::canManageReceipt($this->user());
     }
 
+    /** Receipt signatory slots => Cash Advance Settings key of its default name (null = no default) */
+    public const SIGNATORIES = [
+        'committee' => 'ca_sig_committee',
+        'co_maker' => null,
+        'prepared' => 'ca_sig_prepared',
+        'approved' => 'ca_sig_approved',
+        'received' => null,
+    ];
+
+    /** Default signatory names from Cash Advance Settings */
+    public static function signatoryDefaults(): array
+    {
+        $defaults = [];
+        foreach (self::SIGNATORIES as $slot => $key) {
+            $defaults[$slot] = $key ? (string) LoanSetting::get($key, '') : '';
+        }
+        return $defaults;
+    }
+
+    /** Names printed on the receipt: the cash advance's own, else the settings default */
+    public static function signatoriesFor(CashAdvance $ca): array
+    {
+        $own = $ca->receipt_signatories ?? [];
+        $names = [];
+        foreach (self::signatoryDefaults() as $slot => $default) {
+            $names[$slot] = trim((string) ($own[$slot] ?? '')) ?: $default;
+        }
+        return $names;
+    }
+
     /**
      * Save CV No., Check No. and deduction weeks of a cash advance
      */
@@ -63,6 +92,8 @@ class CaReceiptController extends Controller
             'deductions' => 'array',
             'deductions.*.week_no' => 'required|string|distinct',
             'deductions.*.amount' => 'required|numeric|min:0.01',
+            'signatories' => 'array',
+            'signatories.*' => 'nullable|string|max:100',
         ], [
             'deductions.*.week_no.distinct' => 'Each week can only be listed once.',
             'deductions.*.amount.min' => 'Each deduction week needs an amount.',
@@ -70,33 +101,24 @@ class CaReceiptController extends Controller
 
         $deductions = collect($data['deductions'] ?? []);
 
-        $validWeeks = WeekNo::where('crop_year', $cashAdvance->crop_year)->pluck('week_no')->map(fn ($w) => (string) $w);
-        $unknown = $deductions->pluck('week_no')->reject(fn ($w) => $validWeeks->contains((string) $w));
-        if ($unknown->isNotEmpty()) {
-            throw ValidationException::withMessages([
-                'deductions' => 'Week ' . $unknown->implode(', ') . ' is not set up for crop year ' . $cashAdvance->crop_year . ' in Crop & Week Management.',
-            ]);
-        }
+        CashAdvanceSchedule::validate($cashAdvance, $deductions);
 
         DB::transaction(function () use ($cashAdvance, $data, $deductions) {
             $cashAdvance->update([
                 'cv_no' => $data['cv_no'] ?? null,
                 'check_no' => $data['check_no'] ?? null,
+                'receipt_signatories' => collect(array_keys(self::SIGNATORIES))
+                    ->mapWithKeys(fn ($slot) => [$slot => trim((string) ($data['signatories'][$slot] ?? ''))])
+                    ->all(),
             ]);
-            $cashAdvance->deductions()->delete();
-            foreach ($deductions as $d) {
-                $cashAdvance->deductions()->create([
-                    'crop_year' => $cashAdvance->crop_year,
-                    'week_no' => (string) $d['week_no'],
-                    'amount' => $d['amount'],
-                ]);
-            }
+            CashAdvanceSchedule::apply($cashAdvance, $deductions);
         });
 
         AuditLog::log('update', 'cash_advances', 'Updated receipt details of cash advance #' . $cashAdvance->ca_number, [
             'cv_no' => $cashAdvance->cv_no,
             'check_no' => $cashAdvance->check_no,
             'deduction_weeks' => $deductions->map(fn ($d) => 'Wk ' . $d['week_no'] . ' = ' . $d['amount'])->implode(', '),
+            'signatories' => $cashAdvance->receipt_signatories,
         ]);
 
         $fresh = $cashAdvance->fresh('deductions');
@@ -107,6 +129,7 @@ class CaReceiptController extends Controller
                 'id' => $fresh->id,
                 'cv_no' => $fresh->cv_no,
                 'check_no' => $fresh->check_no,
+                'receipt_signatories' => $fresh->receipt_signatories,
                 'deductions' => $fresh->deductions,
             ],
         ]);
@@ -123,7 +146,9 @@ class CaReceiptController extends Controller
 
         $pdf = Pdf::loadView('pdf.ca-receipt', [
             'ca' => $cashAdvance,
-            'amountInWords' => AmountInWords::pesos($cashAdvance->amount),
+            // Worded like the printed form: "TWENTY THOUSAND Pesos AND 0/100 ONLY"
+            'amountInWords' => preg_replace_callback('/ PESOS AND (\d+)\/100/', fn ($m) => ' Pesos AND ' . (int) $m[1] . '/100', AmountInWords::pesos($cashAdvance->amount)),
+            'signatories' => self::signatoriesFor($cashAdvance),
             'weeklyInterest' => (float) LoanSetting::get('ca_receipt_weekly_interest', 1),
             'org' => config('kusugpa'),
         ])->setPaper('letter', 'portrait'); // short bond: 8.5" x 11"

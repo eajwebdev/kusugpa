@@ -259,7 +259,7 @@
 <!-- Reports -->
 @php
     $canViewReports = auth()->user()->role === 'Administrator' || auth()->user()->hasPermission('view-reports');
-    $reportsActive = request()->routeIs('summaryReport', 'consolidated-report*', 'trucking-allowance-report*', 'certification-report*', 'tls-report*');
+    $reportsActive = request()->routeIs('summaryReport', 'consolidated-report*', 'trucking-allowance-report*', 'certification-report*', 'tls-report*', 'proceeds-sheet-report*');
 @endphp
 
 @if ($canViewReports)
@@ -308,6 +308,13 @@
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('tls-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
                     <i class="fas fa-truck w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
                     <span>TLS Reports</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ route('proceeds-sheet-report') }}"
+                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('proceeds-sheet-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
+                    <i class="fas fa-signature w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
+                    <span>Proceeds Sheet</span>
                 </a>
             </li>
             <li>

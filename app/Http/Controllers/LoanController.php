@@ -6,13 +6,16 @@ use Illuminate\Http\Request;
 use App\Models\Loan;
 use App\Models\LoanType;
 use App\Models\LoanAmortization;
+use App\Models\LoanPayment;
 use App\Models\LoanSetting;
 use App\Models\Summary;
 use App\Models\CropYear;
 use App\Models\User;
 use App\Models\AuditLog;
 use App\Models\PlanterProfile;
-use Carbon\Carbon;
+use App\Services\LoanSchedule;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class LoanController extends Controller
 {
@@ -118,7 +121,9 @@ class LoanController extends Controller
             'canManageSettings' => $this->canManageSettings(),
         ];
 
-        return view('loans.index', compact('loans', 'loanTypes', 'cropYears', 'planters', 'stats', 'userPermissions'));
+        $maxTerm = (int) LoanSetting::get('max_loan_term_months', 24);
+
+        return view('loans.index', compact('loans', 'loanTypes', 'cropYears', 'planters', 'stats', 'userPermissions', 'maxTerm'));
     }
 
     public function create()
@@ -146,24 +151,45 @@ class LoanController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $request->validate([
+        $data = $request->validate([
             'planter_code' => 'required|string',
             'planter_name' => 'required|string',
             'loan_type_id' => 'required|exists:loan_types,id',
-            'principal_amount' => 'required|numeric|min:0',
+            'principal_amount' => 'required|numeric|min:0.01',
             'interest_rate' => 'required|numeric|min:0|max:100',
             'term_months' => 'required|integer|min:1|max:60',
             'crop_year' => 'required|string',
             'purpose' => 'nullable|string',
+            // Monthly payment schedule; must add up to the total repayable
+            'schedule' => 'nullable|array',
+            'schedule.*.month' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/', 'distinct'],
+            'schedule.*.due_date' => 'nullable|date',
+            'schedule.*.amount' => 'required|numeric|min:0.01',
+        ], [
+            'schedule.*.month.distinct' => 'Each month can only be listed once.',
+            'schedule.*.amount.min' => 'Each month needs an amount.',
         ]);
 
-        $loan = new Loan($request->all());
+        $loan = new Loan(collect($data)->except('schedule')->all());
         $loan->loan_number = Loan::generateLoanNumber();
         $loan->application_date = now();
         $loan->status = 'pending';
         $loan->created_by = auth()->id();
         $loan->calculateAmortization();
-        $loan->save();
+        // Total repayable in centavos, the amount the months must add up to
+        $loan->total_amount = round($loan->total_amount, 2);
+        $loan->balance = $loan->total_amount;
+
+        // Without a schedule (older create page) the total is split evenly from next month
+        $schedule = !empty($data['schedule'])
+            ? collect($data['schedule'])
+            : LoanSchedule::even($loan->total_amount, (int) $data['term_months']);
+        LoanSchedule::validate($loan, $schedule);
+
+        DB::transaction(function () use ($loan, $schedule) {
+            $loan->save();
+            LoanSchedule::apply($loan, $schedule);
+        });
 
         AuditLog::log('create', 'loans', 'Created loan application #' . $loan->loan_number, [
             'amount' => $loan->principal_amount,
@@ -171,7 +197,8 @@ class LoanController extends Controller
             'planter_code' => $loan->planter_code,
             'interest_rate' => $loan->interest_rate . '%',
             'term' => $loan->term_months . ' months',
-            'monthly' => $loan->monthly_amortization,
+            'total_repayable' => $loan->total_amount,
+            'monthly_schedule' => $schedule->map(fn ($r) => $r['month'] . ' = ' . $r['amount'])->implode(', '),
         ]);
 
         if ($request->ajax() || $request->expectsJson()) {
@@ -195,11 +222,17 @@ class LoanController extends Controller
             'canApprove' => $this->canApproveLoans() && $loan->status === 'pending',
             'canActivate' => $this->canApproveLoans() && $loan->status === 'approved',
             'canReject' => $this->canApproveLoans() && $loan->status === 'pending',
-            'canRecordPayment' => $this->canProcessLoans() && $loan->status === 'active',
+            // Payments can start once approved; the first payment activates the loan
+            'canPay' => $this->canProcessLoans() && in_array($loan->status, ['approved', 'active']),
+            'canUndoPayment' => $this->canProcessLoans() && in_array($loan->status, ['active', 'completed']),
+            'canEditSchedule' => $this->canProcessLoans() && in_array($loan->status, ['pending', 'approved', 'active']),
             'canDelete' => $this->canProcessLoans() && in_array($loan->status, ['pending', 'rejected']),
         ];
 
-        return view('loans.show', compact('loan', 'userPermissions'));
+        $monthlyRows = $loan->monthlyRows();
+        $payments = $loan->payments()->with('recordedByUser')->get();
+
+        return view('loans.show', compact('loan', 'userPermissions', 'monthlyRows', 'payments'));
     }
 
     public function approve(Request $request, Loan $loan)
@@ -213,16 +246,19 @@ class LoanController extends Controller
             return back()->with('error', 'Only pending loans can be approved.');
         }
 
-        $request->validate(['start_date' => 'required|date']);
+        $request->validate(['start_date' => 'nullable|date']);
+
+        // The monthly schedule was set when the loan was created; its last month ends the loan
+        if (!$loan->amortizations()->exists()) {
+            DB::transaction(fn () => LoanSchedule::apply($loan, LoanSchedule::even((float) $loan->total_amount, (int) $loan->term_months)));
+        }
 
         $loan->status = 'approved';
         $loan->approved_by = auth()->id();
         $loan->approved_date = now();
-        $loan->start_date = $request->start_date;
-        $loan->end_date = Carbon::parse($request->start_date)->addMonths($loan->term_months);
+        $loan->start_date = $request->start_date ?: now()->toDateString();
+        $loan->end_date = $loan->amortizations()->max('due_date');
         $loan->save();
-
-        $this->generateAmortizationSchedule($loan);
 
         AuditLog::log('approve', 'loans', 'Approved loan #' . $loan->loan_number, [
             'amount' => $loan->principal_amount,
@@ -284,52 +320,136 @@ class LoanController extends Controller
             ->with('success', 'Loan #' . $loan->loan_number . ' rejected.');
     }
 
-    public function recordPayment(Request $request, Loan $loan)
+    /**
+     * Record a repayment against one month of the schedule
+     */
+    public function storePayment(Request $request, Loan $loan)
     {
         if (!$this->canProcessLoans()) {
             AuditLog::log('error', 'loans', 'Unauthorized payment recording attempt for #' . $loan->loan_number);
-            abort(403, 'Unauthorized');
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        if (!in_array($loan->status, ['approved', 'active'])) {
+            return response()->json(['message' => 'Payments can only be recorded on an approved or active loan.'], 422);
         }
 
-        $request->validate([
-            'amortization_id' => 'required|exists:loan_amortizations,id',
-            'amount_paid' => 'required|numeric|min:0',
-            'week_no' => 'nullable|string',
+        $data = $request->validate([
+            'month' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+            'amount' => 'required|numeric|min:0.01',
+            'paid_date' => 'required|date',
+            'reference' => 'nullable|string|max:50',
+            'remarks' => 'nullable|string|max:255',
         ]);
 
-        $amortization = LoanAmortization::findOrFail($request->amortization_id);
-
-        $amountPaid = $request->amount_paid;
-        $interestPaid = min($amountPaid, $amortization->interest_paid);
-        $principalPaid = $amountPaid - $interestPaid;
-
-        $amortization->amount_paid = $amountPaid;
-        $amortization->interest_paid = $interestPaid;
-        $amortization->principal_paid = $principalPaid;
-        $amortization->balance_after = $loan->balance - $amountPaid;
-        $amortization->status = $amountPaid >= $amortization->amount_due ? 'paid' : 'partial';
-        $amortization->paid_date = now();
-        $amortization->week_no = $request->week_no;
-        $amortization->save();
-
-        $loan->balance = $loan->amortizations()->sum('balance_after');
-
-        $pendingPayments = $loan->amortizations()->whereIn('status', ['pending', 'partial', 'overdue'])->count();
-        if ($pendingPayments === 0) {
-            $loan->status = 'completed';
+        $row = $loan->monthlyRows()->firstWhere('month', $data['month']);
+        if (!$row) {
+            throw ValidationException::withMessages(['month' => LoanSchedule::label($data['month']) . ' is not in this loan\'s schedule.']);
+        }
+        $amount = round((float) $data['amount'], 2);
+        if ((int) round($amount * 100) > (int) round($row['remaining'] * 100)) {
+            throw ValidationException::withMessages([
+                'amount' => LoanSchedule::label($row['month']) . ' only has ₱' . number_format($row['remaining'], 2) . ' left to pay.',
+            ]);
         }
 
-        $loan->save();
+        DB::transaction(function () use ($loan, $data, $amount) {
+            // The first payment on an approved loan activates it
+            if ($loan->status === 'approved') {
+                $loan->status = 'active';
+            }
+            $loan->payments()->create([
+                'month' => $data['month'],
+                'amount' => $amount,
+                'paid_date' => $data['paid_date'],
+                'reference' => $data['reference'] ?? null,
+                'remarks' => $data['remarks'] ?? null,
+                'recorded_by' => auth()->id(),
+            ]);
+            $loan->syncBalance();
+        });
 
         AuditLog::log('payment', 'loans', 'Recorded payment for loan #' . $loan->loan_number, [
-            'amount_paid' => $amountPaid,
-            'payment_number' => $amortization->payment_number,
-            'week_no' => $request->week_no,
+            'month' => $data['month'],
+            'amount_paid' => $amount,
+            'paid_date' => $data['paid_date'],
+            'reference' => $data['reference'] ?? null,
             'remaining_balance' => $loan->balance,
         ]);
 
-        return redirect()->route('loans.show', $loan)
-            ->with('success', 'Payment recorded successfully.');
+        return response()->json([
+            'message' => 'Payment of ₱' . number_format($amount, 2) . ' recorded for ' . LoanSchedule::label($data['month']) . '.'
+                . ($loan->status === 'completed' ? ' The loan is now fully paid.' : ''),
+            'balance' => $loan->balance,
+            'status' => $loan->status,
+        ]);
+    }
+
+    /**
+     * Undo a repayment recorded by mistake
+     */
+    public function destroyPayment(Loan $loan, LoanPayment $payment)
+    {
+        if (!$this->canProcessLoans()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        abort_unless($payment->loan_id === $loan->id, 404);
+        if (!in_array($loan->status, ['active', 'completed'])) {
+            return response()->json(['message' => 'Payments can only be undone on an active or completed loan.'], 422);
+        }
+
+        $info = ['month' => $payment->month, 'amount' => $payment->amount, 'paid_date' => $payment->paid_date?->format('Y-m-d'), 'reference' => $payment->reference];
+
+        DB::transaction(function () use ($loan, $payment) {
+            $payment->delete();
+            $loan->syncBalance();
+        });
+
+        AuditLog::log('delete', 'loans', 'Undid payment for loan #' . $loan->loan_number, $info + ['remaining_balance' => $loan->balance]);
+
+        return response()->json([
+            'message' => 'Payment of ₱' . number_format($info['amount'], 2) . ' for ' . LoanSchedule::label($info['month']) . ' was undone.',
+            'balance' => $loan->balance,
+            'status' => $loan->status,
+        ]);
+    }
+
+    /**
+     * Save the monthly schedule from the loan page
+     */
+    public function updateSchedule(Request $request, Loan $loan)
+    {
+        if (!$this->canProcessLoans()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        if (!in_array($loan->status, ['pending', 'approved', 'active'])) {
+            return response()->json(['message' => 'The schedule can only be changed on a pending, approved or active loan.'], 422);
+        }
+
+        $data = $request->validate([
+            'schedule' => 'required|array|min:1',
+            'schedule.*.month' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/', 'distinct'],
+            'schedule.*.due_date' => 'nullable|date',
+            'schedule.*.amount' => 'required|numeric|min:0.01',
+        ], [
+            'schedule.*.month.distinct' => 'Each month can only be listed once.',
+            'schedule.*.amount.min' => 'Each month needs an amount.',
+        ]);
+
+        $rows = collect($data['schedule']);
+        LoanSchedule::validate($loan, $rows);
+        DB::transaction(function () use ($loan, $rows) {
+            LoanSchedule::apply($loan, $rows);
+            if ($loan->start_date) {
+                $loan->end_date = $loan->amortizations()->max('due_date');
+                $loan->save();
+            }
+        });
+
+        AuditLog::log('update', 'loans', 'Updated monthly schedule of loan #' . $loan->loan_number, [
+            'monthly_schedule' => $rows->map(fn ($r) => $r['month'] . ' = ' . $r['amount'])->implode(', '),
+        ]);
+
+        return response()->json(['message' => 'Monthly schedule saved.']);
     }
 
     public function destroy(Loan $loan)
@@ -445,51 +565,14 @@ class LoanController extends Controller
         return back()->with('success', 'Loan type updated.');
     }
 
-    private function generateAmortizationSchedule(Loan $loan)
-    {
-        $startDate = Carbon::parse($loan->start_date);
-        $balance = $loan->total_amount;
-
-        for ($i = 1; $i <= $loan->term_months; $i++) {
-            $dueDate = $startDate->copy()->addMonths($i);
-            $monthlyInterest = ($balance * ($loan->interest_rate / 100)) / 12;
-            $monthlyPrincipal = $loan->monthly_amortization - $monthlyInterest;
-
-            LoanAmortization::create([
-                'loan_id' => $loan->id,
-                'payment_number' => $i,
-                'due_date' => $dueDate,
-                'amount_due' => $loan->monthly_amortization,
-                'interest_paid' => $monthlyInterest,
-                'principal_paid' => $monthlyPrincipal,
-                'balance_after' => $balance - $loan->monthly_amortization,
-                'status' => 'pending',
-            ]);
-
-            $balance -= $loan->monthly_amortization;
-        }
-    }
-
     private function getLoanStats()
     {
         return [
             'total_active' => Loan::where('status', 'active')->count(),
             'total_pending' => Loan::where('status', 'pending')->count(),
             'total_amount' => Loan::whereIn('status', ['active', 'approved'])->sum('principal_amount'),
-            'total_collected' => LoanAmortization::where('status', 'paid')->sum('amount_paid'),
+            'total_collected' => LoanPayment::sum('amount'),
             'overdue_payments' => LoanAmortization::where('status', 'overdue')->count(),
         ];
-    }
-
-    public function getActiveDeductions($planterCode, $cropYear, $weekNo)
-    {
-        return LoanAmortization::whereHas('loan', function($q) use ($planterCode, $cropYear) {
-            $q->where('planter_code', $planterCode)
-              ->where('crop_year', $cropYear)
-              ->whereIn('status', ['active', 'approved']);
-        })
-        ->where('status', 'pending')
-        ->where('week_no', $weekNo)
-        ->sum('amount_due');
     }
 }
