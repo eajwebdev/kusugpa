@@ -74,6 +74,27 @@
                     <p class="text-[11px] mt-1 text-[#52705F] dark:text-[#8AA895]">Printed on the Cash Advance Receipt and Sugar Assignment (printed from All Cash Advances).</p>
                 </div>
 
+                <div class="p-3.5 rounded-xl border border-[#E3EBE5] dark:border-[#203A2B] space-y-3">
+                    <div>
+                        <span class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]">CA Receipt Signatories</span>
+                        <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Default names printed on every CA receipt. A cash advance's own names (CA Receipt Details) take priority; leave blank to print an empty signature line.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Approved Loan Committee (By)</label>
+                        <input type="text" name="ca_sig_committee" maxlength="100" value="{{ $settings['ca_sig_committee'] }}" class="kp-input w-full">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Prepared By</label>
+                            <input type="text" name="ca_sig_prepared" maxlength="100" value="{{ $settings['ca_sig_prepared'] }}" class="kp-input w-full">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Approved By</label>
+                            <input type="text" name="ca_sig_approved" maxlength="100" value="{{ $settings['ca_sig_approved'] }}" class="kp-input w-full">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex items-center justify-between p-3.5 bg-[#F7FAF8] dark:bg-[#13231B] rounded-xl border border-[#E3EBE5] dark:border-[#203A2B]">
                     <div>
                         <span class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]">Auto-deduct Amortizations</span>

@@ -18,6 +18,7 @@ use App\Http\Controllers\CertificationController;
 use App\Http\Controllers\TlsReportController;
 use App\Http\Controllers\TruckingAllowanceController;
 use App\Http\Controllers\CashAdvanceController;
+use App\Http\Controllers\ProceedsSheetController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\HaulingLiquidityController;
 use App\Http\Controllers\CaReceiptController;
@@ -98,7 +99,9 @@ Route::middleware(['login_auth'])->group(function () {
     Route::post('/loans/{loan}/approve', [LoanController::class, 'approve'])->name('loans.approve');
     Route::post('/loans/{loan}/activate', [LoanController::class, 'activate'])->name('loans.activate');
     Route::post('/loans/{loan}/reject', [LoanController::class, 'reject'])->name('loans.reject');
-    Route::post('/loans/{loan}/payment', [LoanController::class, 'recordPayment'])->name('loans.payment');
+    Route::post('/loans/{loan}/payments', [LoanController::class, 'storePayment'])->name('loans.payments.store');
+    Route::delete('/loans/{loan}/payments/{payment}', [LoanController::class, 'destroyPayment'])->name('loans.payments.destroy');
+    Route::post('/loans/{loan}/schedule', [LoanController::class, 'updateSchedule'])->name('loans.schedule.update');
     Route::delete('/loans/{loan}', [LoanController::class, 'destroy'])->name('loans.destroy');
     
     // Loan Show - MUST BE VERY LAST
@@ -119,6 +122,9 @@ Route::middleware(['login_auth'])->group(function () {
     Route::post('/cash-advances/{cashAdvance}/activate', [CashAdvanceController::class, 'activate'])->name('cash-advances.activate');
     Route::post('/cash-advances/{cashAdvance}/reject', [CashAdvanceController::class, 'reject'])->name('cash-advances.reject');
     Route::post('/cash-advances/{cashAdvance}/payment', [CashAdvanceController::class, 'recordPayment'])->name('cash-advances.payment');
+    Route::post('/cash-advances/{cashAdvance}/weekly-payments', [CashAdvanceController::class, 'storeWeeklyPayment'])->name('cash-advances.weekly-payments.store');
+    Route::post('/cash-advances/{cashAdvance}/schedule', [CashAdvanceController::class, 'updateSchedule'])->name('cash-advances.schedule.update');
+    Route::delete('/cash-advances/{cashAdvance}/weekly-payments/{payment}', [CashAdvanceController::class, 'destroyWeeklyPayment'])->name('cash-advances.weekly-payments.destroy');
     Route::delete('/cash-advances/{cashAdvance}', [CashAdvanceController::class, 'destroy'])->name('cash-advances.destroy');
 
     // CA Receipt (Cash Advance Receipt and Sugar Assignment + voucher), printed from All Cash Advances
@@ -209,6 +215,8 @@ Route::middleware(['login_auth'])->group(function () {
     Route::get('/tls-report/pdf', [TlsReportController::class, 'pdf'])->name('tls-report.pdf');
 
     // Production Certification
+    Route::get('/proceeds-sheet-report', [ProceedsSheetController::class, 'index'])->name('proceeds-sheet-report');
+    Route::get('/proceeds-sheet-report/pdf', [ProceedsSheetController::class, 'pdf'])->name('proceeds-sheet-report.pdf');
     Route::get('/certification-report', [CertificationController::class, 'index'])->name('certification-report');
     Route::get('/certification-report/planters', [CertificationController::class, 'planters'])->name('certification-report.planters');
     Route::get('/certification-report/pdf', [CertificationController::class, 'pdf'])->name('certification-report.pdf');

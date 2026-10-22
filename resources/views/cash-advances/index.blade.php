@@ -176,6 +176,13 @@
                                                 <i class="fas fa-file-signature"></i>
                                             </button>
                                         @endif
+                                        @if ($userPermissions['canCreate'])
+                                            <button x-show="['pending', 'rejected'].includes(ca.status)" @click="deleteCA(ca)"
+                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs font-semibold text-red-500"
+                                                title="Delete cash advance">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -254,13 +261,14 @@
                                 </div>
                                 <template x-for="(row, i) in receiptForm.deductions" :key="i">
                                     <div class="grid grid-cols-[1fr_9rem_2rem] gap-2 items-center">
-                                        <select x-model="row.week_no" required class="kp-select w-full">
+                                        <select x-model="row.week_no" required class="kp-select w-full"
+                                            :class="receiptDuplicateWeeks.includes(row.week_no) ? 'border-red-500 text-red-500' : ''">
                                             <option value="">Select week…</option>
                                             <template x-for="w in receiptWeeks" :key="w.week_no">
                                                 <option :value="w.week_no" x-text="'Week ' + w.week_no" :selected="w.week_no === row.week_no"></option>
                                             </template>
                                         </select>
-                                        <input type="number" x-model="row.amount" step="0.01" min="0.01" required class="kp-input w-full text-right" placeholder="0.00">
+                                        <input type="number" x-model="row.amount" step="any" min="0.01" required class="kp-input w-full text-right" placeholder="0.00">
                                         <button type="button" @click="receiptForm.deductions.splice(i, 1)" class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-red-500" title="Remove week">
                                             <i class="fas fa-trash-alt text-xs"></i>
                                         </button>
@@ -273,14 +281,40 @@
                             </div>
                             <div class="flex justify-between px-4 py-2 border-t text-xs" style="border-color: var(--kp-border)">
                                 <span style="color: var(--kp-muted)">Scheduled</span>
-                                <span class="font-mono font-semibold" :class="scheduledTotal > (receiptCA ? +receiptCA.amount : 0) ? 'text-red-500' : ''"
+                                <span class="font-mono font-semibold" :class="receiptBalanced ? 'text-[#005B2A] dark:text-[#52C97E]' : 'text-red-500'"
                                     x-text="formatNumber(scheduledTotal) + ' of ' + formatNumber(receiptCA ? receiptCA.amount : 0)"></span>
+                            </div>
+                            <p x-show="receiptDuplicateWeeks.length" class="px-4 pb-2 text-xs text-red-500">
+                                <i class="fas fa-circle-xmark mr-1" aria-hidden="true"></i>
+                                Week <span x-text="receiptDuplicateWeeks.join(', ')"></span> is listed more than once. Each week can only be used once.
+                            </p>
+                            <p x-show="!receiptBalanced" class="px-4 pb-2 text-xs text-red-500">
+                                <i class="fas fa-circle-xmark mr-1" aria-hidden="true"></i>
+                                Deduction weeks are <span x-text="scheduledTotal < (receiptCA ? +receiptCA.amount : 0) ? 'short' : 'over'"></span>
+                                by ₱<span x-text="formatNumber(Math.abs((receiptCA ? +receiptCA.amount : 0) - scheduledTotal))"></span>.
+                                They must equal the advance amount before you can save.
+                            </p>
+                        </div>
+
+                        <div class="rounded-lg border overflow-hidden" style="border-color: var(--kp-border)">
+                            <div class="px-4 py-2" style="background: var(--kp-surface-2)">
+                                <p class="text-sm font-bold">Signatories</p>
+                                <p class="text-[11px]" style="color: var(--kp-muted)">Names printed on this receipt. Blank uses the default from Cash Advance Settings, or prints an empty line.</p>
+                            </div>
+                            <div class="px-4 py-3 grid grid-cols-2 gap-3">
+                                <template x-for="slot in signatorySlots" :key="slot.key">
+                                    <div>
+                                        <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)" x-text="slot.label"></label>
+                                        <input type="text" x-model="receiptForm.signatories[slot.key]" maxlength="100" class="kp-input w-full"
+                                            :placeholder="signatoryDefaults[slot.key] || 'Blank line'">
+                                    </div>
+                                </template>
                             </div>
                         </div>
 
                         <div class="flex gap-2 pt-3 border-t" style="border-color: var(--kp-border)">
                             <button type="button" @click="receiptModal = false" class="kp-btn kp-btn-secondary flex-1">Cancel</button>
-                            <button type="submit" :disabled="receiptSaving" class="kp-btn kp-btn-primary flex-1 disabled:opacity-50">
+                            <button type="submit" :disabled="receiptSaving || !receiptCanSave" :title="receiptCanSave ? '' : receiptBlockReason" class="kp-btn kp-btn-primary flex-1 disabled:opacity-50">
                                 <i class="fas fa-save mr-1.5"></i> <span x-text="receiptSaving ? 'Saving…' : 'Save Details'"></span>
                             </button>
                         </div>
@@ -307,7 +341,15 @@
                     receiptModal: false,
                     receiptSaving: false,
                     receiptCA: null,
-                    receiptForm: { cv_no: '', check_no: '', deductions: [] },
+                    receiptForm: { cv_no: '', check_no: '', deductions: [], signatories: {} },
+                    signatoryDefaults: @json($signatoryDefaults),
+                    signatorySlots: [
+                        { key: 'committee', label: 'Approved Loan Committee (By)' },
+                        { key: 'co_maker', label: 'Co Maker' },
+                        { key: 'prepared', label: 'Prepared By' },
+                        { key: 'approved', label: 'Approved By' },
+                        { key: 'received', label: 'Received By' },
+                    ],
 
                     init() {
                         this.filterCA();
@@ -388,8 +430,27 @@
                     get receiptWeeks() {
                         return this.receiptCA ? this.weeks.filter(w => w.crop_year === this.receiptCA.crop_year) : [];
                     },
+                    // Totals in centavos so 6,666.66 + 6,666.66 + 6,666.68 is exactly 20,000.00
                     get scheduledTotal() {
-                        return this.receiptForm.deductions.reduce((t, d) => t + (parseFloat(d.amount) || 0), 0);
+                        return this.receiptForm.deductions.reduce((t, d) => t + Math.round((parseFloat(d.amount) || 0) * 100), 0) / 100;
+                    },
+                    get receiptDuplicateWeeks() {
+                        const seen = {};
+                        this.receiptForm.deductions.forEach(d => { if (d.week_no) seen[d.week_no] = (seen[d.week_no] || 0) + 1; });
+                        return Object.keys(seen).filter(w => seen[w] > 1);
+                    },
+                    // Saving needs distinct weeks that add up to the advance amount
+                    get receiptCanSave() {
+                        return !this.receiptDuplicateWeeks.length && this.receiptBalanced;
+                    },
+                    get receiptBlockReason() {
+                        if (this.receiptDuplicateWeeks.length) return 'Week ' + this.receiptDuplicateWeeks.join(', ') + ' is listed more than once.';
+                        return 'Deduction weeks must equal the advance amount (₱' + this.formatNumber(this.receiptCA ? this.receiptCA.amount : 0) + ').';
+                    },
+                    // Deduction weeks must add up to the advance amount
+                    get receiptBalanced() {
+                        if (!this.receiptCA) return false;
+                        return Math.round(this.scheduledTotal * 100) === Math.round((parseFloat(this.receiptCA.amount) || 0) * 100);
                     },
                     previewReceipt(ca) {
                         window.KusugpaPdfPreview.open('/cash-advances/' + ca.id + '/receipt-pdf', 'CA Receipt · ' + ca.ca_number + ' · ' + ca.planter_name);
@@ -400,10 +461,15 @@
                             cv_no: ca.cv_no || '',
                             check_no: ca.check_no || '',
                             deductions: (ca.deductions || []).map(d => ({ week_no: String(d.week_no), amount: d.amount })),
+                            signatories: { ...(ca.receipt_signatories || {}) },
                         };
                         this.receiptModal = true;
                     },
                     async saveReceiptDetails() {
+                        if (!this.receiptCanSave) {
+                            Swal.fire({ icon: 'warning', title: 'Cannot save yet', text: this.receiptBlockReason });
+                            return;
+                        }
                         this.receiptSaving = true;
                         try {
                             const r = await fetch('/cash-advances/' + this.receiptCA.id + '/receipt-details', {
@@ -430,6 +496,37 @@
                             Swal.fire({ icon: 'error', title: 'Error', text: e.message });
                         } finally {
                             this.receiptSaving = false;
+                        }
+                    },
+
+                    // Only pending or rejected cash advances can be deleted
+                    async deleteCA(ca) {
+                        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+                        const res = await Swal.fire({
+                            icon: 'warning',
+                            title: 'Delete cash advance?',
+                            html: 'Cash advance <b>' + esc(ca.ca_number) + '</b> of ' + esc(ca.planter_name) + ' (₱' + this.formatNumber(ca.amount) + ') and its weekly schedule will be permanently deleted.',
+                            showCancelButton: true,
+                            confirmButtonText: 'Delete',
+                            confirmButtonColor: '#dc2626',
+                            cancelButtonText: 'Cancel'
+                        });
+                        if (!res.isConfirmed) return;
+                        try {
+                            const r = await fetch('/cash-advances/' + ca.id, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                }
+                            });
+                            const d = await r.json();
+                            if (!r.ok) throw new Error(d.message || 'Request failed');
+                            this.allCA = this.allCA.filter(x => x.id !== ca.id);
+                            if (this.currentPage > this.totalPages) this.currentPage = Math.max(1, this.totalPages);
+                            Swal.fire({ icon: 'success', title: 'Deleted', text: d.message, timer: 2000, showConfirmButton: false });
+                        } catch (e) {
+                            Swal.fire({ icon: 'error', title: 'Error', text: e.message });
                         }
                     }
                 };

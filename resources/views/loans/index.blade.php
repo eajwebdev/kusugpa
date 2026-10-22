@@ -422,9 +422,83 @@
                     principalAmount: '',
                     interestRate: 5,
                     termMonths: 12,
+                    maxTerm: {{ max(1, (int) $maxTerm) }},
                     maxAmount: 0,
                     purpose: '',
                     submitting: false,
+                    schedule: [],
+                    rowUid: 0,
+                    manualSplit: false,
+                    monthOptions: [],
+
+                    init() {
+                        // Months to choose from: a year back (earlier manual loans) to five years ahead
+                        const now = new Date();
+                        for (let i = -12; i <= 60; i++) {
+                            const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+                            const value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                            this.monthOptions.push({ value, label: this.monthLabel(value) });
+                        }
+                        this.buildSchedule();
+                    },
+                    monthLabel(value) {
+                        const [y, m] = value.split('-').map(Number);
+                        return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    },
+                    monthEnd(value) {
+                        const [y, m] = value.split('-').map(Number);
+                        const d = new Date(y, m, 0);
+                        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                    },
+                    // Months start the month after today
+                    buildSchedule() {
+                        if (this.termMonths > this.maxTerm) this.termMonths = this.maxTerm;
+                        const start = 13; // monthOptions[12] is the current month
+                        this.schedule = this.monthOptions.slice(start, start + this.termMonths).map(m => ({
+                            uid: ++this.rowUid, month: m.value, due_date: this.monthEnd(m.value), amount: '',
+                        }));
+                        this.manualSplit = false;
+                        this.autoSplit();
+                    },
+                    totalRepayable() {
+                        return Math.round(this.calculateTotal() * 100) / 100;
+                    },
+                    // Split the total repayable evenly in centavos; the last month takes the remainder
+                    autoSplit() {
+                        const n = this.schedule.length;
+                        if (!n) return;
+                        const cents = Math.round(this.totalRepayable() * 100);
+                        const each = Math.floor(cents / n);
+                        this.schedule.forEach((row, i) => {
+                            const c = i === n - 1 ? cents - each * (n - 1) : each;
+                            row.amount = cents ? (c / 100).toFixed(2) : '';
+                        });
+                    },
+                    totalAllocated() {
+                        return this.schedule.reduce((t, r) => t + Math.round((parseFloat(r.amount) || 0) * 100), 0) / 100;
+                    },
+                    isBalanced() {
+                        return Math.round(this.totalAllocated() * 100) === Math.round(this.totalRepayable() * 100);
+                    },
+                    allocatedPercent() {
+                        const total = this.totalRepayable();
+                        if (!total) return '0%';
+                        return parseFloat((this.totalAllocated() / total * 100).toFixed(2)) + '%';
+                    },
+                    duplicateMonths() {
+                        const seen = {};
+                        this.schedule.forEach(r => seen[r.month] = (seen[r.month] || 0) + 1);
+                        return Object.keys(seen).filter(m => seen[m] > 1);
+                    },
+                    // Submitting needs distinct months whose payments add up to the total repayable
+                    canSubmit() {
+                        return this.totalRepayable() > 0 && this.schedule.length > 0 && !this.duplicateMonths().length && this.isBalanced();
+                    },
+                    submitBlockReason() {
+                        if (!(this.totalRepayable() > 0)) return 'Enter the principal amount.';
+                        if (this.duplicateMonths().length) return this.duplicateMonths().map(m => this.monthLabel(m)).join(', ') + ' is listed more than once.';
+                        return 'Monthly payments total must equal the total repayable.';
+                    },
 
                     updatePlanterName() {
                         const select = document.querySelector('select[name="planter_code"]');
@@ -437,8 +511,9 @@
                         const option = select?.options[select.selectedIndex];
                         if (option && option.value) {
                             this.interestRate = parseFloat(option.getAttribute('data-rate')) || 5;
-                            this.termMonths = parseInt(option.getAttribute('data-term')) || 12;
+                            this.termMonths = Math.min(this.maxTerm, parseInt(option.getAttribute('data-term')) || 12);
                             this.maxAmount = parseFloat(option.getAttribute('data-max')) || 0;
+                            this.buildSchedule();
                         }
                     },
 
@@ -463,6 +538,7 @@
                         return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
                     },
 
+                    // Same amortization formula as the server (Loan::calculateAmortization)
                     calculateMonthly() {
                         const p = parseFloat(this.principalAmount) || 0;
                         const r = (parseFloat(this.interestRate) || 0) / 100 / 12;
@@ -488,6 +564,10 @@
                     },
 
                     async submitLoanForm() {
+                        if (!this.canSubmit()) {
+                            Swal.fire({ icon: 'warning', title: 'Cannot submit yet', text: this.submitBlockReason() });
+                            return;
+                        }
                         this.submitting = true;
 
                         try {
@@ -500,6 +580,11 @@
                             formData.append('term_months', this.termMonths);
                             formData.append('crop_year', document.querySelector('select[name="crop_year"]').value);
                             formData.append('purpose', this.purpose);
+                            this.schedule.forEach((r, i) => {
+                                formData.append('schedule[' + i + '][month]', r.month);
+                                formData.append('schedule[' + i + '][due_date]', r.due_date || '');
+                                formData.append('schedule[' + i + '][amount]', Math.round((parseFloat(r.amount) || 0) * 100) / 100);
+                            });
                             formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
 
                             const loanResponse = await fetch('{{ route('loans.store') }}', {
@@ -565,9 +650,10 @@
                         this.selectedLoanType = '';
                         this.principalAmount = '';
                         this.interestRate = 5;
-                        this.termMonths = 12;
+                        this.termMonths = Math.min(12, this.maxTerm);
                         this.maxAmount = 0;
                         this.purpose = '';
+                        this.buildSchedule();
                         document.getElementById('loanDocument').value = '';
                         document.getElementById('filePreview').classList.add('hidden');
                     }
