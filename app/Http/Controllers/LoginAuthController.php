@@ -34,11 +34,10 @@ class LoginAuthController extends Controller
             $user = auth()->user();
             
             // Check if user has a valid role
-            $validRoles = ['Administrator', 'super_admin', 'manager', 'loan_officer', 'User', 'Viewer'];
-            
-            if (in_array($user->role, $validRoles, true)) {
+            if ($user->hasLoginRole()) {
                 $request->session()->regenerate();
                 SingleSession::establish($user, $request);
+                AuditLog::log('login', 'auth', 'Signed in');
                 return redirect()->route('dashboard')->with('success', 'You have successfully logged in.');
             }
             
@@ -72,6 +71,7 @@ class LoginAuthController extends Controller
         auth()->guard('web')->login($user);
         $request->session()->regenerate();
         SingleSession::establish($user, $request);
+        AuditLog::log('login', 'auth', 'Signed in with demo mode');
 
         return redirect()->route('dashboard')->with('success', 'Signed in as demo ' . $user->role . '.');
     }
@@ -149,6 +149,7 @@ public function postAdminLogin(Request $request)
         Log::info('Admin login successful: ' . $user->username . ' from IP: ' . $request->ip());
         $request->session()->regenerate();
         SingleSession::establish($user, $request);
+        AuditLog::log('login', 'auth', 'Signed in through the admin portal');
         
         return redirect()->route('admin.dashboard')
             ->with('success', 'Welcome to the admin panel, ' . $user->fname . '.');

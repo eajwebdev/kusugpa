@@ -25,6 +25,7 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'active_session_hash',
+        'google_id',
     ];
 
     protected $casts = [
@@ -98,6 +99,11 @@ class User extends Authenticatable
     public function isAdmin()
     {
         return in_array($this->role, ['Administrator', 'super_admin']);
+    }
+
+    public function hasLoginRole(): bool
+    {
+        return in_array($this->role, ['Administrator', 'super_admin', 'manager', 'loan_officer', 'User', 'Viewer'], true);
     }
 
     public function isManager()

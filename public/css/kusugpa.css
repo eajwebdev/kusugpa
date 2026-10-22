@@ -711,6 +711,15 @@ div:where(.swal2-container) .swal2-popup .form-label i { color: var(--kp-emerald
 .kp-auth--login .kp-label { font-size: 13px; margin-bottom: 8px; }
 .kp-auth--login .kp-control input { height: 52px; border-radius: 10px; }
 .kp-auth--login .kp-submit { height: 52px; border-radius: 10px; }
+.kp-login-divider { display: flex; align-items: center; gap: 14px; margin: 20px 0; color: var(--kp-muted); font-size: 13px; }
+.kp-login-divider::before, .kp-login-divider::after { content: ''; flex: 1; height: 1px; background: var(--kp-border); }
+.kp-google-button { display: flex; align-items: center; justify-content: center; gap: 11px; width: 100%; min-height: 52px; padding: 10px 16px; border: 1px solid var(--kp-border-strong); border-radius: 10px; background: var(--kp-surface); color: var(--kp-text); font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s ease, background-color .15s ease; }
+.kp-google-button:hover:not(:disabled) { border-color: var(--kp-emerald); background: var(--kp-soft); }
+.kp-google-button:focus-visible { outline: 3px solid var(--kp-cane); outline-offset: 2px; }
+.kp-google-button:disabled { opacity: .55; cursor: not-allowed; }
+.kp-google-help { margin-top: 11px; color: var(--kp-muted); font-size: 12px; line-height: 1.5; text-align: center; }
+.kp-turnstile-wrap { display: flex; justify-content: center; min-height: 65px; }
+.kp-turnstile-wrap .cf-turnstile { width: 100%; }
 .kp-auth--login .kp-demo { margin-top: 32px; padding-top: 28px; }
 .kp-demo-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .kp-demo-heading p { color: var(--kp-muted); font-size: 13px; }

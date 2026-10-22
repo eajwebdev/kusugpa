@@ -17,6 +17,9 @@
     </script>
     @include('layouts.partials.assets')
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    @if(config('services.turnstile.site_key') && config('services.turnstile.secret_key'))
+    <script defer src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>
+    @endif
 </head>
 <body class="h-full" x-data="{ showPassword: false, loading: false }">
     <div class="kp-auth kp-auth--login">
@@ -86,6 +89,9 @@
 
                 <form class="kp-login-form" action="{{ route('postLogin') }}" method="POST" @submit="loading = true">
                     @csrf
+                    @if(config('services.turnstile.site_key') && config('services.turnstile.secret_key'))
+                    <input type="hidden" name="cf-turnstile-response" data-turnstile-token>
+                    @endif
 
                     <div class="kp-field">
                         <label for="username" class="kp-label">Username</label>
@@ -129,6 +135,12 @@
                         @enderror
                     </div>
 
+                    @if(config('services.turnstile.site_key') && config('services.turnstile.secret_key'))
+                    <div class="kp-turnstile-wrap">
+                        <div class="cf-turnstile" data-sitekey="{{ config('services.turnstile.site_key') }}" data-action="login" data-size="flexible" data-response-field="false" data-callback="kpTurnstileSuccess" data-expired-callback="kpTurnstileClear" data-error-callback="kpTurnstileClear"></div>
+                    </div>
+                    @endif
+
                     <button type="submit" class="kp-submit" :disabled="loading">
                         <i class="fas fa-sign-in-alt"></i>
                         <span x-show="!loading">Sign in</span>
@@ -138,6 +150,25 @@
                     </button>
                 </form>
 
+                <div class="kp-login-divider"><span>or</span></div>
+                @if(config('services.google.client_id') && config('services.google.client_secret') && config('services.google.redirect'))
+                    <form method="POST" action="{{ route('google.redirect') }}">
+                        @csrf
+                        @if(config('services.turnstile.site_key') && config('services.turnstile.secret_key'))
+                        <input type="hidden" name="cf-turnstile-response" data-turnstile-token>
+                        @endif
+                        <button type="submit" class="kp-google-button">
+                            <i class="fab fa-google" aria-hidden="true"></i> Continue with Google
+                        </button>
+                    </form>
+                    <p class="kp-google-help">First time? Sign in with your username and password, then connect Google from your account menu.</p>
+                @else
+                    <button type="button" class="kp-google-button" disabled aria-describedby="google-setup-help">
+                        <i class="fab fa-google" aria-hidden="true"></i> Continue with Google
+                    </button>
+                    <p id="google-setup-help" class="kp-google-help">Google sign-in will be available once it is configured by an administrator.</p>
+                @endif
+
                 @if(config('demo.enabled'))
                 <div class="kp-demo">
                     <div class="kp-demo-heading"><span class="kp-demo-badge"><i class="fas fa-bolt" aria-hidden="true"></i> DEMO ACCESS</span><p>Explore the system with one click</p></div>
@@ -145,6 +176,9 @@
                         @foreach(config('demo.accounts') as $demo)
                         <form action="{{ route('demoLogin') }}" method="POST">
                             @csrf
+                            @if(config('services.turnstile.site_key') && config('services.turnstile.secret_key'))
+                            <input type="hidden" name="cf-turnstile-response" data-turnstile-token>
+                            @endif
                             <input type="hidden" name="username" value="{{ $demo['username'] }}">
                             <button type="submit" class="kp-demo-btn" aria-label="Sign in as demo {{ $demo['lname'] }}">
                                 <span class="kp-demo-ic"><i class="fas fa-user-shield" aria-hidden="true"></i></span>
@@ -166,5 +200,13 @@
             </div>
         </main>
     </div>
+    @if(config('services.turnstile.site_key') && config('services.turnstile.secret_key'))
+    <script>
+        window.kpTurnstileSuccess = function (token) {
+            document.querySelectorAll('[data-turnstile-token]').forEach(function (field) { field.value = token; });
+        };
+        window.kpTurnstileClear = function () { window.kpTurnstileSuccess(''); };
+    </script>
+    @endif
 </body>
 </html>

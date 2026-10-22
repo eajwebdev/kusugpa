@@ -69,5 +69,6 @@ class Kernel extends HttpKernel
         'navigation.access' => \App\Http\Middleware\NavigationAccess::class,
         'role' => \App\Http\Middleware\LoginAuth::class,
         'admin.role' => \App\Http\Middleware\AdminRole::class,
+        'turnstile' => \App\Http\Middleware\VerifyTurnstile::class,
     ];
 }

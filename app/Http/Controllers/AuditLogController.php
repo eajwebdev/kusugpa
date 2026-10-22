@@ -14,7 +14,7 @@ class AuditLogController extends Controller
     // Server-side pagination - only load what's needed
     $perPage = 100; // Load 100 records per page for client-side filtering
     
-    $query = AuditLog::with('user')->orderBy('created_at', 'desc');
+    $query = AuditLog::visibleTo($request->user())->with('user')->orderBy('created_at', 'desc');
     
     // Apply server-side filters if provided
     if ($request->date_from) {
@@ -27,15 +27,15 @@ class AuditLogController extends Controller
     $logs = $query->paginate($perPage);
     
     // Get unique modules and actions for filter dropdowns (from all logs, not just current page)
-    $modules = AuditLog::select('module')->distinct()->pluck('module');
-    $actions = AuditLog::select('action')->distinct()->pluck('action');
+    $modules = AuditLog::visibleTo($request->user())->distinct()->pluck('module');
+    $actions = AuditLog::visibleTo($request->user())->distinct()->pluck('action');
 
     // Stats from all logs
     $stats = [
-        'total' => AuditLog::count(),
-        'today' => AuditLog::whereDate('created_at', today())->count(),
-        'logins' => AuditLog::where('action', 'login')->count(),
-        'errors' => AuditLog::where('action', 'error')->count(),
+        'total' => AuditLog::visibleTo($request->user())->count(),
+        'today' => AuditLog::visibleTo($request->user())->whereDate('created_at', today())->count(),
+        'logins' => AuditLog::visibleTo($request->user())->where('action', 'login')->count(),
+        'errors' => AuditLog::visibleTo($request->user())->where('action', 'error')->count(),
     ];
 
     return view('audit-logs.index', compact('logs', 'modules', 'actions', 'stats'));
@@ -47,7 +47,7 @@ public function loadMore(Request $request)
     $perPage = 100;
     $page = $request->get('page', 1);
     
-    $query = AuditLog::with('user')->orderBy('created_at', 'desc');
+    $query = AuditLog::visibleTo($request->user())->with('user')->orderBy('created_at', 'desc');
     
     if ($request->date_from) {
         $query->whereDate('created_at', '>=', $request->date_from);
@@ -66,8 +66,10 @@ public function loadMore(Request $request)
     ]);
 }
 
-    public function show(AuditLog $log)
+    public function show(Request $request, int $log)
     {
+        $log = AuditLog::visibleTo($request->user())->findOrFail($log);
+
         return response()->json([
             'id' => $log->id,
             'user_name' => $log->user_name,
@@ -83,7 +85,7 @@ public function loadMore(Request $request)
 
     public function exportPDF(Request $request)
     {
-        $query = AuditLog::with('user')->orderBy('created_at', 'desc');
+        $query = AuditLog::visibleTo($request->user())->with('user')->orderBy('created_at', 'desc');
 
         if ($request->date_from) {
             $query->whereDate('created_at', '>=', $request->date_from);
@@ -110,7 +112,9 @@ public function loadMore(Request $request)
 
     public function clear(Request $request)
     {
-        $days = $request->get('days', 30);
+        abort_unless($request->user()->role === 'Administrator', 403);
+
+        $days = $request->validate(['days' => ['sometimes', 'integer', 'min:1', 'max:3650']])['days'] ?? 30;
         $date = Carbon::now()->subDays($days);
         
         $count = AuditLog::where('created_at', '<', $date)->delete();

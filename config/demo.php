@@ -39,7 +39,7 @@ return [
                 'manage-crop-weeks', 'manage-prices', 'set-quedan-price', 'set-molasses-price',
                 'set-crop-year', 'set-week-number', 'view-reports', 'print-vouchers',
                 'view-loans', 'approve-loans', 'view-cash-advances', 'approve-cash-advances',
-                'view-audit-logs', 'manage-planter-profiles', 'view-planter-profiles',
+                'manage-planter-profiles', 'view-planter-profiles',
                 'view-consolidated-report',
             ],
         ],

@@ -16,7 +16,8 @@ class SystemLockMiddleware
         }
 
         // Public pages and sign-in stay available during portal maintenance.
-        if ($request->is('login', 'logout', '/', 'quotation', 'quotation/download', 'landing')) {
+        if ($request->is('login', 'logout', '/', 'quotation', 'quotation/download', 'landing',
+            'auth/google/redirect', 'auth/google/callback')) {
             return $next($request);
         }
 

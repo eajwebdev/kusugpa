@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 
 class AuditLog extends Model
 {
@@ -21,6 +22,33 @@ class AuditLog extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function scopeVisibleTo(Builder $query, User $viewer): Builder
+    {
+        if ($viewer->role === 'Administrator') {
+            return $query;
+        }
+
+        $lowerRoles = match ($viewer->role) {
+            'super_admin' => ['manager', 'loan_officer', 'User', 'Viewer'],
+            'manager' => ['loan_officer', 'User', 'Viewer'],
+            default => [],
+        };
+
+        return $query->where(function (Builder $visible) use ($viewer, $lowerRoles) {
+            $visible->where('user_id', $viewer->getKey());
+
+            if ($lowerRoles) {
+                $visible->orWhere(function (Builder $subordinate) use ($lowerRoles) {
+                    $subordinate->whereIn('user_role', $lowerRoles)
+                        ->where(function (Builder $actor) use ($lowerRoles) {
+                            $actor->whereNull('user_id')
+                                ->orWhereHas('user', fn (Builder $user) => $user->whereIn('role', $lowerRoles));
+                        });
+                });
+            }
+        });
     }
 
     /**

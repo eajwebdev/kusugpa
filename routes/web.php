@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LoginAuthController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\UpdatesController;
 use App\Http\Controllers\UploadController;
@@ -45,14 +46,17 @@ Route::match(['get', 'post'], '/logout', [LoginAuthController::class, 'logout'])
 // Guest Routes
 Route::middleware(['guest'])->group(function () {
     Route::get('/login', [LoginAuthController::class, 'getLogin'])->name('getLogin');
-    Route::post('/login', [LoginAuthController::class, 'postLogin'])->name('postLogin');
-    Route::post('/login/demo', [LoginAuthController::class, 'demoLogin'])->name('demoLogin');
+    Route::post('/login', [LoginAuthController::class, 'postLogin'])->middleware('turnstile')->name('postLogin');
+    Route::post('/login/demo', [LoginAuthController::class, 'demoLogin'])->middleware('turnstile')->name('demoLogin');
+    Route::post('/auth/google/redirect', [GoogleAuthController::class, 'redirectToGoogle'])->middleware('turnstile')->name('google.redirect');
 });
+
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
 
 // Admin Login Routes
 Route::prefix('system/auth')->name('admin.')->group(function () {
     Route::get('/admin-login', [LoginAuthController::class, 'getAdminLogin'])->name('getLogin');
-    Route::post('/admin-login', [LoginAuthController::class, 'postAdminLogin'])->name('postLogin');
+    Route::post('/admin-login', [LoginAuthController::class, 'postAdminLogin'])->middleware('turnstile')->name('postLogin');
 });
 
 // Public redirect shim
@@ -62,6 +66,8 @@ Route::get('/home', function () {
 
 // Authenticated Routes
 Route::middleware(['login_auth', 'navigation.access'])->group(function () {
+    Route::get('/account/google', [GoogleAuthController::class, 'settings'])->name('account.google');
+    Route::get('/auth/google/link', [GoogleAuthController::class, 'linkGoogle'])->name('google.link');
     // Dashboard
     Route::get('/dashboard', [MenuController::class, 'dashboard'])->name('dashboard');
 
@@ -261,6 +267,13 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
         Route::post('/backup/create', [MenuController::class, 'createBackup'])->name('backup.create');
     });
 
+    // Audit visibility is enforced by AuditLog::visibleTo for every endpoint.
+    Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
+    Route::get('/audit-logs/export/pdf', [AuditLogController::class, 'exportPDF'])->name('audit-logs.export');
+    Route::post('/audit-logs/clear', [AuditLogController::class, 'clear'])->name('audit-logs.clear');
+    Route::get('/audit-logs/load-more', [AuditLogController::class, 'loadMore'])->name('audit-logs.load-more');
+    Route::get('/audit-logs/{log}', [AuditLogController::class, 'show'])->whereNumber('log')->name('audit-logs.show');
+
     // routes/web.php - Update the crop-weeks route
 Route::middleware(['login_auth:manage-crop-weeks'])->group(function () {
     Route::get('/crop-weeks', [CropWeekController::class, 'index'])->name('crop-weeks.index');
@@ -323,14 +336,6 @@ Route::middleware(['login_auth:manage-crop-weeks'])->group(function () {
 
     Route::get('/quedan-registry/export', [PriceController::class, 'exportQuedanPDF'])->name('quedan-registry.export');
     Route::get('/molasses-registry/export', [PriceController::class, 'exportMolassesPDF'])->name('molasses-registry.export');
-
-    // Audit Logs
-    Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
-    Route::get('/audit-logs/{log}', [AuditLogController::class, 'show'])->name('audit-logs.show');
-    Route::get('/audit-logs/export/pdf', [AuditLogController::class, 'exportPDF'])->name('audit-logs.export');
-    Route::post('/audit-logs/clear', [AuditLogController::class, 'clear'])->name('audit-logs.clear');
-    Route::get('/audit-logs/load-more', [AuditLogController::class, 'loadMore'])->name('audit-logs.load-more');
-
 
     // Planter Profiles - Static routes BEFORE wildcard
     Route::get('/planter-profiles', [PlanterProfileController::class, 'index'])->name('planter-profiles.index');

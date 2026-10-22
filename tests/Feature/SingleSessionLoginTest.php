@@ -19,7 +19,13 @@ class SingleSessionLoginTest extends TestCase
     {
         parent::setUp();
 
-        config(['database.default' => 'sqlite', 'database.connections.sqlite.database' => ':memory:']);
+        config([
+            'database.default' => 'sqlite',
+            'database.connections.sqlite.database' => ':memory:',
+            'services.turnstile.site_key' => null,
+            'services.turnstile.secret_key' => null,
+            'services.turnstile.expected_hostname' => null,
+        ]);
         DB::purge('sqlite');
         DB::setDefaultConnection('sqlite');
         $this->withoutMiddleware(SystemLockMiddleware::class);
@@ -110,6 +116,7 @@ class SingleSessionLoginTest extends TestCase
 
         $this->assertSame(hash('sha256', session()->getId()), $user->fresh()->active_session_hash);
         $this->getJson('/single-session-probe')->assertOk()->assertJsonPath('user_id', $user->id);
+        $this->assertSame(1, DB::table('audit_logs')->where('user_id', $user->id)->where('action', 'login')->count());
     }
 
     public function loginRoles(): array
@@ -192,6 +199,7 @@ class SingleSessionLoginTest extends TestCase
 
         $this->assertSame(hash('sha256', session()->getId()), $user->fresh()->active_session_hash);
         $this->getJson('/single-session-probe')->assertOk();
+        $this->assertSame(1, DB::table('audit_logs')->where('user_id', $user->id)->where('action', 'login')->count());
     }
 
     public function test_demo_login_registers_a_single_session(): void
@@ -213,6 +221,7 @@ class SingleSessionLoginTest extends TestCase
 
         $this->assertSame(hash('sha256', session()->getId()), $user->fresh()->active_session_hash);
         $this->getJson('/single-session-probe')->assertOk();
+        $this->assertSame(1, DB::table('audit_logs')->where('user_id', $user->id)->where('action', 'login')->count());
     }
 
     public function test_failed_login_does_not_replace_an_existing_session(): void

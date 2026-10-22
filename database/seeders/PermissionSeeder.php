@@ -120,11 +120,6 @@ class PermissionSeeder extends Seeder
                 'description' => 'Can configure loan types, interest rates, and settings',
             ],
             [
-                'name' => 'View Audit Logs',
-                'slug' => 'view-audit-logs',
-                'description' => 'Can view system audit logs and activity trail',
-            ],
-            [
                 'name' => 'Manage Planter Profiles',
                 'slug' => 'manage-planter-profiles',
                 'description' => 'Can create, edit, and manage planter profiles',
