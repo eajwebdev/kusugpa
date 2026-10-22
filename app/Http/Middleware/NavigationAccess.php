@@ -22,6 +22,9 @@ class NavigationAccess
         if (!$allowed && $required === 'view-cash-advances') {
             $allowed = $user->hasAnyPermission(['create-cash-advances', 'approve-cash-advances', 'process-cash-advance-payments']);
         }
+        if (!$allowed && $required === 'view-hauling-liquidity') {
+            $allowed = $user->hasPermission('manage-hauling-liquidity');
+        }
         if (!$allowed && $required === 'create-loans') {
             $allowed = $user->hasPermission('process-loan-payments');
         }
