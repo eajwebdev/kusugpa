@@ -30,7 +30,7 @@ class CaReceiptController extends Controller
         if (in_array($this->user()->role, ['Administrator', 'super_admin', 'manager', 'loan_officer'])) {
             return true;
         }
-        return $this->user()->hasAnyPermission(['view-reports', 'view-cash-advances']);
+        return $this->user()->hasPermission('view-cash-advances');
     }
 
     /**

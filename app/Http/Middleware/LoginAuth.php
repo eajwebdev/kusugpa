@@ -20,6 +20,11 @@ class LoginAuth
             $user = Auth::user();
 
             if (!$user->role) {
+                // Sign the account out, otherwise the login page sends it straight back here
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
                 if ($wantsJson) {
                     return response()->json(['message' => 'Invalid user role.'], 403);
                 }

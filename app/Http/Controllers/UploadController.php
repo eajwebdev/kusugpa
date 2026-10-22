@@ -75,9 +75,7 @@ class UploadController extends Controller
             $user = auth()->user();
             
             if ($user->role !== 'Administrator' && $user->role !== 'super_admin') {
-                $hasPermission = $user->permissions()
-                    ->where('slug', $requiredPermission)
-                    ->exists();
+                $hasPermission = $user->hasPermission($requiredPermission);
                 
                 if (!$hasPermission) {
                     AuditLog::log('error', 'uploads', 'Unauthorized upload attempt: ' . $type);

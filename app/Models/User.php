@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\NavigationPermissions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -41,7 +42,9 @@ class User extends Authenticatable
     }
     
     // Manager and other roles must have explicit permissions assigned
-    return $this->permissions->contains('slug', $permissionSlug);
+    $parent = NavigationPermissions::parentFor($permissionSlug);
+    return $this->permissions->contains('slug', $permissionSlug)
+        || ($parent && $this->permissions->contains('slug', $parent));
 }
 
 
@@ -53,7 +56,12 @@ class User extends Authenticatable
     }
     
     // Manager and other roles must have explicit permissions assigned
-    return $this->permissions->whereIn('slug', $permissions)->isNotEmpty();
+    foreach ($permissions as $permission) {
+        if ($this->hasPermission($permission)) {
+            return true;
+        }
+    }
+    return false;
 }
 
     public function givePermission($permissionSlug)

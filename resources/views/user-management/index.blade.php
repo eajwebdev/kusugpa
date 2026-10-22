@@ -154,6 +154,7 @@
                 return {
                     users: @json($users),
                     allPermissions: @json($allPermissions ?? []),
+                    permissionGroups: @json($permissionGroups),
                     filteredUsers: [],
                     searchQuery: '',
                     showUserModal: false,
@@ -189,17 +190,31 @@
                         return (first + last) || '?';
                     },
 
-                    getPermissionsByGroup(group) {
-                        const groups = {
-                            'reports': ['view-reports'],
-                            'uploads': ['upload-summary', 'upload-trucking', 'upload-fci', 'upload-fuel', 'upload-rentals',
-                                'upload-underload', 'upload-transloading', 'upload-tls'
-                            ],
-                            'settings': ['set-quedan-price', 'set-molasses-price', 'set-crop-year', 'set-week-number'],
-                            'other': ['print-vouchers'],
-                        };
-                        const slugs = groups[group] || [];
-                        return this.availablePermissions.filter(p => slugs.includes(p.slug));
+                    groupedPermissions() {
+                        const groups = Object.entries(this.permissionGroups).map(([key, config]) => ({
+                            key,
+                            label: key.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                            all: config.all,
+                            permissions: [config.all, ...config.items]
+                                .map(slug => this.availablePermissions.find(p => p.slug === slug))
+                                .filter(Boolean)
+                        }));
+                        const grouped = new Set(Object.values(this.permissionGroups)
+                            .flatMap(config => [config.all, ...config.items]));
+                        const other = this.availablePermissions.filter(p => !grouped.has(p.slug));
+                        if (other.length) groups.push({ key: 'other', label: 'Other Permissions', all: null, permissions: other });
+                        return groups.filter(group => group.permissions.length);
+                    },
+
+                    isGroupAllGranted(group) {
+                        return !!group.all && this.availablePermissions.some(p => p.slug === group.all && p.granted);
+                    },
+
+                    changePermission(perm, group, checked) {
+                        perm.granted = checked;
+                        if (checked && perm.slug === group.all) {
+                            group.permissions.filter(p => p.slug !== group.all).forEach(p => p.granted = false);
+                        }
                     },
 
                     getPermissionIcon(slug) {
@@ -234,7 +249,8 @@
                     },
 
                     selectAllPermissions() {
-                        this.availablePermissions.forEach(p => p.granted = true);
+                        const childSlugs = new Set(Object.values(this.permissionGroups).flatMap(group => group.items));
+                        this.availablePermissions.forEach(p => p.granted = !childSlugs.has(p.slug));
                     },
 
                     deselectAllPermissions() {
@@ -492,11 +508,14 @@
                             granted: user.permissions?.some(up => up.id === p.id) || false
                         }));
 
-                        this.showPermissionsModal = true;
-                    },
+                        Object.values(this.permissionGroups).forEach(group => {
+                            if (this.availablePermissions.some(p => p.slug === group.all && p.granted)) {
+                                this.availablePermissions.filter(p => group.items.includes(p.slug))
+                                    .forEach(p => p.granted = false);
+                            }
+                        });
 
-                    togglePermission(perm) {
-                        perm.granted = !perm.granted;
+                        this.showPermissionsModal = true;
                     },
 
                     async savePermissions() {

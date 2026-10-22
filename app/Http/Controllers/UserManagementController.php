@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Permission;
 use App\Models\AuditLog;
+use App\Support\NavigationPermissions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -17,6 +18,9 @@ class UserManagementController extends Controller
         $this->middleware(function ($request, $next) {
             $user = auth()->user();
             if (!in_array($user->role, ['Administrator', 'super_admin'])) {
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => 'You do not have permission to access User Management.'], 403);
+                }
                 return redirect()->route('dashboard')
                     ->with('error', 'You do not have permission to access User Management.');
             }
@@ -30,7 +34,8 @@ class UserManagementController extends Controller
         
         return view('user-management.index', [
             'users' => $users,
-            'allPermissions' => Permission::all()
+            'allPermissions' => Permission::all(),
+            'permissionGroups' => NavigationPermissions::GROUPS,
         ]);
     }
 
@@ -239,6 +244,10 @@ class UserManagementController extends Controller
 
     if (!in_array($currentUser->role, ['Administrator', 'super_admin'])) {
         return response()->json(['message' => 'You do not have permission to manage permissions.'], 403);
+    }
+
+    if ($currentUser->role === 'super_admin' && !in_array($user->role, ['User', 'Viewer'], true)) {
+        return response()->json(['message' => 'Only an Administrator can manage this user\'s permissions.'], 403);
     }
 
     // Get current permissions before update

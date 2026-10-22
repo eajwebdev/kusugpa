@@ -72,7 +72,10 @@ class LoanController extends Controller
     public function __construct()
     {
         $this->middleware(function ($request, $next) {
-            if ($this->currentRole() === 'Viewer') {
+            if ($this->currentRole() === 'Viewer' && !$this->user()->hasAnyPermission([
+                'access-all-loans', 'create-loans', 'approve-loans', 'process-loan-payments',
+                'manage-loan-settings', 'view-loan-reports',
+            ])) {
                 if (!in_array($request->route()->getName(), ['loans.index', 'loans.show'])) {
                     return redirect()->route('loans.index')
                         ->with('error', 'You only have view access to loans.');

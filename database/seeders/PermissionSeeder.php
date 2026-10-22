@@ -85,9 +85,9 @@ class PermissionSeeder extends Seeder
                 'description' => 'Can upload transloading allowance CSV files',
             ],
             [
-                'name' => 'View Reports',
+                'name' => 'All Reports',
                 'slug' => 'view-reports',
-                'description' => 'Can view summary and other reports',
+                'description' => 'Can access every item in the Reports menu',
             ],
             [
                 'name' => 'Print Vouchers',
@@ -194,6 +194,7 @@ class PermissionSeeder extends Seeder
                 'slug' => 'manage-hauling-liquidity',
                 'description' => 'Can add haulers and create, edit, and delete hauling liquidation entries',
             ],
+            ...\App\Support\NavigationPermissionsSeeder::permissions(),
         ];
 
         // Use updateOrCreate to avoid duplicate key errors

@@ -1,4 +1,7 @@
 <!-- resources/views/layouts/sidebar-items.blade.php -->
+@php
+    $navUser = auth()->user();
+@endphp
 
 <!-- Dashboard -->
 <li>
@@ -10,6 +13,7 @@
 </li>
 
 <!-- Print Vouchers -->
+@if ($navUser->hasPermission('print-vouchers'))
 <li>
     <a href="{{ route('printVoucher') }}"
         class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('printVoucher') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -17,6 +21,7 @@
         <span>Print Vouchers</span>
     </a>
 </li>
+@endif
 
 <!-- Quedan & Molasses Dropdown -->
 @php
@@ -29,6 +34,7 @@
         'molasses.bulk*'
     );
 @endphp
+@if (\App\Support\NavigationPermissions::canSeeGroup($navUser, 'quedan-molasses'))
 <li x-data="{ open: {{ $quedanMolassesActive ? 'true' : 'false' }} }">
     <button type="button" @click="open = !open" :aria-expanded="open.toString()"
         class="group flex w-full items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ $quedanMolassesActive ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -38,6 +44,7 @@
             :class="{ 'rotate-180': open }"></i>
     </button>
     <ul x-show="open" class="mt-1 space-y-1 ml-8">
+        @if ($navUser->hasPermission('view-quedan-molasses-registry'))
         <li>
             <a href="{{ route('prices.registry') }}"
                 class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('prices.registry*') || request()->routeIs('quedan-molasses-registry*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -45,6 +52,8 @@
                 <span>Registry List</span>
             </a>
         </li>
+        @endif
+        @if ($navUser->hasPermission('buy-quedan'))
         <li>
             <a href="{{ route('quedan-buy.index') }}"
                 class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('quedan-buy*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -52,6 +61,8 @@
                 <span>Buy Quedan</span>
             </a>
         </li>
+        @endif
+        @if ($navUser->hasPermission('buy-molasses'))
         <li>
             <a href="{{ route('molasses-buy.index') }}"
                 class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('molasses-buy*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -59,29 +70,14 @@
                 <span>Buy Molasses</span>
             </a>
         </li>
+        @endif
     </ul>
 </li>
+@endif
 
 <!-- Weekly Uploads -->
 @php
-    $canUpload =
-        auth()->user()->role === 'Administrator' ||
-        auth()
-            ->user()
-            ->hasAnyPermission([
-                'upload-summary',
-                'upload-trucking',
-                'upload-fuel',
-                'upload-rentals',
-                'upload-underload',
-                'upload-transloading',
-                'upload-fci',
-                'upload-mudpress',
-                'upload-consolidated',
-                'upload-quedan',
-                'upload-molasses',
-                'upload-tls',
-            ]);
+    $canUpload = \App\Support\NavigationPermissions::canSeeGroup($navUser, 'uploads');
 @endphp
 @if ($canUpload)
     <li x-data="{ open: false }">
@@ -94,6 +90,7 @@
         </button>
         <ul x-show="open" class="mt-1 space-y-1 ml-8">
 
+            @if ($navUser->hasPermission('upload-quedan'))
             <li>
                 <button onclick="openUploadModal('quedan')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -101,6 +98,8 @@
                     <span>Quedan</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-molasses'))
             <li>
                 <button onclick="openUploadModal('molasses')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -108,6 +107,8 @@
                     <span>Molasses Data</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-consolidated'))
             <li>
                 <button onclick="openUploadModal('consolidated')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -115,6 +116,8 @@
                     <span>Consolidated Summary</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-summary'))
             <li>
                 <button onclick="openUploadModal('summary')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -122,6 +125,8 @@
                     <span>Summary</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-trucking'))
             <li>
                 <button onclick="openUploadModal('trucking')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -129,6 +134,8 @@
                     <span>Trucking Allowance</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-fci'))
             <li>
                 <button onclick="openUploadModal('fci')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -136,6 +143,8 @@
                     <span>Fresh Cane Incentive</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-fuel'))
             <li>
                 <button onclick="openUploadModal('fuel')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -143,6 +152,8 @@
                     <span>Fuel</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-rentals'))
             <li>
                 <button onclick="openUploadModal('rentals')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -150,6 +161,8 @@
                     <span>Rentals</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-underload'))
             <li>
                 <button onclick="openUploadModal('underload')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -157,6 +170,8 @@
                     <span>Underload</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-transloading'))
             <li>
                 <button onclick="openUploadModal('transloading')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -164,6 +179,8 @@
                     <span>Transloading</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-mudpress'))
             <li>
                 <button onclick="openUploadModal('mudpress')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -171,6 +188,8 @@
                     <span>Mudpress</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('upload-tls'))
             <li>
                 <button onclick="openUploadModal('tls')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -178,17 +197,14 @@
                     <span>TLS Hauling</span>
                 </button>
             </li>
+            @endif
         </ul>
     </li>
 @endif
 
 <!-- Weekly Updates -->
 @php
-    $canManageSettings =
-        auth()->user()->role === 'Administrator' ||
-        auth()
-            ->user()
-            ->hasAnyPermission(['set-quedan-price', 'set-molasses-price', 'set-crop-year', 'set-week-number']);
+    $canManageSettings = \App\Support\NavigationPermissions::canSeeGroup($navUser, 'updates');
 @endphp
 
 @if ($canManageSettings)
@@ -201,6 +217,7 @@
                 :class="{ 'rotate-180': open }"></i>
         </button>
         <ul x-show="open" class="mt-1 space-y-1 ml-8">
+            @if ($navUser->hasPermission('set-quedan-price'))
             <li>
                 <button onclick="openQuedanPriceModal()"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -208,6 +225,8 @@
                     <span>Quedan Price</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('set-molasses-price'))
             <li>
                 <button onclick="openMolassesPriceModal()"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -215,6 +234,8 @@
                     <span>Molasses Price</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('set-crop-year'))
             <li>
                 <button onclick="openCropYearModal()"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -222,6 +243,8 @@
                     <span>Crop Year</span>
                 </button>
             </li>
+            @endif
+            @if ($navUser->hasPermission('set-week-number'))
             <li>
                 <button onclick="openWeekNumberModal()"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
@@ -229,6 +252,7 @@
                     <span>Week Number</span>
                 </button>
             </li>
+            @endif
         </ul>
     </li>
 @endif
@@ -258,7 +282,7 @@
 
 <!-- Reports -->
 @php
-    $canViewReports = auth()->user()->role === 'Administrator' || auth()->user()->hasPermission('view-reports');
+    $canViewReports = \App\Support\NavigationPermissions::canSeeGroup($navUser, 'reports');
     $reportsActive = request()->routeIs('summaryReport', 'consolidated-report*', 'trucking-allowance-report*', 'certification-report*', 'tls-report*', 'proceeds-sheet-report*');
 @endphp
 
@@ -273,7 +297,7 @@
         </button>
         <ul x-show="open" class="mt-1 space-y-1 ml-8">
 
-            <!-- In the Reports dropdown, add this item -->
+            @if ($navUser->hasPermission('view-consolidated-report'))
             <li>
                 <a href="{{ route('consolidated-report') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('consolidated-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -281,7 +305,8 @@
                     <span>Consolidated Report</span>
                 </a>
             </li>
-
+            @endif
+            @if ($navUser->hasPermission('view-summary-report'))
             <li>
                 <a href="{{ route('summaryReport') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('summaryReport') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -289,6 +314,8 @@
                     <span>Summary Reports</span>
                 </a>
             </li>
+            @endif
+            @if ($navUser->hasPermission('view-trucking-allowance-report'))
             <li>
                 <a href="{{ route('trucking-allowance-report') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('trucking-allowance-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -296,6 +323,8 @@
                     <span>Trucking Allowance</span>
                 </a>
             </li>
+            @endif
+            @if ($navUser->hasPermission('view-certification-report'))
             <li>
                 <a href="{{ route('certification-report') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('certification-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -303,6 +332,8 @@
                     <span>Production Certification</span>
                 </a>
             </li>
+            @endif
+            @if ($navUser->hasPermission('view-tls-report'))
             <li>
                 <a href="{{ route('tls-report') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('tls-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -310,6 +341,8 @@
                     <span>TLS Reports</span>
                 </a>
             </li>
+            @endif
+            @if ($navUser->hasPermission('view-proceeds-sheet-report'))
             <li>
                 <a href="{{ route('proceeds-sheet-report') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('proceeds-sheet-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -317,20 +350,7 @@
                     <span>Proceeds Sheet</span>
                 </a>
             </li>
-            <li>
-                <a href="#"
-                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
-                    <i class="fas fa-receipt w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
-                    <span>Voucher Reports</span>
-                </a>
-            </li>
-            <li>
-                <a href="#"
-                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
-                    <i class="fas fa-tags w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
-                    <span>Weekly Prices</span>
-                </a>
-            </li>
+            @endif
         </ul>
     </li>
 @endif
@@ -349,13 +369,7 @@
 
 <!-- Loans Dropdown -->
 @php
-    $canViewLoans =
-        in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager', 'loan_officer']) ||
-        auth()->user()->hasPermission('view-loans') ||
-        auth()->user()->hasPermission('create-loans') ||
-        auth()->user()->hasPermission('approve-loans') ||
-        auth()->user()->hasPermission('process-loan-payments') ||
-        auth()->user()->hasPermission('manage-loan-settings');
+    $canViewLoans = \App\Support\NavigationPermissions::canSeeGroup($navUser, 'loans');
 @endphp
 
 @if ($canViewLoans)
@@ -368,6 +382,7 @@
                 :class="{ 'rotate-180': open }"></i>
         </button>
         <ul x-show="open" class="mt-1 space-y-1 ml-8">
+            @if ($navUser->hasAnyPermission(['view-loans', 'create-loans', 'approve-loans', 'process-loan-payments']))
             <li>
                 <a href="{{ route('loans.index') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('loans.index') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -375,6 +390,8 @@
                     <span>All Loans</span>
                 </a>
             </li>
+            @endif
+            @if ($navUser->hasPermission('view-loan-reports'))
             <li>
                 <a href="{{ route('loans.reports') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('loans.reports') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -382,8 +399,8 @@
                     <span>Loan Reports</span>
                 </a>
             </li>
-            @if (in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager']) ||
-                    auth()->user()->hasPermission('manage-loan-settings'))
+            @endif
+            @if ($navUser->hasPermission('manage-loan-settings'))
                 <li>
                     <a href="{{ route('loans.settings') }}"
                         class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('loans.settings') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -399,13 +416,7 @@
 
 <!-- Cash Advances Dropdown -->
 @php
-    $canViewCA =
-        in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager', 'loan_officer']) ||
-        auth()->user()->hasPermission('view-cash-advances') ||
-        auth()->user()->hasPermission('create-cash-advances') ||
-        auth()->user()->hasPermission('approve-cash-advances') ||
-        auth()->user()->hasPermission('process-cash-advance-payments') ||
-        auth()->user()->hasPermission('manage-cash-advance-settings');
+    $canViewCA = \App\Support\NavigationPermissions::canSeeGroup($navUser, 'cash-advances');
 @endphp
 
 @if ($canViewCA)
@@ -418,6 +429,7 @@
                 :class="{ 'rotate-180': open }"></i>
         </button>
         <ul x-show="open" class="mt-1 space-y-1 ml-8">
+            @if ($navUser->hasAnyPermission(['view-cash-advances', 'create-cash-advances', 'approve-cash-advances', 'process-cash-advance-payments']))
             <li>
                 <a href="{{ route('cash-advances.index') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('cash-advances.index') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -425,8 +437,8 @@
                     <span>All Cash Advances</span>
                 </a>
             </li>
-            @if (in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager']) ||
-                    auth()->user()->hasPermission('manage-cash-advance-settings'))
+            @endif
+            @if ($navUser->hasPermission('manage-cash-advance-settings'))
                 <li>
                     <a href="{{ route('cash-advances.settings') }}"
                         class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('cash-advances.settings') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
