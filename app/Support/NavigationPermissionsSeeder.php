@@ -33,6 +33,9 @@ class NavigationPermissionsSeeder
             'Cash Advances' => [
                 ['All Cash Advances Menu', 'access-all-cash-advances'],
             ],
+            'Hauler TLS LIQ' => [
+                ['All Hauler TLS LIQ', 'access-all-hauler-tls-liq'],
+            ],
         ];
 
         $permissions = [];

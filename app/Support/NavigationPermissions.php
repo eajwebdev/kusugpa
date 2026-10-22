@@ -37,6 +37,11 @@ class NavigationPermissions
             'items' => ['view-cash-advances', 'manage-cash-advance-settings', 'create-cash-advances',
                 'approve-cash-advances', 'process-cash-advance-payments'],
         ],
+        'hauler-tls-liq' => [
+            'label' => 'Hauler TLS LIQ',
+            'all' => 'access-all-hauler-tls-liq',
+            'items' => ['view-hauling-liquidity', 'manage-hauling-liquidity'],
+        ],
     ];
 
     public static function parentFor(string $slug): ?string
@@ -64,6 +69,13 @@ class NavigationPermissions
 
         if (in_array($name, ['printVoucher', 'voucher.pdf'], true)) {
             return 'print-vouchers';
+        }
+
+        if (str_starts_with($name, 'hauling-liquidity.')) {
+            return in_array($name, ['hauling-liquidity.index', 'hauling-liquidity.show',
+                'hauling-liquidity.entries.pdf', 'hauling-liquidity.week-pdf'], true)
+                ? 'view-hauling-liquidity'
+                : 'manage-hauling-liquidity';
         }
 
         if (in_array($name, ['prices.registry', 'quedan-molasses-registry', 'registry.data', 'registry.filters',

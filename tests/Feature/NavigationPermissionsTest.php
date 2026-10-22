@@ -344,7 +344,50 @@ class NavigationPermissionsTest extends TestCase
             ->assertOk()
             ->assertSee('Choose All to allow every item in a menu')
             ->assertSee('view-summary-report')
-            ->assertSee('access-all-cash-advances');
+            ->assertSee('access-all-cash-advances')
+            ->assertSee('access-all-hauler-tls-liq')
+            ->assertSee('View Hauler TLS LIQ');
+    }
+
+    public function test_hauler_tls_liq_rights_control_menu_and_direct_routes(): void
+    {
+        Route::middleware(['web', 'login_auth', 'navigation.access'])
+            ->get('/permission-hauler/view', fn () => response('view'))
+            ->name('hauling-liquidity.index');
+        Route::middleware(['web', 'login_auth', 'navigation.access'])
+            ->get('/permission-hauler/manage', fn () => response('manage'))
+            ->name('hauling-liquidity.auto-deductions');
+
+        $manager = $this->userWith([], 'manager');
+        $this->actingAs($manager);
+        $this->assertStringNotContainsString('<span>Hauler TLS LIQ</span>', view('layouts.sidebar-items')->render());
+        $this->getJson('/permission-hauler/view')->assertForbidden();
+        $this->getJson('/permission-hauler/manage')->assertForbidden();
+
+        $this->actingAs($this->userWith(['view-hauling-liquidity'], 'User'));
+        $this->assertStringContainsString('<span>Hauler TLS LIQ</span>', view('layouts.sidebar-items')->render());
+        $this->getJson('/permission-hauler/view')->assertOk();
+        $this->getJson('/permission-hauler/manage')->assertForbidden();
+
+        $this->actingAs($this->userWith(['manage-hauling-liquidity'], 'Viewer'));
+        $this->getJson('/permission-hauler/view')->assertOk();
+        $this->getJson('/permission-hauler/manage')->assertOk();
+
+        $this->actingAs($this->userWith(['access-all-hauler-tls-liq'], 'loan_officer'));
+        $this->getJson('/permission-hauler/view')->assertOk();
+        $this->getJson('/permission-hauler/manage')->assertOk();
+    }
+
+    public function test_every_hauler_tls_liq_route_has_a_permission_mapping(): void
+    {
+        foreach (Route::getRoutes() as $route) {
+            $name = $route->getName();
+            if (!$name || !str_starts_with($name, 'hauling-liquidity.')) {
+                continue;
+            }
+            $this->assertNotNull(NavigationPermissions::requiredForRoute($name));
+            $this->assertContains('navigation.access', $route->gatherMiddleware());
+        }
     }
 
 }

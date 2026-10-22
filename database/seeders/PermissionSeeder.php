@@ -185,14 +185,14 @@ class PermissionSeeder extends Seeder
                 'description' => 'Can configure cash advance settings',
             ],
             [
-                'name' => 'View Hauling Liquidity',
+                'name' => 'View Hauler TLS LIQ',
                 'slug' => 'view-hauling-liquidity',
-                'description' => 'Can view haulers and hauling liquidation entries',
+                'description' => 'Can view haulers and hauling liquidation entries in Hauler TLS LIQ',
             ],
             [
-                'name' => 'Manage Hauling Liquidity',
+                'name' => 'Manage Hauler TLS LIQ',
                 'slug' => 'manage-hauling-liquidity',
-                'description' => 'Can add haulers and create, edit, and delete hauling liquidation entries',
+                'description' => 'Can add haulers and create, edit, and delete Hauler TLS LIQ entries',
             ],
             ...\App\Support\NavigationPermissionsSeeder::permissions(),
         ];

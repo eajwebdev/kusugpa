@@ -26,7 +26,7 @@ class HaulingLiquidityController extends Controller
 
     private function canView(): bool
     {
-        if (in_array($this->user()->role, ['Administrator', 'super_admin', 'manager'])) {
+        if (in_array($this->user()->role, ['Administrator', 'super_admin'])) {
             return true;
         }
         return $this->user()->hasAnyPermission(['view-hauling-liquidity', 'manage-hauling-liquidity']);
@@ -34,7 +34,7 @@ class HaulingLiquidityController extends Controller
 
     private function canManage(): bool
     {
-        if (in_array($this->user()->role, ['Administrator', 'super_admin', 'manager'])) {
+        if (in_array($this->user()->role, ['Administrator', 'super_admin'])) {
             return true;
         }
         return $this->user()->hasPermission('manage-hauling-liquidity');

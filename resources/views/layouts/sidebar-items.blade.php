@@ -451,9 +451,8 @@
     </li>
 @endif
 
-<!-- Hauling Liquidity -->
-@if (in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager']) ||
-        auth()->user()->hasAnyPermission(['view-hauling-liquidity', 'manage-hauling-liquidity']))
+<!-- Hauler TLS LIQ -->
+@if (\App\Support\NavigationPermissions::canSeeGroup($navUser, 'hauler-tls-liq'))
     <li>
         <a href="{{ route('hauling-liquidity.index') }}"
             class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('hauling-liquidity.*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">

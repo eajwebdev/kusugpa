@@ -193,7 +193,7 @@
                     groupedPermissions() {
                         const groups = Object.entries(this.permissionGroups).map(([key, config]) => ({
                             key,
-                            label: key.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                            label: config.label || key.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
                             all: config.all,
                             permissions: [config.all, ...config.items]
                                 .map(slug => this.availablePermissions.find(p => p.slug === slug))
