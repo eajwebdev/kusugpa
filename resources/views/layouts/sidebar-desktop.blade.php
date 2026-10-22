@@ -36,6 +36,10 @@
             </div>
 
             <div class="py-1">
+                <a href="{{ route('account.google') }}" role="menuitem">
+                    <i class="fab fa-google w-5 text-center" style="color: var(--kp-emerald)"></i>
+                    <span>Google sign-in</span>
+                </a>
                 @if (auth()->user()->role === 'Administrator')
                     <a href="{{ route('admin.dashboard') }}" role="menuitem">
                         <i class="fas fa-shield-halved w-5 text-center" style="color: var(--kp-emerald)"></i>

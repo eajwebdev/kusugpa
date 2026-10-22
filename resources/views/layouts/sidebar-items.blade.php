@@ -475,13 +475,10 @@
 @endif
 
 <!-- Audit Logs -->
-@if (in_array(auth()->user()->role, ['Administrator', 'super_admin']) ||
-        auth()->user()->hasPermission('view-audit-logs'))
     <li>
         <a href="{{ route('audit-logs.index') }}"
             class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('audit-logs.*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
             <i class="fas fa-history w-5 h-5 shrink-0 flex items-center justify-center text-center"></i>
-            <span>Audit Logs</span>
+            <span>{{ in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager'], true) ? 'Audit Logs' : 'My Audit Logs' }}</span>
         </a>
     </li>
-@endif

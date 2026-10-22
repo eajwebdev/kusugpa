@@ -11,7 +11,7 @@
             <div>
                 <p class="kp-eyebrow">Activity & Compliance</p>
                 <h1 class="kp-page-title mt-1">Audit Logs</h1>
-                <p class="kp-page-sub">Comprehensive chronological trail of operator activities, system changes, and access events.</p>
+                <p class="kp-page-sub">{{ auth()->user()->role === 'Administrator' ? 'Activity across all accounts and system events.' : (in_array(auth()->user()->role, ['super_admin', 'manager'], true) ? 'Your activity and activity from roles below yours.' : 'Your account activity.') }}</p>
             </div>
             <div class="flex items-center gap-2">
                 <button @click="exportPDF()" class="kp-btn kp-btn-secondary">

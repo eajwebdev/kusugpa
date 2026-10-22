@@ -30,11 +30,12 @@ class UserManagementController extends Controller
 
     public function userManagement()
     {
-        $users = User::with('permissions')->orderBy('created_at', 'desc')->get();
+        $users = User::with(['permissions' => fn ($query) => $query->where('slug', '!=', 'view-audit-logs')])
+            ->orderBy('created_at', 'desc')->get();
         
         return view('user-management.index', [
             'users' => $users,
-            'allPermissions' => Permission::all(),
+            'allPermissions' => Permission::where('slug', '!=', 'view-audit-logs')->get(),
             'permissionGroups' => NavigationPermissions::GROUPS,
         ]);
     }
@@ -307,7 +308,7 @@ class UserManagementController extends Controller
 
     public function permissionsList()
     {
-        $permissions = Permission::all()->map(function($p) {
+        $permissions = Permission::where('slug', '!=', 'view-audit-logs')->get()->map(function($p) {
             return [
                 'id' => $p->id,
                 'slug' => $p->slug,

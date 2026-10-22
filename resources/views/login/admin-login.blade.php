@@ -8,6 +8,9 @@
     <title>KUSUG-PA | System Administration</title>
     @include('layouts.partials.assets')
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    @if(config('services.turnstile.site_key') && config('services.turnstile.secret_key'))
+    <script defer src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&amp;onload=kpAdminTurnstileReady"></script>
+    @endif
     <style>
         .admin-bg-pattern {
             background-color: #0A160F;
@@ -52,9 +55,7 @@
           showPassword: false, 
           loading: false, 
           step: 1,
-          securityKey: '',
-          securityError: false,
-          securityShake: false
+          securityKey: ''
       }">
 
     <div class="fixed inset-0 admin-grid-lines pointer-events-none"></div>
@@ -130,7 +131,7 @@
                         </div>
                     </div>
                     <p class="text-xs text-[#8AA895]">
-                        <span x-show="step === 1">Step 1: Submit cryptographic security key.</span>
+                        <span x-show="step === 1">Step 1: Enter your security access key.</span>
                         <span x-show="step === 2" x-cloak>Step 2: Sign in with master administrator credentials.</span>
                     </p>
                 </div>
@@ -169,7 +170,6 @@
                             </label>
                             <div class="relative group">
                                 <input id="security_key" x-model="securityKey" :type="showPassword ? 'text' : 'password'" required
-                                       :class="{ 'border-rose-500 shake': securityError }"
                                        class="admin-input block w-full pl-4 pr-11 py-3 rounded-xl text-sm"
                                        placeholder="Enter security access key" autocomplete="off" autofocus>
                                 <button type="button" @click="showPassword = !showPassword" 
@@ -177,12 +177,6 @@
                                     <i class="fas text-xs" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
                                 </button>
                             </div>
-                            <p x-show="securityError" class="mt-2 text-xs text-rose-400 flex items-center gap-1.5" x-cloak>
-                                <i class="fas fa-circle-exclamation"></i> Invalid security key. Verification rejected.
-                            </p>
-                            <p class="mt-2 text-[11px] text-[#52705F]">
-                                Default development key: <code class="text-[#D9B54A] font-mono px-1 py-0.5 rounded bg-white/5">KUSUG-ADMIN-2024</code>
-                            </p>
                         </div>
 
                         <button type="submit" 
@@ -234,6 +228,12 @@
                             </button>
                         </div>
 
+                        @if(config('services.turnstile.site_key') && config('services.turnstile.secret_key'))
+                        <div class="flex justify-center">
+                            <div id="kp-admin-turnstile" class="w-full" data-action="admin_login"></div>
+                        </div>
+                        @endif
+
                         <!-- Submit Button -->
                         <button type="submit" 
                                 :disabled="loading"
@@ -260,18 +260,27 @@
 
     <script>
         function verifySecurityKey() {
-            const validKey = '{{ config("app.admin_security_key", "KUSUG-ADMIN-2024") }}';
-            
-            if (this.securityKey === validKey) {
-                this.securityError = false;
+            if (this.securityKey.trim()) {
                 this.step = 2;
                 this.showPassword = false;
-            } else {
-                this.securityError = true;
-                this.securityShake = true;
-                setTimeout(() => { this.securityShake = false; }, 500);
+                if (window.kpRenderAdminTurnstile) setTimeout(window.kpRenderAdminTurnstile, 0);
             }
         }
     </script>
+    @if(config('services.turnstile.site_key') && config('services.turnstile.secret_key'))
+    <script>
+        window.kpRenderAdminTurnstile = function () {
+            var container = document.getElementById('kp-admin-turnstile');
+            if (!window.turnstile || !container || !container.offsetParent || window.kpAdminWidgetId !== undefined) return;
+            window.kpAdminWidgetId = turnstile.render(container, {
+                sitekey: @json(config('services.turnstile.site_key')),
+                action: 'admin_login',
+                size: 'flexible',
+                theme: 'dark'
+            });
+        };
+        window.kpAdminTurnstileReady = window.kpRenderAdminTurnstile;
+    </script>
+    @endif
 </body>
 </html>
