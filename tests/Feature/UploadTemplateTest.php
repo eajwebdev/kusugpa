@@ -10,6 +10,7 @@ class UploadTemplateTest extends TestCase
     /** @dataProvider templateColumns */
     public function test_each_upload_template_downloads_the_expected_csv_header(string $type, array $columns): void
     {
+        $this->withoutMiddleware(\App\Http\Middleware\EnsureSingleSession::class);
         $this->actingAs(new User(['role' => 'Administrator']));
 
         $response = $this->get(route('upload.template', ['type' => $type]));

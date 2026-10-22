@@ -24,6 +24,7 @@ class NavigationPermissionsTest extends TestCase
         DB::purge('sqlite');
         DB::setDefaultConnection('sqlite');
         $this->withoutMiddleware(SystemLockMiddleware::class);
+        $this->withoutMiddleware(\App\Http\Middleware\EnsureSingleSession::class);
         $this->withoutMiddleware(VerifyCsrfToken::class);
 
         Schema::create('users', function (Blueprint $table) {
