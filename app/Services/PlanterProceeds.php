@@ -256,10 +256,9 @@ class PlanterProceeds
         $caWeekly = CashAdvanceDeduction::where('crop_year', $cropYear)
             ->whereRaw('CAST(week_no AS UNSIGNED) BETWEEN ? AND ?', [(int) $weekFrom, (int) $weekTo])
             ->whereHas('cashAdvance', fn ($q) => $q->whereIn('status', ['approved', 'active', 'completed']))
-            ->with('cashAdvance:id,planter_code')
+            ->with('cashAdvance:id,planter_code,planter_name')
             ->get()
-            ->groupBy(fn ($d) => $d->cashAdvance->planter_code)
-            ->map(fn ($rows) => round((float) $rows->sum('amount'), 2));
+            ->map(fn ($d) => ['cash_advance' => $d->cashAdvance, 'amount' => (float) $d->amount]);
 
         // Older monthly cash advances: installments due within the voucher's weeks, when auto-deduct is on
         $caMonthly = collect();
@@ -268,14 +267,32 @@ class PlanterProceeds
             $caMonthly = CashAdvanceAmortization::whereIn('status', ['pending', 'partial', 'overdue'])
                 ->whereBetween('due_date', [substr((string) $periodStart, 0, 10), substr((string) $weekEndDates->max(), 0, 10)])
                 ->whereHas('cashAdvance', fn ($q) => $q->where('crop_year', $cropYear)->where('status', 'active'))
-                ->with('cashAdvance:id,planter_code')
+                ->with('cashAdvance:id,planter_code,planter_name')
                 ->get()
-                ->groupBy(fn ($a) => $a->cashAdvance->planter_code)
-                ->map(fn ($rows) => round((float) $rows->sum(fn ($a) => $a->amount_due - $a->amount_paid), 2));
+                ->map(fn ($a) => ['cash_advance' => $a->cashAdvance, 'amount' => (float) ($a->amount_due - $a->amount_paid)]);
         }
 
-        $summaryData = $summaryData->map(function ($data) use ($caWeekly, $caMonthly) {
-            $data['ca_deduction'] = ($caWeekly[$data['planter_code']] ?? 0) + ($caMonthly[$data['planter_code']] ?? 0);
+        // Each cash advance goes to the voucher planter with its code; codes from the uploads can differ from
+        // the planter profile codes in spacing / case, so they are compared loosely and the name is the fallback
+        $match = fn ($value) => strtoupper(preg_replace('/\s+/', ' ', trim((string) $value)));
+        $voucherCodes = $summaryData->map(fn ($data) => $match($data['planter_code']))->flip();
+        $caByCode = collect();
+        $caByName = collect();
+        foreach ($caWeekly->concat($caMonthly) as $row) {
+            $code = $match($row['cash_advance']->planter_code);
+            if ($voucherCodes->has($code)) {
+                $caByCode[$code] = ($caByCode[$code] ?? 0) + $row['amount'];
+            } else {
+                $name = $match($row['cash_advance']->planter_name);
+                $caByName[$name] = ($caByName[$name] ?? 0) + $row['amount'];
+            }
+        }
+
+        $summaryData = $summaryData->map(function ($data) use ($caByCode, $caByName, $match) {
+            $data['ca_deduction'] = round(
+                ($caByCode[$match($data['planter_code'])] ?? 0) + ($caByName[$match($data['planter_name'])] ?? 0),
+                2
+            );
             return $data;
         });
 
