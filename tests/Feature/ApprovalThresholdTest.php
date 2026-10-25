@@ -153,6 +153,50 @@ class ApprovalThresholdTest extends TestCase
             ->assertJsonValidationErrors('schedule');
     }
 
+    public function test_receipt_details_can_update_the_interest_percentage_and_schedule(): void
+    {
+        $this->actingAs($this->userWith(['create-cash-advances']));
+        $this->createCashAdvance(10000, 3, [3 => 5150, 4 => 5150])->assertCreated();
+
+        $ca = CashAdvance::firstOrFail();
+        $this->postJson(route('cash-advances.receipt.update', $ca), [
+            'interest_rate' => 5,
+            'cv_no' => '00016625',
+            'check_no' => 'CHK-42',
+            'deductions' => [
+                ['week_no' => '3', 'amount' => 5250],
+                ['week_no' => '4', 'amount' => 5250],
+            ],
+            'signatories' => [],
+        ])->assertOk()->assertJsonPath('cash_advance.interest_rate', 5)
+            ->assertJsonPath('cash_advance.interest_amount', 500);
+
+        $ca->refresh();
+        $this->assertEqualsWithDelta(5, $ca->interest_rate, 0.001);
+        $this->assertEqualsWithDelta(500, $ca->interest_amount, 0.001);
+        $this->assertEqualsWithDelta(10500, $ca->total_amount, 0.001);
+        $this->assertEqualsWithDelta(10500, $ca->balance, 0.001);
+        $this->assertEqualsWithDelta(10500, $ca->deductions()->sum('amount'), 0.001);
+    }
+
+    public function test_receipt_interest_edit_rejects_a_schedule_using_the_old_total(): void
+    {
+        $this->actingAs($this->userWith(['create-cash-advances']));
+        $this->createCashAdvance(10000, 3, [3 => 5150, 4 => 5150])->assertCreated();
+
+        $ca = CashAdvance::firstOrFail();
+        $this->postJson(route('cash-advances.receipt.update', $ca), [
+            'interest_rate' => 5,
+            'deductions' => [
+                ['week_no' => '3', 'amount' => 5150],
+                ['week_no' => '4', 'amount' => 5150],
+            ],
+            'signatories' => [],
+        ])->assertStatus(422)->assertJsonValidationErrors('deductions');
+
+        $this->assertEqualsWithDelta(3, $ca->fresh()->interest_rate, 0.001);
+    }
+
     public function test_cash_advance_of_50000_waits_for_a_manager(): void
     {
         $this->actingAs($this->userWith(['create-cash-advances', 'approve-cash-advances']));
