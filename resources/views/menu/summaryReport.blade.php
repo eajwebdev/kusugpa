@@ -4,7 +4,7 @@
 @section('title', 'Summary Report')
 
 @section('content')
-    <div x-data="summaryReportData()" class="space-y-6 kp-fade-in" x-init="init()">
+    <div x-data="summaryReportData()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
         <header>
             <div class="kp-page-header">
@@ -409,9 +409,11 @@
                             });
                             return;
                         }
+                        // The preview route downloads with download=1 and can also show a part in the preview
                         const downloadUrl =
-                            `{{ url('/summary/download-pdf') }}?crop_year=${this.filters.cropYear}&week_from=${this.filters.weekFrom}&week_to=${this.filters.weekTo}`;
-                        window.open(downloadUrl, '_blank');
+                            `{{ url('/summary/pdf-preview') }}?crop_year=${this.filters.cropYear}&week_from=${this.filters.weekFrom}&week_to=${this.filters.weekTo}`;
+                        // A large crop year opens in the preview, split into parts
+                        window.KusugpaPdfPreview.download(downloadUrl, 'Summary Report');
                     }
                 }
             }

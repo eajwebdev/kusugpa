@@ -4,7 +4,7 @@
 @section('title', 'Loans Management')
 
 @section('content')
-    <div x-data="loansData()" x-init="init()" class="space-y-6 kp-fade-in">
+    <div x-data="loansData()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
         <header>
             <div class="kp-page-header">
@@ -104,7 +104,7 @@
                     <i class="fas fa-times mr-1"></i> Reset
                 </button>
                 <span class="text-xs font-mono ml-auto py-2" style="color: var(--kp-muted)"
-                    x-text="'Showing ' + filteredLoans.length + ' loans'"></span>
+                    x-text="feed && feed.total !== null ? 'Showing ' + filteredLoans.length.toLocaleString() + ' of ' + feed.total.toLocaleString() + ' loans' : 'Loading…'"></span>
             </div>
         </div>
 
@@ -146,7 +146,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <template x-for="loan in paginatedLoans" :key="loan.id">
+                        <template x-for="loan in filteredLoans" :key="loan.id">
                             <tr class="hover:bg-[var(--kp-hover)] transition-colors">
                                 <td class="font-mono font-semibold" style="color: var(--kp-text)">
                                     <a :href="'/loans/' + loan.id" class="hover:underline" style="color: var(--kp-emerald)" x-text="loan.loan_number"></a>
@@ -185,29 +185,11 @@
                                 </td>
                             </tr>
                         </template>
-                        <tr x-show="filteredLoans.length === 0">
-                            <td colspan="9" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
-                                <i class="fas fa-hand-holding-usd text-3xl mb-2 block opacity-30"></i>
-                                No loans match the selected filters.
-                            </td>
-                        </tr>
+                        <template x-if="feed">
+                            @include('layouts.partials.feed-footer', ['feed' => 'feed', 'colspan' => 9, 'empty' => 'No loans match the selected filters.'])
+                        </template>
                     </tbody>
                 </table>
-            </div>
-
-            <!-- Pagination -->
-            <div class="px-4 py-3 border-t flex items-center justify-between"
-                style="border-color: var(--kp-border); background: var(--kp-surface-2)"
-                x-show="totalPages > 1">
-                <button @click="currentPage--" :disabled="currentPage === 1"
-                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
-                    <i class="fas fa-chevron-left mr-1"></i> Previous
-                </button>
-                <span class="text-xs font-medium tabular" style="color: var(--kp-muted)" x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
-                <button @click="currentPage++" :disabled="currentPage >= totalPages"
-                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
-                    Next <i class="fas fa-chevron-right ml-1"></i>
-                </button>
             </div>
         </div>
 
@@ -225,10 +207,11 @@
                     cropYearFilter: '',
                     sortField: 'application_date',
                     sortDirection: 'desc',
-                    currentPage: 1,
-                    perPage: 15,
                     showNewLoanModal: false,
-                    allLoans: @json($loans->items()),
+                    // Loans come from the server in batches of 100 as the table scrolls (kpFeed);
+                    // search, filters and sorting run in the database
+                    feed: null,
+                    searchTimer: null,
                     showAttachmentsModal: false,
                     viewingLoan: null,
                     attachments: [],
@@ -236,40 +219,17 @@
                     uploadingAttachment: false,
 
                     init() {
-                        this.filterLoans();
+                        this.feed = kpFeed('{{ route('loans.index') }}', () => ({
+                            search: this.search.trim(),
+                            status: this.statusFilter,
+                            crop_year: this.cropYearFilter,
+                            sort: this.sortField, dir: this.sortDirection,
+                        }));
+                        this.feed.reset();
                     },
 
                     get filteredLoans() {
-                        let loans = [...this.allLoans];
-
-                        if (this.search) {
-                            const s = this.search.toLowerCase();
-                            loans = loans.filter(l =>
-                                l.loan_number?.toLowerCase().includes(s) ||
-                                l.planter_name?.toLowerCase().includes(s) ||
-                                l.planter_code?.toLowerCase().includes(s)
-                            );
-                        }
-
-                        if (this.statusFilter !== 'all') {
-                            loans = loans.filter(l => l.status === this.statusFilter);
-                        }
-
-                        if (this.cropYearFilter) {
-                            loans = loans.filter(l => l.crop_year === this.cropYearFilter);
-                        }
-
-                        loans.sort((a, b) => {
-                            let valA = a[this.sortField] ?? '';
-                            let valB = b[this.sortField] ?? '';
-                            if (typeof valA === 'string') valA = valA.toLowerCase();
-                            if (typeof valB === 'string') valB = valB.toLowerCase();
-                            if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
-                            if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
-                            return 0;
-                        });
-
-                        return loans;
+                        return this.feed ? this.feed.rows : [];
                     },
 
                     async viewAttachments(loan) {
@@ -349,27 +309,16 @@
                         return 'bg-gray-100';
                     },
 
-                    get paginatedLoans() {
-                        const start = (this.currentPage - 1) * this.perPage;
-                        return this.filteredLoans.slice(start, start + this.perPage);
-                    },
-
-                    get totalPages() {
-                        return Math.ceil(this.filteredLoans.length / this.perPage);
-                    },
-
+                    // Reload from the first batch; typing in the search waits for a pause
                     filterLoans() {
-                        this.currentPage = 1;
+                        clearTimeout(this.searchTimer);
+                        this.searchTimer = setTimeout(() => this.feed.reset(), 300);
                     },
 
                     sortBy(field) {
-                        if (this.sortField === field) {
-                            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-                        } else {
-                            this.sortField = field;
-                            this.sortDirection = 'asc';
-                        }
-                        this.filterLoans();
+                        this.sortDirection = this.sortField === field && this.sortDirection === 'asc' ? 'desc' : 'asc';
+                        this.sortField = field;
+                        this.feed.reset();
                     },
 
                     clearFilters() {
@@ -430,6 +379,16 @@
                     rowUid: 0,
                     manualSplit: false,
                     monthOptions: [],
+                    // ApprovalPolicy: from this principal up, a Manager or Administrator approves
+                    threshold: {{ \App\Support\ApprovalPolicy::MANAGER_THRESHOLD }},
+                    thresholdLabel: @json(\App\Support\ApprovalPolicy::thresholdLabel()),
+
+                    hasPrincipal() {
+                        return (parseFloat(this.principalAmount) || 0) > 0;
+                    },
+                    needsManager() {
+                        return Math.round((parseFloat(this.principalAmount) || 0) * 100) >= this.threshold * 100;
+                    },
 
                     init() {
                         // Months to choose from: a year back (earlier manual loans) to five years ahead
@@ -623,11 +582,11 @@
                             this.showNewLoanModal = false;
                             this.resetForm();
 
-                            Swal.fire({
+                            await Swal.fire({
                                 icon: 'success',
-                                title: 'Success!',
-                                text: 'Loan application submitted successfully.',
-                                timer: 2000,
+                                title: loanData.auto_approved ? 'Approved!' : 'Submitted for Approval',
+                                text: loanData.message,
+                                timer: 2600,
                                 showConfirmButton: false
                             });
 

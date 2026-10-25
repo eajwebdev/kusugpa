@@ -20,6 +20,10 @@ use App\Http\Controllers\TlsReportController;
 use App\Http\Controllers\TruckingAllowanceController;
 use App\Http\Controllers\CashAdvanceController;
 use App\Http\Controllers\ProceedsSheetController;
+use App\Http\Controllers\HaulerSignatureSheetController;
+use App\Http\Controllers\PlanterDeductionController;
+use App\Http\Controllers\PlanterAccountsAppliedController;
+use App\Http\Controllers\ProceedsDeductionsController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\HaulingLiquidityController;
 use App\Http\Controllers\CaReceiptController;
@@ -133,6 +137,12 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::delete('/cash-advances/{cashAdvance}/weekly-payments/{payment}', [CashAdvanceController::class, 'destroyWeeklyPayment'])->name('cash-advances.weekly-payments.destroy');
     Route::delete('/cash-advances/{cashAdvance}', [CashAdvanceController::class, 'destroy'])->name('cash-advances.destroy');
 
+    // Fuel & Others Deduction (weekly schedule like a cash advance, no approval; feeds the Check Voucher)
+    Route::get('/planter-deductions', [PlanterDeductionController::class, 'index'])->name('planter-deductions.index');
+    Route::post('/planter-deductions', [PlanterDeductionController::class, 'store'])->name('planter-deductions.store');
+    Route::post('/planter-deductions/{deduction}/update', [PlanterDeductionController::class, 'update'])->whereNumber('deduction')->name('planter-deductions.update');
+    Route::post('/planter-deductions/{deduction}/delete', [PlanterDeductionController::class, 'destroy'])->whereNumber('deduction')->name('planter-deductions.destroy');
+
     // CA Receipt (Cash Advance Receipt and Sugar Assignment + voucher), printed from All Cash Advances
     Route::get('/cash-advances/{cashAdvance}/receipt-pdf', [CaReceiptController::class, 'pdf'])->name('cash-advances.receipt.pdf');
     Route::post('/cash-advances/{cashAdvance}/receipt-details', [CaReceiptController::class, 'update'])->name('cash-advances.receipt.update');
@@ -146,6 +156,7 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::post('/hauling-liquidity/haulers/{hauler}/delete', [HaulingLiquidityController::class, 'destroyHauler'])->name('hauling-liquidity.haulers.destroy');
     Route::post('/hauling-liquidity/entries/{entry}/update', [HaulingLiquidityController::class, 'updateEntry'])->name('hauling-liquidity.entries.update');
     Route::post('/hauling-liquidity/entries/{entry}/delete', [HaulingLiquidityController::class, 'destroyEntry'])->name('hauling-liquidity.entries.destroy');
+    Route::post('/hauling-liquidity/entries/{entry}/payee', [HaulingLiquidityController::class, 'setPayee'])->name('hauling-liquidity.entries.payee');
     Route::get('/hauling-liquidity/entries/{entry}/pdf', [HaulingLiquidityController::class, 'slipPDF'])->name('hauling-liquidity.entries.pdf');
     Route::get('/hauling-liquidity/{hauler}/pdf', [HaulingLiquidityController::class, 'weekSlipsPDF'])->whereNumber('hauler')->name('hauling-liquidity.week-pdf');
     Route::get('/hauling-liquidity/{hauler}', [HaulingLiquidityController::class, 'show'])->whereNumber('hauler')->name('hauling-liquidity.show');
@@ -223,6 +234,12 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     // Production Certification
     Route::get('/proceeds-sheet-report', [ProceedsSheetController::class, 'index'])->name('proceeds-sheet-report');
     Route::get('/proceeds-sheet-report/pdf', [ProceedsSheetController::class, 'pdf'])->name('proceeds-sheet-report.pdf');
+    Route::get('/planter-accounts-report', [PlanterAccountsAppliedController::class, 'index'])->name('planter-accounts-report');
+    Route::get('/planter-accounts-report/pdf', [PlanterAccountsAppliedController::class, 'pdf'])->name('planter-accounts-report.pdf');
+    Route::get('/proceeds-deductions-report', [ProceedsDeductionsController::class, 'index'])->name('proceeds-deductions-report');
+    Route::get('/proceeds-deductions-report/pdf', [ProceedsDeductionsController::class, 'pdf'])->name('proceeds-deductions-report.pdf');
+    Route::get('/hauler-signature-report', [HaulerSignatureSheetController::class, 'index'])->name('hauler-signature-report');
+    Route::get('/hauler-signature-report/pdf', [HaulerSignatureSheetController::class, 'pdf'])->name('hauler-signature-report.pdf');
     Route::get('/certification-report', [CertificationController::class, 'index'])->name('certification-report');
     Route::get('/certification-report/planters', [CertificationController::class, 'planters'])->name('certification-report.planters');
     Route::get('/certification-report/pdf', [CertificationController::class, 'pdf'])->name('certification-report.pdf');
@@ -321,6 +338,9 @@ Route::middleware(['login_auth:manage-crop-weeks'])->group(function () {
     Route::delete('/registry/molasses/delete-by-week', [PriceController::class, 'deleteMolassesByWeek'])->name('registry.molasses.delete-by-week');
     Route::delete('/registry/molasses/delete-selected', [PriceController::class, 'deleteMolassesSelected'])->name('registry.molasses.delete-selected');
     Route::get('/registry/filters', [PriceController::class, 'getRegistryFilters'])->name('registry.filters');
+    Route::post('/registry/{type}/{id}/tin', [PriceController::class, 'updateTin'])
+        ->where(['type' => 'quedan|molasses', 'id' => '[0-9]+'])
+        ->name('registry.tin.update');
 
     // Buy Molasses
     Route::get('/buy-molasses', [PriceController::class, 'buyMolasses'])->name('molasses-buy.index');

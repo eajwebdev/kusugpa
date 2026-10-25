@@ -387,12 +387,12 @@
                                 </tr>
                                 <tr>
                                     <td style="text-align: right; padding: 3px 0;">
-                                        .00
+                                        {{ number_format($othersPayment, 2) }}
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style="text-align: right; padding: 3px 0;">
-                                        .00
+                                        {{ number_format($fuelPayment, 2) }}
                                     </td>
                                 </tr>
                             </table>

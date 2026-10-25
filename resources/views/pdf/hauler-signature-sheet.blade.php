@@ -1,0 +1,181 @@
+<!-- resources/views/pdf/hauler-signature-sheet.blade.php -->
+{{-- Same layout as the Proceeds Sheet (pdf/proceeds-sheet.blade.php), one sheet per hauler location --}}
+@php
+    $money = fn ($v) => round((float) $v, 2) != 0 ? number_format((float) $v, 2) : '';
+    $tons = fn ($v) => round((float) $v, 3) != 0 ? number_format((float) $v, 3) : '';
+    // Column widths (inches); the rest of the page width is the signature space
+    $w = ['name' => 2.0, 'plate' => 0.8, 'check' => 0.75, 'tons' => 0.75, 'ded' => 0.85, 'net' => 0.9];
+@endphp
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Hauler TLS Signature - Week {{ $weekLabel }}</title>
+    <style>
+        @page {
+            margin: 0.45in 0.3in 0.35in 0.3in;
+        }
+
+        body {
+            font-family: 'DejaVu Sans Mono', monospace;
+            font-size: 8.5pt;
+            color: #111;
+            margin: 0;
+        }
+
+        .page {
+            page-break-after: always;
+        }
+
+        .page:last-child {
+            page-break-after: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        td,
+        th {
+            padding: 0 2px;
+            vertical-align: bottom;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .num {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .head th {
+            font-weight: normal;
+            text-align: center;
+            line-height: 1.35;
+            padding-bottom: 3px;
+            border-bottom: 1px dashed #111;
+        }
+
+        .head th.left {
+            text-align: left;
+        }
+
+        .row td {
+            height: 0.44in;
+        }
+
+        .sign {
+            border-bottom: 0.8px solid #111;
+        }
+
+        .totals td {
+            padding-top: 4px;
+        }
+
+        .rule td.ruled {
+            border-bottom: 1px dashed #111;
+        }
+    </style>
+</head>
+
+<body>
+    @forelse ($sheets as $sheet)
+        @php $pageCount = $sheet['pages']->count(); @endphp
+        @foreach ($sheet['pages'] as $pageIndex => $pageRows)
+            <div class="page">
+                <!-- Header -->
+                <div class="center" style="line-height: 1.45">
+                    <div>KABANKALAN UNITED SUGAR PLANTERS ASSN., INC.</div>
+                    <div>( {{ implode(' ', mb_str_split(str_replace(' ', '', $org['short_name']))) }} )</div>
+                    <div>Kabankalan City, Neg. Occ.</div>
+                </div>
+
+                <div class="center" style="margin-top: 0.3in">PROCEEDS OF TLS HAULING</div>
+                <div class="center" style="margin-top: 2px">{{ $sheet['location'] }}</div>
+                <table style="margin-top: 2px">
+                    <tr>
+                        <td style="width: 1.0in"></td>
+                        <td style="width: 0.8in">WEEK NO:</td>
+                        <td style="width: 2.5in">{{ $weekLabel }}</td>
+                        <td style="width: 1.0in">DATE ISSUED:</td>
+                        <td style="width: 1.0in">{{ $dateIssued }}</td>
+                        <td style="white-space: nowrap">PAGE NO. {{ str_pad($pageIndex + 1, 3, '0', STR_PAD_LEFT) }}</td>
+                    </tr>
+                </table>
+
+                <!-- Haulers -->
+                <table style="margin-top: 0.3in">
+                    <thead>
+                        <tr class="head">
+                            <th class="left" style="width: {{ $w['name'] }}in">HAULER'S NAME</th>
+                            <th style="width: {{ $w['plate'] }}in">PLATE<br>NUMBER</th>
+                            <th style="width: {{ $w['check'] }}in">CHECK<br>NUMBER</th>
+                            <th style="width: {{ $w['tons'] }}in">NET<br>TONS</th>
+                            <th style="width: {{ $w['ded'] }}in">DEDUCTED<br>AMOUNT</th>
+                            <th style="width: {{ $w['net'] }}in">NET<br>AMOUNT</th>
+                            <th>SIGNATURE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($pageRows as $r)
+                            <tr class="row">
+                                @if (trim((string) $r['name']) !== '')
+                                    <td>{{ $r['name'] }}</td>
+                                @else
+                                    {{-- No payee in Hauler TLS LIQ yet: a line to write the name on --}}
+                                    <td style="padding-right: 12px"><div class="sign">&nbsp;</div></td>
+                                @endif
+                                <td class="center">{{ $r['plate_no'] }}</td>
+                                <td class="center">{{ $r['check_no'] }}</td>
+                                <td class="num">{{ $tons($r['tons']) }}</td>
+                                <td class="num">{{ $money($r['deducted']) }}</td>
+                                <td class="num">{{ $money($r['net']) }}</td>
+                                <td style="padding-left: 10px"><div class="sign">&nbsp;</div></td>
+                            </tr>
+                        @endforeach
+
+                        <!-- Page totals -->
+                        <tr class="rule">
+                            <td colspan="3" style="height: 0.25in"></td>
+                            <td class="ruled"></td>
+                            <td class="ruled"></td>
+                            <td class="ruled"></td>
+                            <td></td>
+                        </tr>
+                        <tr class="totals">
+                            <td colspan="3">PAGE-TOTALS</td>
+                            <td class="num">{{ $tons($pageRows->sum('tons')) }}</td>
+                            <td class="num">{{ $money($pageRows->sum('deducted')) }}</td>
+                            <td class="num">{{ $money($pageRows->sum('net')) }}</td>
+                            <td></td>
+                        </tr>
+                        @if ($loop->last && $pageCount > 1)
+                            <tr class="totals">
+                                <td colspan="3" style="padding-top: 8px">GRAND-TOTALS</td>
+                                <td class="num" style="padding-top: 8px">{{ $tons($sheet['rows']->sum('tons')) }}</td>
+                                <td class="num" style="padding-top: 8px">{{ $money($sheet['rows']->sum('deducted')) }}</td>
+                                <td class="num" style="padding-top: 8px">{{ $money($sheet['rows']->sum('net')) }}</td>
+                                <td style="padding-top: 8px; padding-left: 10px">{{ $sheet['rows']->count() }} hauler(s)</td>
+                            </tr>
+                        @endif
+                    </tbody>
+                </table>
+                @php $missing = $sheet['rows']->filter(fn ($r) => trim((string) $r['name']) === '')->count(); @endphp
+                @if ($loop->last && $missing > 0)
+                    <div style="margin-top: 10px; font-size: 7.5pt">
+                        NOTE: {{ $missing }} of {{ $sheet['rows']->count() }} line(s) have no hauler's name yet. Set the payee in Hauler TLS LIQ
+                        (it is kept for the plate in later weeks), or write the name on the line.
+                    </div>
+                @endif
+            </div>
+        @endforeach
+    @empty
+        <div class="center" style="margin-top: 2in">No hauling liquidation entries for week {{ $weekLabel }}.</div>
+    @endforelse
+</body>
+
+</html>

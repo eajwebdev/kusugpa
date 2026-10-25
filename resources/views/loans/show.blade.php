@@ -45,7 +45,6 @@
                 @php
                     $isAdmin = in_array(auth()->user()->role, ['Administrator', 'super_admin']);
                     $isManager = auth()->user()->role === 'manager';
-                    $canApprove = $isAdmin || $isManager;
                     $canProcess =
                         $isAdmin ||
                         $isManager ||
@@ -54,15 +53,23 @@
                 @endphp
 
                 <div class="flex flex-wrap items-center gap-2">
-                    @if ($canApprove && $loan->status === 'pending')
+                    @if ($userPermissions['awaitingManager'])
+                        <span class="kp-badge kp-badge--amber text-xs py-1 px-2.5">
+                            <i class="fas fa-user-tie" aria-hidden="true"></i>
+                            Waiting for Manager approval ({{ \App\Support\ApprovalPolicy::thresholdLabel() }} or more)
+                        </span>
+                    @endif
+                    @if ($userPermissions['canApprove'])
                         <button type="button" onclick="approveLoan()" class="kp-btn kp-btn-primary text-xs">
                             <i class="fas fa-check mr-1.5" aria-hidden="true"></i> Approve Loan
                         </button>
+                    @endif
+                    @if ($userPermissions['canReject'])
                         <button type="button" onclick="rejectLoan()" class="kp-btn kp-btn-danger text-xs">
                             <i class="fas fa-times mr-1.5" aria-hidden="true"></i> Reject
                         </button>
                     @endif
-                    @if ($canApprove && $loan->status === 'approved')
+                    @if ($userPermissions['canActivate'])
                         <form action="{{ route('loans.activate', $loan) }}" method="POST">
                             @csrf
                             <button type="submit" class="kp-btn kp-btn-primary text-xs">

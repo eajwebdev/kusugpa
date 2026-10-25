@@ -64,8 +64,12 @@
                     <!-- Interest Rate -->
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Interest Rate (%) <span class="text-rose-600">*</span></label>
+                        {{-- Opens once a principal is entered; the interest applies right away --}}
                         <input type="number" name="interest_rate" x-model="interestRate" @input="if (!manualSplit) autoSplit()" step="any" min="0" required
-                            class="kp-input w-full">
+                            :disabled="!hasPrincipal()" :title="hasPrincipal() ? '' : 'Enter the principal amount first'"
+                            class="kp-input w-full disabled:opacity-50 disabled:cursor-not-allowed">
+                        <p class="text-[11px] mt-1" :class="hasPrincipal() ? 'text-[#005B2A] dark:text-[#52C97E]' : 'text-[#52705F] dark:text-[#8AA895]'"
+                            x-text="hasPrincipal() ? 'Interest ₱' + formatNumber(calculateTotalInterest()) : 'Enter the principal first'"></p>
                     </div>
 
                     <!-- Term -->
@@ -127,6 +131,15 @@
                     <textarea name="purpose" x-model="purpose" rows="2"
                         class="kp-input w-full"
                         placeholder="Enter statement of loan purpose..."></textarea>
+                </div>
+
+                <!-- Approval route, by principal -->
+                <div x-show="hasPrincipal()" x-cloak class="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+                    :class="needsManager() ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300' : 'bg-[#EAF5ED] text-[#005B2A] dark:bg-[#1A3324] dark:text-[#52C97E]'">
+                    <i class="fas mt-0.5" :class="needsManager() ? 'fa-user-tie' : 'fa-circle-check'" aria-hidden="true"></i>
+                    <span x-text="needsManager()
+                        ? 'This loan is ' + thresholdLabel + ' or more. It will wait as Pending until a Manager or Administrator approves it.'
+                        : 'Below ' + thresholdLabel + ': no approval needed. The loan is approved as soon as you submit it.'"></span>
                 </div>
 
                 <!-- Monthly Payment Schedule -->

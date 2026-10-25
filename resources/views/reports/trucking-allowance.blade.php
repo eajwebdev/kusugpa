@@ -17,7 +17,7 @@
                     <button @click="showDeleteModal = true" class="kp-btn kp-btn-danger">
                         <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Manage / Delete Records
                     </button>
-                    <a :href="'{{ route('trucking-allowance-report.export') }}?search=' + encodeURIComponent(search)" data-pdf-preview="Trucking Allowance Report" class="kp-btn kp-btn-secondary">
+                    <a :href="'{{ route('trucking-allowance-report.export') }}?' + filterParams()" data-pdf-preview="Trucking Allowance Report" class="kp-btn kp-btn-secondary">
                         <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Preview PDF
                     </a>
                 </div>
@@ -50,6 +50,33 @@
         <div class="kp-card p-4">
             <div class="flex flex-wrap gap-4 items-end justify-between">
                 <div class="flex flex-wrap gap-4 items-end flex-1">
+                    <div class="w-40">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Crop Year</label>
+                        <select x-model="filters.cropYear" @change="onCropYearChange()" class="kp-select w-full">
+                            <option value="">All Crop Years</option>
+                            <template x-for="cy in availableCropYears" :key="'filter_' + cy">
+                                <option :value="cy" x-text="cy"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="w-36">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Week From</label>
+                        <select x-model="filters.weekFrom" @change="applyFilters()" :disabled="!filters.cropYear" class="kp-select w-full disabled:opacity-50">
+                            <option value="">All Weeks</option>
+                            <template x-for="wk in filterWeeks" :key="'from_' + wk">
+                                <option :value="wk" x-text="'Week ' + wk"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="w-36">
+                        <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Week To</label>
+                        <select x-model="filters.weekTo" @change="applyFilters()" :disabled="!filters.cropYear" class="kp-select w-full disabled:opacity-50">
+                            <option value="">All Weeks</option>
+                            <template x-for="wk in filterWeeks" :key="'to_' + wk">
+                                <option :value="wk" x-text="'Week ' + wk"></option>
+                            </template>
+                        </select>
+                    </div>
                     <div class="min-w-[240px] flex-1">
                         <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Search Planter</label>
                         <div class="relative">
@@ -243,6 +270,7 @@
                     currentPage: {{ $uploads->currentPage() }},
                     totalPages: {{ $uploads->lastPage() }},
                     search: '',
+                    filters: { cropYear: '', weekFrom: '', weekTo: '' },
                     sortField: 'planter_name',
                     sortDirection: 'asc',
                     perPage: {{ $uploads->perPage() }},
@@ -272,6 +300,34 @@
                         } catch (error) {
                             console.error('Error fetching filters:', error);
                         }
+                    },
+
+                    // Weeks with records in the selected crop year
+                    get filterWeeks() {
+                        if (!this.filters.cropYear) return [];
+                        return [...new Set(this.allWeeksData
+                                .filter(w => w.crop_year === this.filters.cropYear)
+                                .map(w => String(w.week_no)))]
+                            .sort((a, b) => parseInt(a) - parseInt(b));
+                    },
+
+                    onCropYearChange() {
+                        this.filters.weekFrom = '';
+                        this.filters.weekTo = '';
+                        this.applyFilters();
+                    },
+
+                    // Search + crop year / week range, shared by the table and the PDF
+                    filterParams() {
+                        const params = new URLSearchParams({ search: this.search });
+                        if (this.filters.cropYear) {
+                            params.set('crop_year', this.filters.cropYear);
+                            if (this.filters.weekFrom && this.filters.weekTo) {
+                                params.set('week_from', this.filters.weekFrom);
+                                params.set('week_to', this.filters.weekTo);
+                            }
+                        }
+                        return params.toString();
                     },
 
                     updateWeekOptions() {
@@ -309,10 +365,11 @@
                         this.loading = true;
                         this.selectedIds = [];
                         try {
-                            const params = new URLSearchParams({
-                                page: page, per_page: this.perPage, search: this.search,
-                                sort_field: this.sortField, sort_direction: this.sortDirection,
-                            });
+                            const params = new URLSearchParams(this.filterParams());
+                            params.set('page', page);
+                            params.set('per_page', this.perPage);
+                            params.set('sort_field', this.sortField);
+                            params.set('sort_direction', this.sortDirection);
                             const response = await fetch(`{{ route('trucking-allowance-report') }}?${params.toString()}`, {
                                 headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
                             });
@@ -333,7 +390,11 @@
                         this.loadPage(1);
                     },
 
-                    clearFilters() { this.search = ''; this.loadPage(1); },
+                    clearFilters() {
+                        this.search = '';
+                        this.filters = { cropYear: '', weekFrom: '', weekTo: '' };
+                        this.loadPage(1);
+                    },
 
                     async confirmDeleteAll() {
                         const result = await Swal.fire({

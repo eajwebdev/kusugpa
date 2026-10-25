@@ -30,7 +30,7 @@
                 </div>
                 <div>
                     <h2 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Certification Criteria</h2>
-                    <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Pick the crop year, tick the planters below, then generate one certificate per planter.</p>
+                    <p class="text-xs text-[#52705F] dark:text-[#8AA895]">Pick the crop year and week range, tick the planters below, then generate one certificate per planter.</p>
                 </div>
             </div>
 
@@ -40,11 +40,39 @@
                     <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
                         <i class="fas fa-calendar-alt text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Crop Year
                     </label>
-                    <select x-model="filters.crop_year" @change="loadPlanters()" class="kp-input w-full">
+                    <select x-model="filters.crop_year" @change="onCropYearChange()" class="kp-input w-full">
                         <option value="">All Crop Years</option>
                         @foreach ($cropYears as $year)
                             <option value="{{ $year }}">{{ $year }}</option>
                         @endforeach
+                    </select>
+                </div>
+
+                <!-- Week From -->
+                <div>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                        <i class="fas fa-play-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week From
+                    </label>
+                    <select x-model="filters.week_from" @change="loadPlanters()" :disabled="cropWeeks.length === 0"
+                        class="kp-input w-full disabled:opacity-50">
+                        <option value="" x-show="cropWeeks.length === 0" x-text="filters.crop_year ? 'No weeks set up' : 'All Weeks'"></option>
+                        <template x-for="w in cropWeeks" :key="'f' + w">
+                            <option :value="w" x-text="'Week ' + w" :selected="w === filters.week_from"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- Week To -->
+                <div>
+                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                        <i class="fas fa-stop-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week To
+                    </label>
+                    <select x-model="filters.week_to" @change="loadPlanters()" :disabled="cropWeeks.length === 0"
+                        class="kp-input w-full disabled:opacity-50">
+                        <option value="" x-show="cropWeeks.length === 0" x-text="filters.crop_year ? 'No weeks set up' : 'All Weeks'"></option>
+                        <template x-for="w in cropWeeks" :key="'t' + w">
+                            <option :value="w" x-text="'Week ' + w" :selected="w === filters.week_to"></option>
+                        </template>
                     </select>
                 </div>
 
@@ -57,7 +85,7 @@
                 </div>
 
                 <!-- Selection summary -->
-                <div class="lg:col-span-2 flex items-end justify-end gap-2.5">
+                <div class="sm:col-span-2 lg:col-span-4 flex items-end justify-end gap-2.5">
                     <span class="text-xs text-[#52705F] dark:text-[#8AA895] mr-auto lg:mr-0 self-center"
                         x-text="selected.length + ' of ' + planters.length + ' planter(s) selected'"></span>
                     <button type="button" @click="generate(true)" :disabled="selected.length === 0"
@@ -147,7 +175,6 @@
                             <th>Planter Name</th>
                             <th class="text-center">Crop Year</th>
                             <th class="text-right">Net Tons</th>
-                            <th class="text-right">Gross Sugar (LKG)</th>
                             <th class="text-right">Net Sugar (LKG)</th>
                             <th class="text-right">Net Mol (MT)</th>
                             <th>Data Check</th>
@@ -166,7 +193,6 @@
                                 <td class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]" x-text="planter.planter_name"></td>
                                 <td class="text-center text-xs font-mono" x-text="planter.years.join(', ')"></td>
                                 <td class="text-xs text-right kp-num" x-text="formatNum(planter.net_tons, 2)"></td>
-                                <td class="text-xs text-right kp-num" x-text="formatNum(planter.gross_lkg, 2)"></td>
                                 <td class="text-xs text-right kp-num font-semibold text-[#005B2A] dark:text-[#52C97E]" x-text="formatNum(planter.net_lkg, 2)"></td>
                                 <td class="text-xs text-right kp-num" x-text="formatNum(planter.net_mol, 3)"></td>
                                 <td class="text-xs">
@@ -180,9 +206,9 @@
                             </tr>
                         </template>
                         <tr x-show="!loading && filteredPlanters.length === 0" x-cloak>
-                            <td colspan="9" class="py-12 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
+                            <td colspan="8" class="py-12 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
                                 <i class="fas fa-folder-open text-2xl mb-2 text-[#8AA895] block"></i>
-                                <span x-text="planters.length === 0 ? 'No consolidated, quedan or molasses records for this crop year.' : 'No planters match your search.'"></span>
+                                <span x-text="planters.length === 0 ? 'No consolidated, quedan or molasses records for this crop year and week range.' : 'No planters match your search.'"></span>
                             </td>
                         </tr>
                     </tbody>
@@ -191,7 +217,7 @@
 
             <div class="px-5 py-3 border-t border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324] text-[11px] text-[#52705F] dark:text-[#8AA895] leading-relaxed">
                 <i class="fas fa-info-circle mr-1 text-[#087A3D]" aria-hidden="true"></i>
-                Net Tons = Consolidated Report TA Wt · Gross Sugar = Quedan sugar LKG · Net Sugar = Quedan sugar LKG − labor LKG · Net Mol = Molasses net.
+                Net Tons = Consolidated Report TA Wt · Net Sugar = Quedan sugar LKG − labor LKG · Net Mol = Molasses net, for the selected weeks.
                 "Data Check" flags planters missing one of those uploads, so the certificate would show 0 for it.
             </div>
         </div>
@@ -200,9 +226,12 @@
     @push('scripts')
         <script>
             function certificationData() {
+                const weeks = @json($weeks);
                 return {
                     filters: {
                         crop_year: @json($cropYears->first() ?? ''),
+                        week_from: '',
+                        week_to: '',
                         issued_date: new Date().toLocaleDateString('en-CA'),
                     },
                     signatories: @json($signatories),
@@ -214,7 +243,29 @@
                     loading: false,
 
                     init() {
+                        this.onCropYearChange();
+                    },
+
+                    // Weeks of the selected crop year (none with "All Crop Years")
+                    get cropWeeks() {
+                        return weeks.filter(w => w.crop_year === this.filters.crop_year).map(w => w.week_no);
+                    },
+
+                    // A new crop year starts with its whole season selected
+                    onCropYearChange() {
+                        const list = this.cropWeeks;
+                        this.filters.week_from = list.length ? list[0] : '';
+                        this.filters.week_to = list.length ? list[list.length - 1] : '';
                         this.loadPlanters();
+                    },
+
+                    periodParams() {
+                        const params = { crop_year: this.filters.crop_year };
+                        if (this.filters.crop_year && this.filters.week_from !== '' && this.filters.week_to !== '') {
+                            params.week_from = this.filters.week_from;
+                            params.week_to = this.filters.week_to;
+                        }
+                        return params;
                     },
 
                     // One entry per planter; with "All Crop Years" the crop years are summed
@@ -226,11 +277,10 @@
                                 planter_code: row.planter_code,
                                 planter_name: row.planter_name,
                                 years: [],
-                                net_tons: 0, gross_lkg: 0, net_lkg: 0, net_mol: 0,
+                                net_tons: 0, net_lkg: 0, net_mol: 0,
                             };
                             p.years.push(row.crop_year_label);
                             p.net_tons += parseFloat(row.net_tons) || 0;
-                            p.gross_lkg += parseFloat(row.gross_lkg) || 0;
                             p.net_lkg += parseFloat(row.net_lkg) || 0;
                             p.net_mol += parseFloat(row.net_mol) || 0;
                         });
@@ -238,7 +288,7 @@
                             ...p,
                             missing: [
                                 p.net_tons === 0 ? 'consolidated' : null,
-                                p.gross_lkg === 0 ? 'quedan' : null,
+                                p.net_lkg === 0 ? 'quedan' : null,
                                 p.net_mol === 0 ? 'molasses' : null,
                             ].filter(Boolean),
                         }));
@@ -262,7 +312,7 @@
                         this.loading = true;
                         this.selected = [];
                         try {
-                            const params = new URLSearchParams({ crop_year: this.filters.crop_year });
+                            const params = new URLSearchParams(this.periodParams());
                             const response = await fetch(`{{ route('certification-report.planters') }}?${params}`, {
                                 headers: { 'Accept': 'application/json' }
                             });
@@ -309,7 +359,7 @@
                         }
 
                         const params = new URLSearchParams({
-                            crop_year: this.filters.crop_year,
+                            ...this.periodParams(),
                             issued_date: this.filters.issued_date,
                             ...this.signatories,
                         });
@@ -320,8 +370,9 @@
                         }
 
                         const url = `{{ route('certification-report.pdf') }}?${params}`;
+                        // More than 100 certificates open in the preview, split into parts
                         if (download) {
-                            window.location.assign(url + '&download=1');
+                            window.KusugpaPdfPreview.download(url, 'Production Certification');
                         } else {
                             window.KusugpaPdfPreview.open(url, 'Production Certification');
                         }
@@ -352,7 +403,7 @@
                         this.filters.issued_date = new Date().toLocaleDateString('en-CA');
                         this.signatories = { ...this.savedSignatories };
                         this.search = '';
-                        this.loadPlanters();
+                        this.onCropYearChange();
                     },
 
                     formatNum(num, decimals = 2) {

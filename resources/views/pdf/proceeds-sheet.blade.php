@@ -3,7 +3,10 @@
 @php
     $money = fn ($v) => round((float) $v, 2) != 0 ? number_format((float) $v, 2) : '';
     $total = fn ($rows, $key) => $rows->sum($key);
-    $pageCount = max(1, $pages->count());
+    // Printed in parts: page numbers continue, grand totals (over every planter) only on the last part
+    $pageOffset = $pageOffset ?? 0;
+    $pageCount = $totalPages ?? max(1, $pages->count());
+    $isLastPart = $isLastPart ?? true;
     // Column widths (inches); the rest of the page width is the signature space
     $w = ['no' => 0.45, 'name' => 1.65, 'check' => 0.6, 'truck' => 0.8, 'a' => 0.8, 'b' => 0.85, 'ded' => 0.8, 'total' => 0.85];
 @endphp
@@ -110,7 +113,7 @@
                     <td style="width: 2.5in">{{ $weekLabel }}</td>
                     <td style="width: 1.0in">DATE ISSUED:</td>
                     <td style="width: 1.0in">{{ $dateIssued }}</td>
-                    <td style="white-space: nowrap">PAGE NO. {{ str_pad($pageIndex + 1, 3, '0', STR_PAD_LEFT) }}</td>
+                    <td style="white-space: nowrap">PAGE NO. {{ str_pad($pageOffset + $pageIndex + 1, 3, '0', STR_PAD_LEFT) }}</td>
                 </tr>
             </table>
 
@@ -127,7 +130,7 @@
                         @endif
                         <th style="width: {{ $w['b'] }}in">-B- &amp; MOL.<br>PROCEEDS</th>
                         @if ($showDeduction)
-                            <th style="width: {{ $w['ded'] }}in">LESS<br>C.A./LOAN</th>
+                            <th style="width: {{ $w['ded'] }}in">LESS<br>ACCOUNTS</th>
                         @endif
                         <th style="width: {{ $w['total'] }}in">TOTAL NET<br>PROCEEDS</th>
                         <th>SIGNATURE</th>
@@ -179,7 +182,7 @@
                         <td class="num">{{ $money($total($pageRows, 'total')) }}</td>
                         <td></td>
                     </tr>
-                    @if ($loop->last && $pageCount > 1)
+                    @if ($loop->last && $isLastPart && $pageCount > 1)
                         <tr class="totals">
                             <td colspan="3" style="padding-top: 8px">GRAND-TOTALS</td>
                             <td class="num" style="padding-top: 8px">{{ $money($total($rows, 'trucking')) }}</td>

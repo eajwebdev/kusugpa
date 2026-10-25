@@ -16,6 +16,8 @@ use App\Models\User;
 use App\Models\AuditLog;
 use App\Models\PlanterProfile;
 use App\Services\CashAdvanceSchedule;
+use App\Support\ApprovalPolicy;
+use App\Support\TableFeed;
 use Carbon\Carbon;
 
 class CashAdvanceController extends Controller
@@ -98,8 +100,20 @@ class CashAdvanceController extends Controller
         if ($request->crop_year) {
             $query->where('crop_year', $request->crop_year);
         }
+        // Advances with a deduction in this week of the crop year
+        if ($request->week_no) {
+            $query->whereHas('deductions', fn ($q) => $q->where('week_no', (string) $request->week_no));
+        }
 
-        $cashAdvances = $query->orderBy('created_at', 'desc')->paginate(20);
+        // The table loads its rows in batches as it scrolls (TableFeed / kpFeed)
+        if ($request->expectsJson()) {
+            return TableFeed::respond($request, $query, [
+                'ca_number' => 'ca_number',
+                'planter_name' => 'planter_name',
+                'amount' => 'amount',
+                'application_date' => 'application_date',
+            ], [['created_at', 'desc']]);
+        }
         $cropYears = CropYear::pluck('crop_year');
         $planters = PlanterProfile::where('status', 'active')
     ->select('planter_code', 'planter_name')
@@ -133,7 +147,7 @@ class CashAdvanceController extends Controller
                 'week_end' => $w->week_end_date ? Carbon::parse($w->week_end_date)->toDateString() : null,
             ]);
 
-        return view('cash-advances.index', compact('cashAdvances', 'cropYears', 'planters', 'stats', 'userPermissions', 'weeks', 'signatoryDefaults'));
+        return view('cash-advances.index', compact('cropYears', 'planters', 'stats', 'userPermissions', 'weeks', 'signatoryDefaults'));
     }
 
     public function create()
@@ -191,7 +205,10 @@ class CashAdvanceController extends Controller
             ]);
         }
 
-        // A weekly term needs a schedule whose total equals the advance amount
+        // Flat interest (amount x rate%) is charged as soon as the advance is filed
+        $interest = CashAdvance::flatInterest($data['amount'], $data['interest_rate']);
+
+        // A weekly term needs a schedule whose total equals the advance plus its interest
         if (!empty($data['term_weeks'])) {
             if ($schedule->isEmpty()) {
                 throw ValidationException::withMessages([
@@ -199,10 +216,10 @@ class CashAdvanceController extends Controller
                 ]);
             }
             $allocatedCents = (int) $schedule->sum(fn ($r) => (int) round((float) ($r['amount'] ?? 0) * 100));
-            $amountCents = (int) round((float) $data['amount'] * 100);
-            if ($allocatedCents !== $amountCents) {
+            $repayableCents = (int) round(((float) $data['amount'] + $interest) * 100);
+            if ($allocatedCents !== $repayableCents) {
                 throw ValidationException::withMessages([
-                    'schedule' => 'Weekly payments total (₱' . number_format($allocatedCents / 100, 2) . ') must equal the advance amount (₱' . number_format($amountCents / 100, 2) . ').',
+                    'schedule' => 'Weekly payments total (₱' . number_format($allocatedCents / 100, 2) . ') must equal the amount to repay (₱' . number_format($repayableCents / 100, 2) . ': advance + interest).',
                 ]);
             }
         }
@@ -216,14 +233,11 @@ class CashAdvanceController extends Controller
         $ca->application_date = now();
         $ca->status = 'pending';
         $ca->created_by = auth()->id();
-        $ca->calculateAmortization();
-        if (!empty($data['term_weeks'])) {
-            // Repaid by the weekly schedule: total and balance are the principal
-            $ca->total_amount = $ca->amount;
-            $ca->balance = $ca->amount;
-        }
+        $ca->calculateAmortization(); // interest, total and balance = amount + interest
 
-        DB::transaction(function () use ($ca, $schedule) {
+        $autoApprove = !ApprovalPolicy::needsManager($ca->amount);
+
+        DB::transaction(function () use ($ca, $schedule, $autoApprove) {
             $ca->save();
             foreach ($schedule as $row) {
                 $amount = round((float) ($row['amount'] ?? 0), 2);
@@ -237,26 +251,75 @@ class CashAdvanceController extends Controller
                     'amount' => $amount,
                 ]);
             }
+            // Below the manager threshold no approval step is needed
+            if ($autoApprove) {
+                $this->markApproved($ca, now()->toDateString());
+            }
         });
 
         AuditLog::log('create', 'cash_advances', 'Created cash advance #' . $ca->ca_number, [
             'amount' => $ca->amount,
             'planter' => $ca->planter_name,
             'interest_rate' => $ca->interest_rate . '%',
+            'interest' => $ca->interest_amount,
+            'total_repayable' => $ca->total_amount,
             'term' => $ca->term_weeks ? $ca->term_weeks . ' weeks' : $ca->term_months . ' months',
             'monthly' => $ca->monthly_amortization,
             'weekly_schedule' => $schedule->map(fn ($r) => 'Wk ' . $r['week_no'] . ' = ' . ($r['amount'] ?? 0))->implode(', '),
+            'approval' => $autoApprove ? 'auto-approved (below ' . ApprovalPolicy::thresholdLabel() . ')' : 'awaiting manager approval',
         ]);
+
+        $message = 'Cash advance #' . $ca->ca_number . ($autoApprove
+            ? ' created and approved.'
+            : ' created. It is ' . ApprovalPolicy::thresholdLabel() . ' or more, so it waits for Manager approval.');
 
         if ($request->ajax() || $request->expectsJson()) {
             return response()->json([
-                'message' => 'Cash advance #' . $ca->ca_number . ' created successfully.',
+                'message' => $message,
+                'auto_approved' => $autoApprove,
                 'cash_advance' => $ca
             ], 201);
         }
 
-        return redirect()->route('cash-advances.index')
-            ->with('success', 'Cash advance #' . $ca->ca_number . ' created successfully.');
+        return redirect()->route('cash-advances.index')->with('success', $message);
+    }
+
+    /**
+     * Approve: weekly advances take their end date from the schedule; monthly ones get
+     * their installments from the start date
+     */
+    private function markApproved(CashAdvance $ca, string $startDate): void
+    {
+        $ca->status = 'approved';
+        $ca->approved_by = auth()->id();
+        $ca->approved_date = now();
+        $ca->start_date = $startDate;
+
+        if ($ca->isWeekly()) {
+            $ca->end_date = $ca->deductions()->whereNotNull('due_date')->max('due_date') ?? $startDate;
+            $ca->syncWeeklyBalance();
+        } else {
+            $ca->end_date = Carbon::parse($startDate)->addMonths($ca->term_months);
+            $ca->save();
+            $this->generateAmortizationSchedule($ca);
+        }
+    }
+
+    /**
+     * Approve, reject or activate: Manager / Administrator for ₱50,000 and up,
+     * cash advance staff below that
+     */
+    private function canDecide(CashAdvance $ca): bool
+    {
+        return ApprovalPolicy::canDecide($this->user(), $ca->amount, $this->canApproveCA() || $this->canProcessCA());
+    }
+
+    private function denyDecision(CashAdvance $ca, string $action)
+    {
+        AuditLog::log('error', 'cash_advances', 'Unauthorized ' . $action . ' attempt for #' . $ca->ca_number);
+        abort(403, ApprovalPolicy::needsManager($ca->amount)
+            ? 'Cash advances of ' . ApprovalPolicy::thresholdLabel() . ' or more can only be ' . $action . 'd by a Manager or Administrator.'
+            : 'Unauthorized');
     }
 
     public function show(CashAdvance $cashAdvance)
@@ -265,10 +328,13 @@ class CashAdvanceController extends Controller
             $q->orderBy('payment_number');
         }, 'approvedByUser', 'createdByUser']);
 
+        $canDecide = $this->canDecide($cashAdvance);
         $userPermissions = [
-            'canApprove' => $this->canApproveCA() && $cashAdvance->status === 'pending',
-            'canActivate' => $this->canApproveCA() && $cashAdvance->status === 'approved',
-            'canReject' => $this->canApproveCA() && $cashAdvance->status === 'pending',
+            'canApprove' => $canDecide && $cashAdvance->status === 'pending',
+            'canActivate' => $canDecide && $cashAdvance->status === 'approved',
+            'canReject' => $canDecide && $cashAdvance->status === 'pending',
+            // ₱50,000 and up waits for a Manager / Administrator
+            'awaitingManager' => !$canDecide && $cashAdvance->status === 'pending' && ApprovalPolicy::needsManager($cashAdvance->amount),
             'canRecordPayment' => $this->canProcessCA() && $cashAdvance->status === 'active',
             // Weekly repayments can start once approved; the first payment activates the advance
             'canPayWeekly' => $this->canProcessCA() && in_array($cashAdvance->status, ['approved', 'active']),
@@ -301,35 +367,18 @@ class CashAdvanceController extends Controller
 
     public function approve(Request $request, CashAdvance $cashAdvance)
     {
-        if (!$this->canApproveCA()) {
-            AuditLog::log('error', 'cash_advances', 'Unauthorized approval attempt for #' . $cashAdvance->ca_number);
-            abort(403, 'Unauthorized. Only managers and administrators can approve cash advances.');
+        if (!$this->canDecide($cashAdvance)) {
+            $this->denyDecision($cashAdvance, 'approve');
         }
 
         if ($cashAdvance->status !== 'pending') {
             return back()->with('error', 'Only pending cash advances can be approved.');
         }
 
-        $isWeekly = $cashAdvance->isWeekly();
         // Weekly cash advances take their dates from the schedule; monthly ones need a start date
-        $request->validate(['start_date' => $isWeekly ? 'nullable|date' : 'required|date']);
+        $request->validate(['start_date' => $cashAdvance->isWeekly() ? 'nullable|date' : 'required|date']);
 
-        $cashAdvance->status = 'approved';
-        $cashAdvance->approved_by = auth()->id();
-        $cashAdvance->approved_date = now();
-
-        if ($isWeekly) {
-            $dueDates = $cashAdvance->deductions()->whereNotNull('due_date')->pluck('due_date');
-            $cashAdvance->start_date = $request->start_date ?: now()->toDateString();
-            $cashAdvance->end_date = $dueDates->max() ?? $cashAdvance->start_date;
-            $cashAdvance->syncWeeklyBalance();
-        } else {
-            $cashAdvance->start_date = $request->start_date;
-            $cashAdvance->end_date = Carbon::parse($request->start_date)->addMonths($cashAdvance->term_months);
-            $cashAdvance->save();
-
-            $this->generateAmortizationSchedule($cashAdvance);
-        }
+        DB::transaction(fn () => $this->markApproved($cashAdvance, $request->start_date ?: now()->toDateString()));
 
         AuditLog::log('approve', 'cash_advances', 'Approved cash advance #' . $cashAdvance->ca_number, [
             'amount' => $cashAdvance->amount,
@@ -344,9 +393,8 @@ class CashAdvanceController extends Controller
 
     public function activate(CashAdvance $cashAdvance)
     {
-        if (!$this->canApproveCA()) {
-            AuditLog::log('error', 'cash_advances', 'Unauthorized activation attempt for #' . $cashAdvance->ca_number);
-            abort(403, 'Unauthorized');
+        if (!$this->canDecide($cashAdvance)) {
+            $this->denyDecision($cashAdvance, 'activate');
         }
 
         if ($cashAdvance->status !== 'approved') {
@@ -367,9 +415,8 @@ class CashAdvanceController extends Controller
 
     public function reject(Request $request, CashAdvance $cashAdvance)
     {
-        if (!$this->canApproveCA()) {
-            AuditLog::log('error', 'cash_advances', 'Unauthorized rejection attempt for #' . $cashAdvance->ca_number);
-            abort(403, 'Unauthorized. Only managers and administrators can reject cash advances.');
+        if (!$this->canDecide($cashAdvance)) {
+            $this->denyDecision($cashAdvance, 'reject');
         }
 
         if ($cashAdvance->status !== 'pending') {
@@ -675,9 +722,11 @@ class CashAdvanceController extends Controller
         $startDate = Carbon::parse($ca->start_date);
         $balance = $ca->total_amount;
 
+        // Flat interest is spread evenly over the months
+        $monthlyInterest = round((float) $ca->interest_amount / max(1, (int) $ca->term_months), 2);
+
         for ($i = 1; $i <= $ca->term_months; $i++) {
             $dueDate = $startDate->copy()->addMonths($i);
-            $monthlyInterest = ($balance * ($ca->interest_rate / 100)) / 12;
             $monthlyPrincipal = $ca->monthly_amortization - $monthlyInterest;
 
             CashAdvanceAmortization::create([

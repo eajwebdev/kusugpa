@@ -36,6 +36,8 @@
 .kp-dashboard-kpis--quiet .kp-dashboard-kpi::after { width: 95px; height: 110px; right: -2px; bottom: -48px; opacity: .2; }
 
 .kp-dashboard .kp-card { overflow: hidden; border-color: #dce8df; box-shadow: 0 2px 10px rgba(24,71,40,.04); }
+/* The crop year / week menus drop out of their card and over the figures below */
+.kp-dashboard .kp-card.kp-dashboard-filter { overflow: visible; position: relative; z-index: 30; }
 .kp-dashboard .kp-card-head { min-height: 55px; padding: 12px 16px; }
 .kp-dashboard .kp-card-title { font-size: 13px; font-weight: 700; }
 .kp-dashboard .kp-card-sub { font-size: 11px; }

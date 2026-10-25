@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\TruckingAllowance;
 use App\Models\AuditLog;
+use App\Support\LedgerPdf;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 
@@ -17,7 +18,8 @@ class TruckingAllowanceController extends Controller
         $perPage = $request->get('per_page', 50);
         
         $query = TruckingAllowance::orderBy('planter_name');
-        
+        $this->applyPeriod($query, $request);
+
         if ($request->search) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -26,7 +28,7 @@ class TruckingAllowanceController extends Controller
                   ->orWhere('trans_code', 'like', "%{$search}%");
             });
         }
-        
+
         $sortField = $request->get('sort_field', 'planter_name');
         $sortDirection = $request->get('sort_direction', 'asc');
         $allowedFields = ['planter_code', 'planter_name', 'crop_year', 'week_no', 'net_cane', 'ta_amount', 'trans_code'];
@@ -79,10 +81,29 @@ class TruckingAllowanceController extends Controller
         ]);
     }
 
+    /**
+     * Crop year and week range filter; weeks only apply within one crop year
+     */
+    private function applyPeriod($query, Request $request): void
+    {
+        if (!$request->filled('crop_year')) {
+            return;
+        }
+
+        $query->where('crop_year', $request->crop_year);
+
+        if ($request->filled('week_from') && $request->filled('week_to')) {
+            $from = (int) $request->week_from;
+            $to = (int) $request->week_to;
+            $query->whereRaw('CAST(week_no AS UNSIGNED) BETWEEN ? AND ?', [min($from, $to), max($from, $to)]);
+        }
+    }
+
     public function exportPDF(Request $request)
     {
         $query = TruckingAllowance::orderBy('planter_name');
-        
+        $this->applyPeriod($query, $request);
+
         if ($request->search) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -91,31 +112,26 @@ class TruckingAllowanceController extends Controller
             });
         }
         
-        $uploads = $query->take(500)->get();
-        
+        // Every matching row (no 500-row cap); large lists print in parts
+        $uploads = $query->get();
         $preview = $request->boolean('preview');
 
-        AuditLog::log($preview ? 'view' : 'export', 'reports', $preview ? 'Previewed trucking allowance report PDF' : 'Exported trucking allowance report PDF', [
-            'records' => $uploads->count()
-        ]);
-        
-        $pdf = Pdf::loadView('pdf.ledger', [
-            'title' => 'Trucking Allowance Report',
-            'rows' => $uploads,
-            'columns' => [
-                ['key' => 'crop_year', 'label' => 'Season'],
-                ['key' => 'week_no', 'label' => 'Week'],
-                ['key' => 'planter_code', 'label' => 'Planter Code'],
-                ['key' => 'planter_name', 'label' => 'Planter Name'],
-                ['key' => 'trans_code', 'label' => 'Transport Code'],
-                ['key' => 'net_cane', 'label' => 'Net Cane (t)', 'decimals' => 3],
-                ['key' => 'ta_amount', 'label' => 'TA Amount (PHP)', 'decimals' => 2],
-            ],
-            'generatedDate' => now()->format('F d, Y H:i:s'),
-        ])->setPaper('a4', 'landscape');
-        
-        $filename = 'trucking-allowance-report-' . now()->format('Y-m-d') . '.pdf';
-        return $preview ? $pdf->stream($filename) : $pdf->download($filename);
+        return LedgerPdf::response($request, $uploads, 'Trucking Allowance Report', [
+            ['key' => 'crop_year', 'label' => 'Season'],
+            ['key' => 'week_no', 'label' => 'Week'],
+            ['key' => 'planter_code', 'label' => 'Planter Code'],
+            ['key' => 'planter_name', 'label' => 'Planter Name'],
+            ['key' => 'trans_code', 'label' => 'Transport Code'],
+            ['key' => 'net_cane', 'label' => 'Net Cane (t)', 'decimals' => 3],
+            ['key' => 'ta_amount', 'label' => 'TA Amount (PHP)', 'decimals' => 2],
+        ], 'trucking-allowance-report', function ($parts) use ($request, $uploads, $preview) {
+            AuditLog::log($preview ? 'view' : 'export', 'reports', $preview ? 'Previewed trucking allowance report PDF' : 'Exported trucking allowance report PDF', [
+                'records' => $uploads->count(),
+                'crop_year' => $request->crop_year ?: 'all',
+                'weeks' => $request->filled('week_from') ? $request->week_from . ' - ' . $request->week_to : 'all',
+                'part' => $parts->label() ?: 'whole',
+            ]);
+        });
     }
 
     public function deleteAll()

@@ -283,7 +283,7 @@
 <!-- Reports -->
 @php
     $canViewReports = \App\Support\NavigationPermissions::canSeeGroup($navUser, 'reports');
-    $reportsActive = request()->routeIs('summaryReport', 'consolidated-report*', 'trucking-allowance-report*', 'certification-report*', 'tls-report*', 'proceeds-sheet-report*');
+    $reportsActive = request()->routeIs('summaryReport', 'consolidated-report*', 'trucking-allowance-report*', 'certification-report*', 'tls-report*', 'proceeds-sheet-report*', 'hauler-signature-report*', 'planter-accounts-report*', 'proceeds-deductions-report*');
 @endphp
 
 @if ($canViewReports)
@@ -348,6 +348,33 @@
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('proceeds-sheet-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
                     <i class="fas fa-signature w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
                     <span>Proceeds Sheet</span>
+                </a>
+            </li>
+            @endif
+            @if ($navUser->hasPermission('view-hauler-signature-report'))
+            <li>
+                <a href="{{ route('hauler-signature-report') }}"
+                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('hauler-signature-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
+                    <i class="fas fa-file-signature w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
+                    <span>Hauler TLS Signature</span>
+                </a>
+            </li>
+            @endif
+            @if ($navUser->hasPermission('view-planter-accounts-report'))
+            <li>
+                <a href="{{ route('planter-accounts-report') }}"
+                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('planter-accounts-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
+                    <i class="fas fa-book w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
+                    <span>Planter Accnt. Applied</span>
+                </a>
+            </li>
+            @endif
+            @if ($navUser->hasPermission('view-proceeds-deductions-report'))
+            <li>
+                <a href="{{ route('proceeds-deductions-report') }}"
+                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('proceeds-deductions-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
+                    <i class="fas fa-scale-balanced w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
+                    <span>Proceeds &amp; Deductions</span>
                 </a>
             </li>
             @endif
@@ -448,6 +475,17 @@
                 </li>
             @endif
         </ul>
+    </li>
+@endif
+
+<!-- Fuel & Others Deduction -->
+@if (\App\Support\NavigationPermissions::canSeeGroup($navUser, 'planter-deductions'))
+    <li>
+        <a href="{{ route('planter-deductions.index') }}"
+            class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('planter-deductions.*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
+            <i class="fas fa-gas-pump w-5 h-5 shrink-0 flex items-center justify-center text-center"></i>
+            <span>Fuel &amp; Others Deduction</span>
+        </a>
     </li>
 @endif
 

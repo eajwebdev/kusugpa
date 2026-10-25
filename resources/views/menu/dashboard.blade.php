@@ -24,6 +24,15 @@
             </div>
         </header>
 
+        <!-- Crop Year & Week picker: drives every figure and chart below -->
+        <div class="kp-card kp-dashboard-filter px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm" style="color: var(--kp-muted)">
+                <i class="fas fa-filter mr-1.5" style="color: var(--kp-emerald)" aria-hidden="true"></i>
+                Showing figures for the selected crop year and week
+            </p>
+            @include('layouts.partials.crop-week-filter')
+        </div>
+
         <!-- Primary figures -->
         <section aria-label="Production and value" class="kp-kpis kp-dashboard-kpis">
             <div class="kp-kpi kp-dashboard-kpi kp-dashboard-kpi--green">

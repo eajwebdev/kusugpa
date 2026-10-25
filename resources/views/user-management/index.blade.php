@@ -240,6 +240,40 @@
                             'manage-loan-settings': 'fas fa-cogs',
                             'access-admin-panel': 'fas fa-shield-halved',
                             'manage-users': 'fas fa-users-cog',
+                            // Reports
+                            'view-consolidated-report': 'fas fa-file-invoice',
+                            'view-summary-report': 'fas fa-chart-bar',
+                            'view-trucking-allowance-report': 'fas fa-truck',
+                            'view-certification-report': 'fas fa-certificate',
+                            'view-tls-report': 'fas fa-truck-moving',
+                            'view-proceeds-sheet-report': 'fas fa-signature',
+                            'view-hauler-signature-report': 'fas fa-file-signature',
+                            'view-planter-accounts-report': 'fas fa-book',
+                            'view-proceeds-deductions-report': 'fas fa-scale-balanced',
+                            // Cash Advances
+                            'access-all-cash-advances': 'fas fa-money-bill-wave',
+                            'view-cash-advances': 'fas fa-money-bill-wave',
+                            'create-cash-advances': 'fas fa-file-invoice-dollar',
+                            'approve-cash-advances': 'fas fa-check-double',
+                            'process-cash-advance-payments': 'fas fa-coins',
+                            'manage-cash-advance-settings': 'fas fa-cogs',
+                            // Fuel & Others Deduction
+                            'access-all-planter-deductions': 'fas fa-gas-pump',
+                            'view-planter-deductions': 'fas fa-gas-pump',
+                            'manage-planter-deductions': 'fas fa-pen-to-square',
+                            // Hauler TLS LIQ
+                            'access-all-hauler-tls-liq': 'fas fa-truck-moving',
+                            'view-hauling-liquidity': 'fas fa-truck-moving',
+                            'manage-hauling-liquidity': 'fas fa-pen-to-square',
+                            // Quedan & Molasses
+                            'view-quedan-molasses-registry': 'fas fa-list-ul',
+                            'buy-quedan': 'fas fa-cart-shopping',
+                            'buy-molasses': 'fas fa-cart-shopping',
+                            'upload-quedan': 'fas fa-file-csv',
+                            'upload-molasses': 'fas fa-file-csv',
+                            'upload-consolidated': 'fas fa-file-csv',
+                            'upload-mudpress': 'fas fa-file-csv',
+                            'view-loan-reports': 'fas fa-chart-line',
                         };
                         return icons[slug] || 'fas fa-lock';
                     },

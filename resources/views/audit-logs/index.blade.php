@@ -4,7 +4,7 @@
 @section('title', 'Audit Logs')
 
 @section('content')
-<div x-data="auditLogData()" x-init="init()" class="space-y-6 kp-fade-in">
+<div x-data="auditLogData()" class="space-y-6 kp-fade-in">
     <!-- Page Header -->
     <header>
         <div class="kp-page-header">
@@ -75,19 +75,38 @@
                     </template>
                 </select>
             </div>
+            {{-- Crop year + week fill From / To with the week's dates; the dates can still be set by hand --}}
+            <div class="w-36">
+                <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Crop Year</label>
+                <select x-model="cropYear" @change="weekNo = ''" class="kp-select w-full">
+                    <option value="">Any</option>
+                    <template x-for="cy in cropYears" :key="cy">
+                        <option :value="cy" x-text="cy"></option>
+                    </template>
+                </select>
+            </div>
+            <div class="w-32">
+                <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Week</label>
+                <select x-model="weekNo" @change="applyWeek()" :disabled="!cropYear" class="kp-select w-full disabled:opacity-50">
+                    <option value="" x-text="cropYear ? 'Select' : 'Crop year first'"></option>
+                    <template x-for="w in weeks.filter(w => w.crop_year === cropYear)" :key="w.week_no">
+                        <option :value="w.week_no" x-text="'Week ' + w.week_no"></option>
+                    </template>
+                </select>
+            </div>
             <div class="w-36">
                 <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">From</label>
-                <input type="date" x-model="dateFrom" @change="loadFilteredLogs()" class="kp-input w-full">
+                <input type="date" x-model="dateFrom" @change="weekNo = ''; loadFilteredLogs()" class="kp-input w-full">
             </div>
             <div class="w-36">
                 <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">To</label>
-                <input type="date" x-model="dateTo" @change="loadFilteredLogs()" class="kp-input w-full">
+                <input type="date" x-model="dateTo" @change="weekNo = ''; loadFilteredLogs()" class="kp-input w-full">
             </div>
             <button @click="clearFilters()" class="kp-btn kp-btn-secondary h-[38px]">
                 <i class="fas fa-times mr-1"></i> Reset
             </button>
             <span class="text-xs font-mono ml-auto py-2" style="color: var(--kp-muted)"
-                x-text="'Showing ' + filteredLogs.length + ' of ' + totalRecords + ' logs'"></span>
+                x-text="feed && feed.total !== null ? 'Showing ' + filteredLogs.length.toLocaleString() + ' of ' + totalRecords.toLocaleString() + ' logs' : 'Loading…'"></span>
         </div>
     </div>
 
@@ -111,7 +130,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-for="log in paginatedLogs" :key="log.id">
+                    <template x-for="log in filteredLogs" :key="log.id">
                         <tr class="hover:bg-[var(--kp-hover)] transition-colors cursor-pointer" @click="showDetails(log)">
                             <td class="font-mono text-xs tabular" style="color: var(--kp-muted)" x-text="formatDateTime(log.created_at)"></td>
                             <td>
@@ -130,45 +149,11 @@
                             <td class="font-mono text-xs" style="color: var(--kp-muted)" x-text="log.ip_address || '—'"></td>
                         </tr>
                     </template>
-                    <tr x-show="filteredLogs.length === 0 && !loading">
-                        <td colspan="6" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
-                            <i class="fas fa-history text-3xl mb-2 block opacity-30"></i>
-                            No audit log records match the current filter criteria.
-                        </td>
-                    </tr>
-                    <tr x-show="loading">
-                        <td colspan="6" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
-                            <i class="fas fa-circle-notch fa-spin text-2xl mb-2 block" style="color: var(--kp-forest)"></i>
-                            Loading activity logs...
-                        </td>
-                    </tr>
+                    <template x-if="feed">
+                        @include('layouts.partials.feed-footer', ['feed' => 'feed', 'colspan' => 6, 'empty' => 'No audit log records match the current filter criteria.'])
+                    </template>
                 </tbody>
             </table>
-        </div>
-
-        <!-- Pagination -->
-        <div class="px-4 py-3 border-t flex flex-wrap items-center justify-between gap-3"
-            style="border-color: var(--kp-border); background: var(--kp-surface-2)">
-            <div class="flex items-center gap-2">
-                <span class="text-xs" style="color: var(--kp-muted)">Per page:</span>
-                <select x-model="perPage" @change="applyFilters()" class="kp-select py-1 px-2 text-xs">
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-            </div>
-            <div class="flex items-center gap-2" x-show="totalPages > 1">
-                <button @click="currentPage--" :disabled="currentPage === 1"
-                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
-                    <i class="fas fa-chevron-left mr-1"></i> Previous
-                </button>
-                <span class="text-xs font-medium tabular" style="color: var(--kp-muted)" x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
-                <button @click="currentPage++" :disabled="currentPage >= totalPages"
-                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
-                    Next <i class="fas fa-chevron-right ml-1"></i>
-                </button>
-            </div>
-            <span class="text-xs font-mono" style="color: var(--kp-muted)" x-text="totalRecords + ' total entries'"></span>
         </div>
     </div>
 
@@ -232,10 +217,9 @@
 <script>
     function auditLogData() {
         return {
-            allLogs: @json($logs->items()),
-            totalRecords: {{ $logs->total() }},
-            currentServerPage: {{ $logs->currentPage() }},
-            lastServerPage: {{ $logs->lastPage() }},
+            // Logs come from the server in batches of 100 as the table scrolls (kpFeed); every filter runs in the database
+            feed: null,
+            searchTimer: null,
             modules: @json($modules),
             actions: @json($actions),
             stats: @json($stats),
@@ -244,101 +228,53 @@
             actionFilter: 'all',
             dateFrom: '',
             dateTo: '',
+            weeks: @json($weeks),
+            cropYear: '',
+            weekNo: '',
+            get cropYears() {
+                return [...new Set(this.weeks.map(w => w.crop_year))].sort().reverse();
+            },
+            // A crop year week sets From / To to its start and end dates
+            applyWeek() {
+                const w = this.weeks.find(w => w.crop_year === this.cropYear && w.week_no === this.weekNo);
+                if (!w) return;
+                this.dateFrom = w.start;
+                this.dateTo = w.end;
+                this.loadFilteredLogs();
+            },
             sortField: 'created_at',
             sortDirection: 'desc',
-            currentPage: 1,
-            perPage: 25,
-            loading: false,
             showDetailModal: false,
             logDetail: {},
 
-            init() {},
-
-            get filteredLogs() {
-                let logs = [...this.allLogs];
-
-                if (this.search) {
-                    const s = this.search.toLowerCase();
-                    logs = logs.filter(l =>
-                        (l.description || '').toLowerCase().includes(s) ||
-                        (l.user_name || '').toLowerCase().includes(s) ||
-                        (l.module || '').toLowerCase().includes(s) ||
-                        (l.action || '').toLowerCase().includes(s) ||
-                        (l.ip_address || '').toLowerCase().includes(s)
-                    );
-                }
-
-                if (this.moduleFilter !== 'all') {
-                    logs = logs.filter(l => l.module === this.moduleFilter);
-                }
-
-                if (this.actionFilter !== 'all') {
-                    logs = logs.filter(l => l.action === this.actionFilter);
-                }
-
-                if (this.dateFrom) {
-                    logs = logs.filter(l => (l.created_at || '').substring(0, 10) >= this.dateFrom);
-                }
-                if (this.dateTo) {
-                    logs = logs.filter(l => (l.created_at || '').substring(0, 10) <= this.dateTo);
-                }
-
-                logs.sort((a, b) => {
-                    let valA = a[this.sortField] ?? '';
-                    let valB = b[this.sortField] ?? '';
-                    if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
-                    if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
-                    return 0;
-                });
-
-                return logs;
+            init() {
+                this.feed = kpFeed('{{ route('audit-logs.load-more') }}', () => ({
+                    search: this.search.trim(),
+                    module: this.moduleFilter, action: this.actionFilter,
+                    date_from: this.dateFrom, date_to: this.dateTo,
+                    sort: this.sortField, dir: this.sortDirection,
+                }));
+                this.feed.reset();
             },
 
-            get paginatedLogs() {
-                const start = (this.currentPage - 1) * this.perPage;
-                return this.filteredLogs.slice(start, start + this.perPage);
-            },
+            get filteredLogs() { return this.feed ? this.feed.rows : []; },
+            get loading() { return this.feed ? this.feed.loading : false; },
+            get totalRecords() { return this.feed && this.feed.total !== null ? this.feed.total : 0; },
 
-            get totalPages() {
-                return Math.ceil(this.filteredLogs.length / this.perPage);
-            },
-
+            // Search waits for typing to pause; the dropdowns reload at once
             applyFilters() {
-                this.currentPage = 1;
+                clearTimeout(this.searchTimer);
+                this.searchTimer = setTimeout(() => this.feed.reset(), 350);
             },
 
-            async loadFilteredLogs() {
-                this.loading = true;
-                try {
-                    const params = new URLSearchParams();
-                    if (this.dateFrom) params.append('date_from', this.dateFrom);
-                    if (this.dateTo) params.append('date_to', this.dateTo);
-                    params.append('page', 1);
-
-                    const response = await fetch('/audit-logs/load-more?' + params.toString(), {
-                        headers: { 'Accept': 'application/json' }
-                    });
-                    const data = await response.json();
-
-                    this.allLogs = data.data;
-                    this.totalRecords = data.total;
-                    this.currentServerPage = data.current_page;
-                    this.lastServerPage = data.last_page;
-                    this.currentPage = 1;
-                } catch (e) {
-                    console.error('Error loading logs:', e);
-                } finally {
-                    this.loading = false;
-                }
+            loadFilteredLogs() {
+                return this.feed.reset();
             },
 
             sortBy(field) {
-                if (this.sortField === field) {
-                    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-                } else {
-                    this.sortField = field;
-                    this.sortDirection = 'desc';
-                }
+                this.sortDirection = this.sortField === field && this.sortDirection === 'desc' ? 'asc' : 'desc';
+                this.sortField = field;
+                this.feed.reset();
             },
 
             clearFilters() {
@@ -347,6 +283,8 @@
                 this.actionFilter = 'all';
                 this.dateFrom = '';
                 this.dateTo = '';
+                this.cropYear = '';
+                this.weekNo = '';
                 this.loadFilteredLogs();
             },
 

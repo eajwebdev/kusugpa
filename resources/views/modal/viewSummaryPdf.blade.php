@@ -62,38 +62,45 @@
     <div class="info">
         <strong>Crop Year:</strong> {{ $cropYear }}<br>
         <strong>Week Range:</strong> {{ $weekFrom ?: 'All' }} to {{ $weekTo ?: 'All' }}
+        @if (!empty($partLabel))
+            <br><strong>{{ $partLabel }}</strong>
+        @endif
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th class="text-center">#</th>
-                <th>Crop Year</th>
-                <th>Week No</th>
-                <th>Planter Code</th>
-                <th>Planter Name</th>
-                <th class="text-right">Net Cane</th>
-                <th class="text-right">Net Amount</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($summaries as $summary)
+    {{-- One table per page: dompdf slows down sharply on a single table over many pages --}}
+    @php $offset = $offset ?? 0; @endphp
+    @forelse ($summaries->values()->chunk(40) as $pageRows)
+        <table style="{{ $loop->last ? '' : 'page-break-after: always;' }}">
+            <thead>
                 <tr>
-                    <td class="text-center">{{ $loop->iteration }}</td>
-                    <td>{{ $summary->crop_year }}</td>
-                    <td>{{ $summary->week_no }}</td>
-                    <td>{{ $summary->planter_code }}</td>
-                    <td>{{ $summary->planter_name }}</td>
-                    <td class="text-right">{{ number_format($summary->net_cane, 3) }}</td>
-                    <td class="text-right">{{ number_format($summary->net_amount, 2) }}</td>
+                    <th class="text-center">#</th>
+                    <th>Crop Year</th>
+                    <th>Week No</th>
+                    <th>Planter Code</th>
+                    <th>Planter Name</th>
+                    <th class="text-right">Net Cane</th>
+                    <th class="text-right">Net Amount</th>
                 </tr>
-            @empty
-                <tr>
-                    <td colspan="7" class="text-center">No data available.</td>
-                </tr>
-            @endforelse
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach ($pageRows as $i => $summary)
+                    <tr>
+                        <td class="text-center">{{ $offset + $i + 1 }}</td>
+                        <td>{{ $summary->crop_year }}</td>
+                        <td>{{ $summary->week_no }}</td>
+                        <td>{{ $summary->planter_code }}</td>
+                        <td>{{ $summary->planter_name }}</td>
+                        <td class="text-right">{{ number_format($summary->net_cane, 3) }}</td>
+                        <td class="text-right">{{ number_format($summary->net_amount, 2) }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @empty
+        <table>
+            <tbody><tr><td class="text-center">No data available.</td></tr></tbody>
+        </table>
+    @endforelse
 </body>
 
 </html>

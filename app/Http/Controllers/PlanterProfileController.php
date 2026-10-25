@@ -17,43 +17,29 @@ class PlanterProfileController extends Controller
      */
     public function index(Request $request)
 {
-    // Load ALL planters for client-side filtering (up to 2000)
-    $allPlanters = PlanterProfile::orderBy('planter_name')->limit(2000)->get();
-    
-    // Get summary stats per planter from summary table
-    $planterStats = Summary::selectRaw('planter_code, 
-        SUM(CAST(net_cane AS DECIMAL(12,3))) as total_cane,
-        SUM(CAST(net_amount AS DECIMAL(12,2))) as total_amount,
-        COUNT(DISTINCT crop_year) as years_active')
-        ->groupBy('planter_code')
-        ->get()
-        ->keyBy('planter_code');
-    
-    // Also get stats from trucking_allowance
-    $truckingStats = \App\Models\TruckingAllowance::selectRaw('planter_code, 
-        SUM(CAST(ta_amount AS DECIMAL(12,2))) as total_ta,
-        COUNT(DISTINCT crop_year) as ta_years')
-        ->groupBy('planter_code')
-        ->get()
-        ->keyBy('planter_code');
+    // The table loads its rows in batches as it scrolls (TableFeed / kpFeed)
+    if ($request->expectsJson()) {
+        $query = PlanterProfile::query();
+        if ($search = trim((string) $request->search)) {
+            $query->where(fn ($q) => $q->where('planter_name', 'like', "%{$search}%")
+                ->orWhere('planter_code', 'like', "%{$search}%"));
+        }
+        if ($request->status && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
 
-    // Merge stats
-    foreach ($planterStats as $code => $stat) {
-        if (isset($truckingStats[$code])) {
-            $stat->total_ta = $truckingStats[$code]->total_ta ?? 0;
-            $stat->ta_years = $truckingStats[$code]->ta_years ?? 0;
-        }
-    }
-    foreach ($truckingStats as $code => $stat) {
-        if (!isset($planterStats[$code])) {
-            $planterStats[$code] = (object)[
-                'total_cane' => 0,
-                'total_amount' => 0,
-                'years_active' => 0,
-                'total_ta' => $stat->total_ta ?? 0,
-                'ta_years' => $stat->ta_years ?? 0,
-            ];
-        }
+        return \App\Support\TableFeed::respond($request, $query, [
+            'planter_code' => 'planter_code',
+            'planter_name' => 'planter_name',
+        ], [['planter_name', 'asc']], null, null, function ($rows) {
+            // Total cane of just this batch's planters (from the weekly summaries)
+            $cane = Summary::whereIn('planter_code', $rows->pluck('planter_code'))
+                ->selectRaw('planter_code, SUM(CAST(net_cane AS DECIMAL(12,3))) AS total_cane')
+                ->groupBy('planter_code')
+                ->pluck('total_cane', 'planter_code');
+
+            return $rows->each(fn ($p) => $p->setAttribute('total_cane', (float) ($cane[$p->planter_code] ?? 0)));
+        });
     }
 
     $stats = [
@@ -63,7 +49,7 @@ class PlanterProfileController extends Controller
         'new_this_month' => PlanterProfile::whereMonth('created_at', now()->month)->count(),
     ];
 
-    return view('planter-profiles.index', compact('allPlanters', 'planterStats', 'stats'));
+    return view('planter-profiles.index', compact('stats'));
 }
 
     /**
@@ -322,22 +308,15 @@ class PlanterProfileController extends Controller
 
         $planters = $query->get();
 
-        $pdf = Pdf::loadView('pdf.ledger', [
-            'title' => 'Planter Profiles',
-            'rows' => $planters,
-            'columns' => [
-                ['key' => 'planter_code', 'label' => 'Code'],
-                ['key' => 'planter_name', 'label' => 'Planter Name'],
-                ['key' => 'contact_number', 'label' => 'Contact'],
-                ['key' => 'address', 'label' => 'Address'],
-                ['key' => 'area_location', 'label' => 'Area Location'],
-                ['key' => 'total_area', 'label' => 'Total Area (ha)', 'decimals' => 2],
-                ['key' => 'status', 'label' => 'Status'],
-                ['key' => 'membership_date', 'label' => 'Member Since'],
-            ],
-            'generatedDate' => now()->format('F d, Y'),
-        ])->setPaper('a4', 'landscape');
-
-        return $request->boolean('preview') ? $pdf->stream('planter-profiles.pdf') : $pdf->download('planter-profiles.pdf');
+        return \App\Support\LedgerPdf::response($request, $planters, 'Planter Profiles', [
+            ['key' => 'planter_code', 'label' => 'Code'],
+            ['key' => 'planter_name', 'label' => 'Planter Name'],
+            ['key' => 'contact_number', 'label' => 'Contact'],
+            ['key' => 'address', 'label' => 'Address'],
+            ['key' => 'area_location', 'label' => 'Area Location'],
+            ['key' => 'total_area', 'label' => 'Total Area (ha)', 'decimals' => 2],
+            ['key' => 'status', 'label' => 'Status'],
+            ['key' => 'membership_date', 'label' => 'Member Since'],
+        ], 'planter-profiles');
     }
 }

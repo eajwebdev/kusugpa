@@ -41,7 +41,7 @@
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
                             <i class="fas fa-calendar-alt text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Crop Year <span class="text-rose-600">*</span>
                         </label>
-                        <select x-model="filters.crop_year" @change="onFilterChange()"
+                        <select x-model="filters.crop_year" @change="onCropYearChange()"
                             class="kp-input w-full">
                             <option value="">Select Crop Year</option>
                             @foreach ($cropYear as $year)
@@ -55,12 +55,12 @@
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
                             <i class="fas fa-play-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week From <span class="text-rose-600">*</span>
                         </label>
-                        <select x-model="filters.week_from" @change="onFilterChange()"
-                            class="kp-input w-full">
-                            <option value="">Select Week</option>
-                            @foreach ($weekNos as $week)
-                                <option value="{{ $week }}">Week {{ $week }}</option>
-                            @endforeach
+                        <select x-model="filters.week_from" @change="onFilterChange()" :disabled="!filters.crop_year"
+                            class="kp-input w-full disabled:opacity-50">
+                            <option value="" x-text="filters.crop_year ? 'Select Week' : 'Select crop year first'"></option>
+                            <template x-for="w in cropWeeks" :key="'f' + w">
+                                <option :value="w" x-text="'Week ' + w"></option>
+                            </template>
                         </select>
                     </div>
 
@@ -69,12 +69,12 @@
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
                             <i class="fas fa-stop-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week To <span class="text-rose-600">*</span>
                         </label>
-                        <select x-model="filters.week_to" @change="onFilterChange()"
-                            class="kp-input w-full">
-                            <option value="">Select Week</option>
-                            @foreach ($weekNos as $week)
-                                <option value="{{ $week }}">Week {{ $week }}</option>
-                            @endforeach
+                        <select x-model="filters.week_to" @change="onFilterChange()" :disabled="!filters.crop_year"
+                            class="kp-input w-full disabled:opacity-50">
+                            <option value="" x-text="filters.crop_year ? 'Select Week' : 'Select crop year first'"></option>
+                            <template x-for="w in cropWeeks" :key="'t' + w">
+                                <option :value="w" x-text="'Week ' + w"></option>
+                            </template>
                         </select>
                     </div>
 
@@ -189,7 +189,7 @@
             <ul class="list-disc pl-5 space-y-1">
                 <li>One line per planter, sorted by name: number, check number, Trucking Allowance, -A- Quedan, -B- &amp; Mol. proceeds, Total Net Proceeds and a signature line.</li>
                 <li>15 planters per page with page totals; the last page also has the grand totals.</li>
-                <li>When a planter has a cash advance or loan payment for those weeks, a LESS C.A./LOAN column is added so the total matches the check.</li>
+                <li>When a planter has a loan, cash advance, others or fuel payment for those weeks, a LESS ACCOUNTS column is added so the total matches the check.</li>
             </ul>
         </div>
     </div>
@@ -197,6 +197,7 @@
     @push('scripts')
         <script>
             function proceedsSheet() {
+                const weeks = @json($weeks);
                 const now = new Date();
                 const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
                 return {
@@ -232,6 +233,17 @@
                             return 'All Planters';
                         }
                         return this.filters.planter_names.length + ' planter(s) selected';
+                    },
+
+                    // Weeks of the selected crop year only
+                    get cropWeeks() {
+                        return weeks.filter(w => w.crop_year === this.filters.crop_year).map(w => w.week_no);
+                    },
+
+                    onCropYearChange() {
+                        this.filters.week_from = '';
+                        this.filters.week_to = '';
+                        this.onFilterChange();
                     },
 
                     onFilterChange() {
