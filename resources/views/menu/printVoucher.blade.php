@@ -314,11 +314,8 @@
                     },
 
                     downloadPDF() {
-                        if (this.pdfUrl) {
-                            const url = new URL(this.pdfUrl, window.location.origin);
-                            url.searchParams.set('download', '1');
-                            window.location.assign(url.toString());
-                        }
+                        // A whole week of vouchers is too large for one request: the preview splits it into parts
+                        if (this.pdfUrl) window.KusugpaPdfPreview.download(this.pdfUrl, 'Voucher Ledger');
                     },
 
                     printVoucher() {

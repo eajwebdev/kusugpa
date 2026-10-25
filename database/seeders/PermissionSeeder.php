@@ -9,11 +9,12 @@ use Illuminate\Support\Facades\DB;
 class PermissionSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Every permission the app uses (name, slug, description). Also read by the migration that
+     * adds the ones missing from an existing database.
      */
-    public function run(): void
+    public static function permissions(): array
     {
-        $permissions = [
+        return [
             [
                 'name' => 'Set Quedan Price',
                 'slug' => 'set-quedan-price',
@@ -189,8 +190,26 @@ class PermissionSeeder extends Seeder
                 'slug' => 'manage-hauling-liquidity',
                 'description' => 'Can add haulers and create, edit, and delete Hauler TLS LIQ entries',
             ],
+            [
+                'name' => 'View Fuel & Others Deduction',
+                'slug' => 'view-planter-deductions',
+                'description' => 'Can view fuel and other planter deductions',
+            ],
+            [
+                'name' => 'Manage Fuel & Others Deduction',
+                'slug' => 'manage-planter-deductions',
+                'description' => 'Can add, edit and delete fuel and other planter deductions',
+            ],
             ...\App\Support\NavigationPermissionsSeeder::permissions(),
         ];
+    }
+
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        $permissions = self::permissions();
 
         // Use updateOrCreate to avoid duplicate key errors
         foreach ($permissions as $permission) {

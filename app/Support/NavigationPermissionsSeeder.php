@@ -25,6 +25,9 @@ class NavigationPermissionsSeeder
                 ['Production Certification', 'view-certification-report'],
                 ['TLS Reports', 'view-tls-report'],
                 ['Proceeds Sheet', 'view-proceeds-sheet-report'],
+                ['Hauler TLS Signature', 'view-hauler-signature-report'],
+                ['Planter Accnt. Applied', 'view-planter-accounts-report'],
+                ['Proceeds & Deductions', 'view-proceeds-deductions-report'],
             ],
             'Loans' => [
                 ['All Loans Menu', 'access-all-loans'],
@@ -35,6 +38,9 @@ class NavigationPermissionsSeeder
             ],
             'Hauler TLS LIQ' => [
                 ['All Hauler TLS LIQ', 'access-all-hauler-tls-liq'],
+            ],
+            'Fuel & Others Deduction' => [
+                ['All Fuel & Others Deduction', 'access-all-planter-deductions'],
             ],
         ];
 

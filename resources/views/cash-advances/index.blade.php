@@ -4,7 +4,7 @@
 @section('title', 'Cash Advances Management')
 
 @section('content')
-    <div x-data="cashAdvancesData()" x-init="init()" class="space-y-6 kp-fade-in">
+    <div x-data="cashAdvancesData()" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
         <header>
             <div class="kp-page-header">
@@ -82,18 +82,27 @@
                 </div>
                 <div class="w-44">
                     <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Crop Year</label>
-                    <select x-model="cropYearFilter" @change="filterCA()" class="kp-select w-full">
+                    <select x-model="cropYearFilter" @change="weekFilter = ''; filterCA()" class="kp-select w-full">
                         <option value="">All Crop Years</option>
                         @foreach ($cropYears as $cy)
                             <option value="{{ $cy }}">{{ $cy }}</option>
                         @endforeach
                     </select>
                 </div>
+                <div class="w-36">
+                    <label class="block text-xs font-semibold uppercase tracking-wider mb-1.5" style="color: var(--kp-faint)">Deduction Week</label>
+                    <select x-model="weekFilter" @change="filterCA()" :disabled="!cropYearFilter" class="kp-select w-full disabled:opacity-50">
+                        <option value="" x-text="cropYearFilter ? 'All Weeks' : 'Crop year first'"></option>
+                        <template x-for="w in weeks.filter(w => String(w.crop_year) === String(cropYearFilter))" :key="w.week_no">
+                            <option :value="w.week_no" x-text="'Week ' + w.week_no"></option>
+                        </template>
+                    </select>
+                </div>
                 <button @click="clearFilters()" class="kp-btn kp-btn-secondary h-[38px]">
                     <i class="fas fa-times mr-1"></i> Reset
                 </button>
                 <span class="text-xs font-mono ml-auto py-2" style="color: var(--kp-muted)"
-                    x-text="'Showing ' + filteredCA.length + ' records'"></span>
+                    x-text="feed && feed.total !== null ? 'Showing ' + filteredCA.length.toLocaleString() + ' of ' + feed.total.toLocaleString() + ' records' : 'Loading…'"></span>
             </div>
         </div>
 
@@ -134,7 +143,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <template x-for="ca in paginatedCA" :key="ca.id">
+                        <template x-for="ca in filteredCA" :key="ca.id">
                             <tr class="hover:bg-[var(--kp-hover)] transition-colors">
                                 <td class="font-mono font-semibold" style="color: var(--kp-text)">
                                     <a :href="'/cash-advances/' + ca.id" class="hover:underline" style="color: var(--kp-emerald)" x-text="ca.ca_number"></a>
@@ -187,29 +196,11 @@
                                 </td>
                             </tr>
                         </template>
-                        <tr x-show="filteredCA.length === 0">
-                            <td colspan="8" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
-                                <i class="fas fa-money-bill-wave text-3xl mb-2 block opacity-30"></i>
-                                No cash advance records match the selected filters.
-                            </td>
-                        </tr>
+                        <template x-if="feed">
+                            @include('layouts.partials.feed-footer', ['feed' => 'feed', 'colspan' => 8, 'empty' => 'No cash advance records match the selected filters.'])
+                        </template>
                     </tbody>
                 </table>
-            </div>
-
-            <!-- Pagination -->
-            <div class="px-4 py-3 border-t flex items-center justify-between"
-                style="border-color: var(--kp-border); background: var(--kp-surface-2)"
-                x-show="totalPages > 1">
-                <button @click="currentPage--" :disabled="currentPage === 1"
-                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
-                    <i class="fas fa-chevron-left mr-1"></i> Previous
-                </button>
-                <span class="text-xs font-medium tabular" style="color: var(--kp-muted)" x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
-                <button @click="currentPage++" :disabled="currentPage >= totalPages"
-                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
-                    Next <i class="fas fa-chevron-right ml-1"></i>
-                </button>
             </div>
         </div>
 
@@ -282,7 +273,7 @@
                             <div class="flex justify-between px-4 py-2 border-t text-xs" style="border-color: var(--kp-border)">
                                 <span style="color: var(--kp-muted)">Scheduled</span>
                                 <span class="font-mono font-semibold" :class="receiptBalanced ? 'text-[#005B2A] dark:text-[#52C97E]' : 'text-red-500'"
-                                    x-text="formatNumber(scheduledTotal) + ' of ' + formatNumber(receiptCA ? receiptCA.amount : 0)"></span>
+                                    x-text="formatNumber(scheduledTotal) + ' of ' + formatNumber(receiptRepayable)"></span>
                             </div>
                             <p x-show="receiptDuplicateWeeks.length" class="px-4 pb-2 text-xs text-red-500">
                                 <i class="fas fa-circle-xmark mr-1" aria-hidden="true"></i>
@@ -290,9 +281,9 @@
                             </p>
                             <p x-show="!receiptBalanced" class="px-4 pb-2 text-xs text-red-500">
                                 <i class="fas fa-circle-xmark mr-1" aria-hidden="true"></i>
-                                Deduction weeks are <span x-text="scheduledTotal < (receiptCA ? +receiptCA.amount : 0) ? 'short' : 'over'"></span>
-                                by ₱<span x-text="formatNumber(Math.abs((receiptCA ? +receiptCA.amount : 0) - scheduledTotal))"></span>.
-                                They must equal the advance amount before you can save.
+                                Deduction weeks are <span x-text="scheduledTotal < receiptRepayable ? 'short' : 'over'"></span>
+                                by ₱<span x-text="formatNumber(Math.abs(receiptRepayable - scheduledTotal))"></span>.
+                                They must equal the amount to repay (advance + interest) before you can save.
                             </p>
                         </div>
 
@@ -331,11 +322,13 @@
                     search: '',
                     statusFilter: 'all',
                     cropYearFilter: '',
+                    weekFilter: '', // advances with a deduction in this week of the crop year
                     sortField: 'application_date',
                     sortDirection: 'desc',
-                    currentPage: 1,
-                    perPage: 15,
-                    allCA: @json($cashAdvances->items()),
+                    // Cash advances come from the server in batches of 100 as the table scrolls (kpFeed);
+                    // search, filters and sorting run in the database
+                    feed: null,
+                    searchTimer: null,
                     showModal: false,
                     weeks: @json($weeks),
                     receiptModal: false,
@@ -352,52 +345,34 @@
                     ],
 
                     init() {
-                        this.filterCA();
+                        this.feed = kpFeed('{{ route('cash-advances.index') }}', () => ({
+                            search: this.search.trim(),
+                            status: this.statusFilter,
+                            crop_year: this.cropYearFilter,
+                            week_no: this.weekFilter,
+                            sort: this.sortField, dir: this.sortDirection,
+                        }));
+                        this.feed.reset();
                     },
 
                     get filteredCA() {
-                        let data = [...this.allCA];
-                        if (this.search) {
-                            const s = this.search.toLowerCase();
-                            data = data.filter(d => d.ca_number?.toLowerCase().includes(s) || d.planter_name?.toLowerCase()
-                                .includes(s) || d.planter_code?.toLowerCase().includes(s));
-                        }
-                        if (this.statusFilter !== 'all') data = data.filter(d => d.status === this.statusFilter);
-                        if (this.cropYearFilter) data = data.filter(d => d.crop_year === this.cropYearFilter);
-                        data.sort((a, b) => {
-                            let valA = a[this.sortField] ?? '',
-                                valB = b[this.sortField] ?? '';
-                            if (typeof valA === 'string') valA = valA.toLowerCase();
-                            if (typeof valB === 'string') valB = valB.toLowerCase();
-                            if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
-                            if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
-                            return 0;
-                        });
-                        return data;
+                        return this.feed ? this.feed.rows : [];
                     },
-                    get paginatedCA() {
-                        const start = (this.currentPage - 1) * this.perPage;
-                        return this.filteredCA.slice(start, start + this.perPage);
-                    },
-                    get totalPages() {
-                        return Math.ceil(this.filteredCA.length / this.perPage);
-                    },
+                    // Reload from the first batch; typing in the search waits for a pause
                     filterCA() {
-                        this.currentPage = 1;
+                        clearTimeout(this.searchTimer);
+                        this.searchTimer = setTimeout(() => this.feed.reset(), 300);
                     },
                     sortBy(field) {
-                        if (this.sortField === field) {
-                            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-                        } else {
-                            this.sortField = field;
-                            this.sortDirection = 'asc';
-                        }
-                        this.filterCA();
+                        this.sortDirection = this.sortField === field && this.sortDirection === 'asc' ? 'desc' : 'asc';
+                        this.sortField = field;
+                        this.feed.reset();
                     },
                     clearFilters() {
                         this.search = '';
                         this.statusFilter = 'all';
                         this.cropYearFilter = '';
+                        this.weekFilter = '';
                         this.filterCA();
                     },
                     statusClass(status) {
@@ -439,18 +414,22 @@
                         this.receiptForm.deductions.forEach(d => { if (d.week_no) seen[d.week_no] = (seen[d.week_no] || 0) + 1; });
                         return Object.keys(seen).filter(w => seen[w] > 1);
                     },
-                    // Saving needs distinct weeks that add up to the advance amount
+                    // What the deduction weeks must add up to: the advance plus its interest
+                    get receiptRepayable() {
+                        if (!this.receiptCA) return 0;
+                        return Math.round(((parseFloat(this.receiptCA.amount) || 0) + (parseFloat(this.receiptCA.interest_amount) || 0)) * 100) / 100;
+                    },
+                    // Saving needs distinct weeks that add up to the amount to repay
                     get receiptCanSave() {
                         return !this.receiptDuplicateWeeks.length && this.receiptBalanced;
                     },
                     get receiptBlockReason() {
                         if (this.receiptDuplicateWeeks.length) return 'Week ' + this.receiptDuplicateWeeks.join(', ') + ' is listed more than once.';
-                        return 'Deduction weeks must equal the advance amount (₱' + this.formatNumber(this.receiptCA ? this.receiptCA.amount : 0) + ').';
+                        return 'Deduction weeks must equal the amount to repay (₱' + this.formatNumber(this.receiptRepayable) + ').';
                     },
-                    // Deduction weeks must add up to the advance amount
                     get receiptBalanced() {
                         if (!this.receiptCA) return false;
-                        return Math.round(this.scheduledTotal * 100) === Math.round((parseFloat(this.receiptCA.amount) || 0) * 100);
+                        return Math.round(this.scheduledTotal * 100) === Math.round(this.receiptRepayable * 100);
                     },
                     previewReceipt(ca) {
                         window.KusugpaPdfPreview.open('/cash-advances/' + ca.id + '/receipt-pdf', 'CA Receipt · ' + ca.ca_number + ' · ' + ca.planter_name);
@@ -522,8 +501,7 @@
                             });
                             const d = await r.json();
                             if (!r.ok) throw new Error(d.message || 'Request failed');
-                            this.allCA = this.allCA.filter(x => x.id !== ca.id);
-                            if (this.currentPage > this.totalPages) this.currentPage = Math.max(1, this.totalPages);
+                            this.feed.remove(ca.id);
                             Swal.fire({ icon: 'success', title: 'Deleted', text: d.message, timer: 2000, showConfirmButton: false });
                         } catch (e) {
                             Swal.fire({ icon: 'error', title: 'Error', text: e.message });

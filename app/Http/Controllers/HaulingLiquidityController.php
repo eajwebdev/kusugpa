@@ -11,6 +11,7 @@ use App\Models\CropYear;
 use App\Models\PlanterProfile;
 use App\Models\WeekNo;
 use App\Services\TlsHaulingLiquidationGenerator;
+use App\Support\TableFeed;
 use App\Models\User;
 use App\Models\AuditLog;
 use Carbon\Carbon;
@@ -157,16 +158,21 @@ class HaulingLiquidityController extends Controller
     /**
      * Display liquidation entries of a hauler
      */
-    public function show(Hauler $hauler)
+    public function show(Request $request, Hauler $hauler)
     {
         $this->authorizeView();
 
-        $entries = $hauler->liquidations()
-            ->with('items')
+        // The entries table loads in batches as it scrolls (TableFeed / kpFeed)
+        if ($request->expectsJson()) {
+            return $this->entriesFeed($request, $hauler);
+        }
+
+        // Defaults of a new entry: the latest entry's crop year, week and rate
+        $latest = $hauler->liquidations()
             ->orderBy('crop_year', 'desc')
             ->orderByRaw('CAST(week_no AS UNSIGNED) DESC')
             ->orderBy('id', 'desc')
-            ->get();
+            ->first(['crop_year', 'week_no', 'rate_per_ton']);
 
         // Crop years and weeks come from Crop & Week Management (/crop-weeks)
         $cropYears = CropYear::orderBy('crop_year', 'desc')->pluck('crop_year');
@@ -186,12 +192,59 @@ class HaulingLiquidityController extends Controller
             ->distinct()
             ->orderBy('payee_name')
             ->pluck('payee_name');
-        $truckCodes = $entries->pluck('truck_code')->filter()->unique()->sort()->values();
+        $truckCodes = $hauler->liquidations()->whereNotNull('truck_code')->where('truck_code', '!=', '')
+            ->distinct()->orderBy('truck_code')->pluck('truck_code');
         $canManage = $this->canManage();
 
         return view('hauling-liquidity.show', compact(
-            'hauler', 'entries', 'cropYears', 'weeks', 'planters', 'payeeNames', 'truckCodes', 'canManage'
+            'hauler', 'latest', 'cropYears', 'weeks', 'planters', 'payeeNames', 'truckCodes', 'canManage'
         ));
+    }
+
+    /**
+     * One batch of a hauler's entries. The first batch also carries the totals of every matching entry
+     * (for the stat cards) and how many matching entries still have no payee.
+     */
+    private function entriesFeed(Request $request, Hauler $hauler)
+    {
+        $query = $hauler->liquidations()->with('items')->getQuery();
+        if ($request->crop_year) {
+            $query->where('crop_year', $request->crop_year);
+        }
+        if ($request->week_no) {
+            $query->where('week_no', (string) $request->week_no);
+        }
+        if ($search = trim((string) $request->search)) {
+            $query->where(fn ($q) => $q->where('payee_name', 'like', "%{$search}%")
+                ->orWhere('planter_code', 'like', "%{$search}%")
+                ->orWhere('truck_code', 'like', "%{$search}%")
+                ->orWhere('cv_no', 'like', "%{$search}%")
+                ->orWhere('check_no', 'like', "%{$search}%"));
+        }
+        if ($request->boolean('no_payee')) {
+            $query->where(fn ($q) => $q->whereNull('payee_name')->orWhere('payee_name', ''));
+        }
+
+        $period = ['raw' => 'CAST(crop_year AS UNSIGNED) * 1000 + CAST(week_no AS UNSIGNED)'];
+
+        return TableFeed::respond($request, $query, [
+            'period' => $period,
+            'week_ending' => 'week_ending',
+            'payee_name' => 'payee_name',
+            'cv_no' => 'cv_no',
+            'truck_code' => 'truck_code',
+            'tonnage' => 'tonnage',
+            'rate_per_ton' => 'rate_per_ton',
+            'gross_amount' => 'gross_amount',
+            'total_add' => 'total_add',
+            'total_less' => 'total_less',
+            'net_amount' => 'net_amount',
+        ], [[$period, 'desc']], null, fn ($filtered) => [
+            'sums' => (array) $filtered->toBase()->selectRaw(
+                'COALESCE(SUM(tonnage), 0) AS tonnage, COALESCE(SUM(gross_amount), 0) AS gross_amount, '
+                . 'COALESCE(SUM(total_less), 0) AS total_less, COALESCE(SUM(net_amount), 0) AS net_amount'
+            )->reorder()->first(),
+        ]);
     }
 
     /**
@@ -236,6 +289,33 @@ class HaulingLiquidityController extends Controller
         ]);
 
         return response()->json(['message' => 'Liquidation updated', 'entry' => $entry->load('items')]);
+    }
+
+    /**
+     * Set only the payee (hauler / driver) of an entry, from the entries table.
+     * The TLS upload has no payee; once set, the plate keeps it in later weeks' uploads.
+     */
+    public function setPayee(Request $request, HaulingLiquidation $entry)
+    {
+        $this->authorizeManage();
+
+        $data = $request->validate(['payee_name' => 'required|string|max:255'], [
+            'payee_name.required' => 'Enter the payee name.',
+        ]);
+
+        // Same as saving the entry: a name matching a planter links it for Cash Adv. / Fuel
+        $payeeName = trim(preg_replace('/\s+/', ' ', $data['payee_name']));
+        $planter = PlanterProfile::whereRaw('LOWER(TRIM(planter_name)) = ?', [mb_strtolower($payeeName)])->first();
+
+        $entry->update(['payee_name' => $payeeName, 'planter_code' => $planter?->planter_code]);
+
+        AuditLog::log('update', 'hauling_liquidity', 'Set payee of plate ' . $entry->truck_code . ' to ' . $payeeName, [
+            'hauler' => $entry->hauler->name,
+            'crop_year' => $entry->crop_year,
+            'week_no' => $entry->week_no,
+        ]);
+
+        return response()->json(['message' => 'Payee saved', 'entry' => $entry->load('items')]);
     }
 
     /**
@@ -310,7 +390,13 @@ class HaulingLiquidityController extends Controller
 
         abort_if($entries->isEmpty(), 404, 'No liquidation entries for this week.');
 
-        return $this->renderSlips($request, $entries, 'hauling-liquidation-' . $data['crop_year'] . '-wk' . $data['week_no'] . '.pdf');
+        // One slip per truck with its TLS tickets: a busy week prints in parts of 60 slips
+        $parts = \App\Support\PdfParts::make($request, $entries, 60, 'slips');
+        if ($parts->wantsInfo($request)) {
+            return $parts->info();
+        }
+
+        return $this->renderSlips($request, $parts->items(), $parts->filename('hauling-liquidation-' . $data['crop_year'] . '-wk' . $data['week_no']));
     }
 
     private function renderSlips(Request $request, $entries, string $filename)

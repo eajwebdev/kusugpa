@@ -31,4 +31,18 @@ class WeekNo extends Model
     {
         return $value;
     }
+
+    /**
+     * Every crop year's weeks in order, for report pages that list only the selected crop year's weeks
+     *
+     * @return \Illuminate\Support\Collection<int, array{crop_year: string, week_no: string}>
+     */
+    public static function byCropYear()
+    {
+        return static::orderByRaw('CAST(week_no AS UNSIGNED) ASC')
+            ->get(['crop_year', 'week_no'])
+            ->map(fn ($w) => ['crop_year' => (string) $w->crop_year, 'week_no' => (string) $w->week_no])
+            ->unique(fn ($w) => $w['crop_year'] . '|' . $w['week_no'])
+            ->values();
+    }
 }

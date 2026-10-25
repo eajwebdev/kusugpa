@@ -62,7 +62,7 @@
                                     <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]" x-text="loan.planter_name + ' (' + loan.planter_code + ')'"></p>
                                 </div>
                                 <span class="kp-badge text-[10px]" 
-                                    :class="loan.status === 'active' ? 'kp-badge--forest' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'"
+                                    :class="loan.status === 'active' ? 'kp-badge--forest' : 'kp-badge--info'"
                                     x-text="loan.status"></span>
                             </div>
                         </template>
@@ -225,19 +225,45 @@
                     </div>
                 </div>
 
-                <form action="{{ route('loans.monthly-report-pdf') }}" method="GET" data-pdf-preview="Monthly Loan Collections" class="space-y-3">
+                {{-- A crop year week range sets the period; without weeks the month is used --}}
+                <form action="{{ route('loans.monthly-report-pdf') }}" method="GET" data-pdf-preview="Monthly Loan Collections" class="space-y-3"
+                    x-data="{ weeks: @js($weeks), cropYear: '', weekFrom: '', weekTo: '',
+                        get cropWeeks() { return this.weeks.filter(w => w.crop_year === this.cropYear).map(w => w.week_no); },
+                        get byWeek() { return this.cropYear && this.weekFrom && this.weekTo; } }">
                     <div>
-                        <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Target Month</label>
-                        <input type="month" name="month" value="{{ date('Y-m') }}" class="kp-input w-full py-2 text-xs">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Crop Year Filter</label>
-                        <select name="crop_year" class="kp-input w-full py-2 text-xs">
+                        <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Crop Year</label>
+                        <select name="crop_year" x-model="cropYear" @change="weekFrom = ''; weekTo = ''" class="kp-input w-full py-2 text-xs">
                             <option value="">All Crop Years</option>
                             @foreach($cropYears as $cy)
                                 <option value="{{ $cy }}">{{ $cy }}</option>
                             @endforeach
                         </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Week From</label>
+                            <select name="week_from" x-model="weekFrom" :disabled="!cropYear" class="kp-input w-full py-2 text-xs disabled:opacity-50">
+                                <option value="" x-text="cropYear ? 'Select' : 'Crop year first'"></option>
+                                <template x-for="w in cropWeeks" :key="'f' + w">
+                                    <option :value="w" x-text="'Week ' + w"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Week To</label>
+                            <select name="week_to" x-model="weekTo" :disabled="!cropYear" class="kp-input w-full py-2 text-xs disabled:opacity-50">
+                                <option value="" x-text="cropYear ? 'Select' : 'Crop year first'"></option>
+                                <template x-for="w in cropWeeks" :key="'t' + w">
+                                    <option :value="w" x-text="'Week ' + w"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">
+                            Or Month <span class="normal-case font-normal" x-show="byWeek">(not used: weeks are selected)</span>
+                        </label>
+                        <input type="month" name="month" value="{{ date('Y-m') }}" :disabled="byWeek" class="kp-input w-full py-2 text-xs disabled:opacity-50">
                     </div>
                     <button type="submit" class="w-full mt-2 kp-btn kp-btn-secondary justify-center text-xs">
                         <i class="fas fa-file-pdf mr-1.5 text-rose-600" aria-hidden="true"></i> Generate Monthly Statement

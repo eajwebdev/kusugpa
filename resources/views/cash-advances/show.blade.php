@@ -44,20 +44,27 @@
                 @php
                     $isAdmin = in_array(auth()->user()->role, ['Administrator', 'super_admin']);
                     $isManager = auth()->user()->role === 'manager';
-                    $canApprove = $isAdmin || $isManager;
                     $canProcess = $isAdmin || $isManager || auth()->user()->hasPermission('create-cash-advances') || auth()->user()->hasPermission('process-cash-advance-payments');
                 @endphp
 
                 <div class="flex flex-wrap items-center gap-2">
-                    @if ($canApprove && $cashAdvance->status === 'pending')
+                    @if ($userPermissions['awaitingManager'])
+                        <span class="kp-badge kp-badge--amber text-xs py-1 px-2.5">
+                            <i class="fas fa-user-tie" aria-hidden="true"></i>
+                            Waiting for Manager approval ({{ \App\Support\ApprovalPolicy::thresholdLabel() }} or more)
+                        </span>
+                    @endif
+                    @if ($userPermissions['canApprove'])
                         <button type="button" onclick="approveCA()" class="kp-btn kp-btn-primary text-xs">
                             <i class="fas fa-check mr-1.5" aria-hidden="true"></i> Approve Advance
                         </button>
+                    @endif
+                    @if ($userPermissions['canReject'])
                         <button type="button" onclick="rejectCA()" class="kp-btn kp-btn-danger text-xs">
                             <i class="fas fa-times mr-1.5" aria-hidden="true"></i> Reject
                         </button>
                     @endif
-                    @if ($canApprove && $cashAdvance->status === 'approved')
+                    @if ($userPermissions['canActivate'])
                         <form action="{{ route('cash-advances.activate', $cashAdvance) }}" method="POST">
                             @csrf
                             <button type="submit" class="kp-btn kp-btn-primary text-xs">
@@ -83,7 +90,12 @@
             <div class="kp-kpi">
                 <p class="kp-kpi-label"><i class="fas fa-hand-holding-dollar" aria-hidden="true"></i> Advance Amount</p>
                 <p class="kp-kpi-value kp-num">₱{{ number_format($cashAdvance->amount, 2) }}</p>
-                <p class="kp-kpi-sub">{{ $cashAdvance->interest_rate }}% interest rate</p>
+                <p class="kp-kpi-sub">
+                    {{ $cashAdvance->interest_rate }}% interest
+                    @if ((float) $cashAdvance->interest_amount > 0)
+                        · ₱{{ number_format($cashAdvance->interest_amount, 2) }} · Total ₱{{ number_format($cashAdvance->repayable(), 2) }}
+                    @endif
+                </p>
             </div>
             @if ($isWeekly)
                 <div class="kp-kpi">
@@ -439,7 +451,12 @@
                     <div class="flex items-center justify-between pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
                         <div>
                             <h3 id="schedule-editor-title" class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">{{ $isWeekly ? 'Edit Weekly Schedule' : 'Set Up Weekly Schedule' }}</h3>
-                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">Crop year {{ $cashAdvance->crop_year }} · Advance ₱{{ number_format($cashAdvance->amount, 2) }}</p>
+                            <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">
+                                Crop year {{ $cashAdvance->crop_year }} · Advance ₱{{ number_format($cashAdvance->amount, 2) }}
+                                @if ((float) $cashAdvance->interest_amount > 0)
+                                    + interest ₱{{ number_format($cashAdvance->interest_amount, 2) }} = ₱{{ number_format($cashAdvance->repayable(), 2) }} to repay
+                                @endif
+                            </p>
                         </div>
                         <button type="button" @click="scheduleModal = false" class="text-[#52705F] hover:text-[#172B20] dark:text-[#8AA895]">
                             <i class="fas fa-times text-sm"></i>
@@ -689,7 +706,8 @@
                 return {
                     weeks: @json($weeklyRows),
                     cropWeeks: @json($cropWeeks),
-                    advanceAmount: {{ (float) $cashAdvance->amount }},
+                    // What the weeks must add up to: the advance plus its interest
+                    advanceAmount: {{ $cashAdvance->repayable() }},
                     payModal: false,
                     scheduleModal: false,
                     saving: false,
@@ -774,7 +792,7 @@
                         if (low) return 'Week ' + low.week_no + ' already has ₱' + this.money(low.paid) + ' paid; its amount cannot be lower.';
                         if (!this.scheduleBalanced()) {
                             const diff = this.advanceAmount - this.scheduleTotal();
-                            return 'Weeks are ' + (diff > 0 ? 'short' : 'over') + ' by ₱' + this.money(Math.abs(diff)) + '. They must equal the advance amount.';
+                            return 'Weeks are ' + (diff > 0 ? 'short' : 'over') + ' by ₱' + this.money(Math.abs(diff)) + '. They must equal the amount to repay.';
                         }
                         return '';
                     },

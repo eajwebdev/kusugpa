@@ -15,7 +15,7 @@ class CashAdvance extends Model
 
     protected $fillable = [
         'ca_number', 'planter_code', 'planter_name',
-        'amount', 'interest_rate', 'term_months', 'term_weeks',
+        'amount', 'interest_rate', 'interest_amount', 'term_months', 'term_weeks',
         'monthly_amortization', 'total_amount', 'balance',
         'status', 'application_date', 'approved_date', 'approved_by',
         'start_date', 'end_date', 'purpose', 'remarks',
@@ -134,19 +134,30 @@ class CashAdvance extends Model
         return $prefix . $year . str_pad($sequence, 4, '0', STR_PAD_LEFT);
     }
 
+    /**
+     * Flat interest: amount x rate%, charged once
+     */
+    public static function flatInterest($amount, $rate): float
+    {
+        return round((float) $amount * (float) $rate / 100, 2);
+    }
+
+    /**
+     * What the weekly schedule must add up to: the advance plus its interest
+     */
+    public function repayable(): float
+    {
+        return round((float) $this->amount + (float) $this->interest_amount, 2);
+    }
+
+    /**
+     * Charges the flat interest; total and balance are amount + interest, split evenly over the months
+     */
     public function calculateAmortization()
     {
-        $principal = $this->amount;
-        $monthlyRate = ($this->interest_rate / 100) / 12;
-        $term = $this->term_months;
-
-        if ($monthlyRate > 0) {
-            $this->monthly_amortization = $principal * ($monthlyRate * pow(1 + $monthlyRate, $term)) / (pow(1 + $monthlyRate, $term) - 1);
-        } else {
-            $this->monthly_amortization = $principal / $term;
-        }
-
-        $this->total_amount = $this->monthly_amortization * $term;
+        $this->interest_amount = self::flatInterest($this->amount, $this->interest_rate);
+        $this->total_amount = $this->repayable();
+        $this->monthly_amortization = round($this->total_amount / max(1, (int) $this->term_months), 2);
         $this->balance = $this->total_amount;
     }
 }

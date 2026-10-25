@@ -25,7 +25,8 @@ class NavigationPermissions
         'reports' => [
             'all' => 'view-reports',
             'items' => ['view-consolidated-report', 'view-summary-report', 'view-trucking-allowance-report',
-                'view-certification-report', 'view-tls-report', 'view-proceeds-sheet-report'],
+                'view-certification-report', 'view-tls-report', 'view-proceeds-sheet-report',
+                'view-hauler-signature-report', 'view-planter-accounts-report', 'view-proceeds-deductions-report'],
         ],
         'loans' => [
             'all' => 'access-all-loans',
@@ -41,6 +42,11 @@ class NavigationPermissions
             'label' => 'Hauler TLS LIQ',
             'all' => 'access-all-hauler-tls-liq',
             'items' => ['view-hauling-liquidity', 'manage-hauling-liquidity'],
+        ],
+        'planter-deductions' => [
+            'label' => 'Fuel & Others Deduction',
+            'all' => 'access-all-planter-deductions',
+            'items' => ['view-planter-deductions', 'manage-planter-deductions'],
         ],
     ];
 
@@ -78,10 +84,14 @@ class NavigationPermissions
                 : 'manage-hauling-liquidity';
         }
 
+        if (str_starts_with($name, 'planter-deductions.')) {
+            return $name === 'planter-deductions.index' ? 'view-planter-deductions' : 'manage-planter-deductions';
+        }
+
         if (in_array($name, ['prices.registry', 'quedan-molasses-registry', 'registry.data', 'registry.filters',
             'quedan-registry.export', 'molasses-registry.export', 'registry.quedan.delete-all',
             'registry.quedan.delete-by-week', 'registry.quedan.delete-selected', 'registry.molasses.delete-all',
-            'registry.molasses.delete-by-week', 'registry.molasses.delete-selected'], true)) {
+            'registry.molasses.delete-by-week', 'registry.molasses.delete-selected', 'registry.tin.update'], true)) {
             return 'view-quedan-molasses-registry';
         }
         if (str_starts_with($name, 'quedan-buy') || $name === 'quedans.bulk-update') {
@@ -106,7 +116,10 @@ class NavigationPermissions
             'trucking-allowance-report' => 'view-trucking-allowance-report',
             'certification-report' => 'view-certification-report',
             'tls-report' => 'view-tls-report',
-            'proceeds-sheet-report' => 'view-proceeds-sheet-report'] as $prefix => $slug) {
+            'proceeds-sheet-report' => 'view-proceeds-sheet-report',
+            'hauler-signature-report' => 'view-hauler-signature-report',
+            'planter-accounts-report' => 'view-planter-accounts-report',
+            'proceeds-deductions-report' => 'view-proceeds-deductions-report'] as $prefix => $slug) {
             if (str_starts_with($name, $prefix)) {
                 return $slug;
             }

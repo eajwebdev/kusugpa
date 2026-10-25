@@ -4,7 +4,7 @@
 @section('title', 'Hauler TLS LIQ - ' . $hauler->name)
 
 @section('content')
-    <div x-data="liquidationData()" x-init="init()" @keydown.escape.window="showModal = false" class="space-y-6 kp-fade-in">
+    <div x-data="liquidationData()" @keydown.escape.window="showModal = false" class="space-y-6 kp-fade-in">
         <!-- Page Header -->
         <header>
             <div class="kp-page-header">
@@ -37,7 +37,7 @@
         <section aria-label="Liquidation summary metrics" class="kp-kpis">
             <div class="kp-kpi">
                 <p class="kp-kpi-label"><i class="fas fa-file-invoice" aria-hidden="true"></i> Entries</p>
-                <p class="kp-kpi-value kp-num" x-text="filteredEntries.length"></p>
+                <p class="kp-kpi-value kp-num" x-text="matchingCount.toLocaleString()"></p>
                 <p class="kp-kpi-sub">Matching the filters</p>
             </div>
             <div class="kp-kpi">
@@ -88,7 +88,7 @@
                 <button @click="search = ''; cropYearFilter = 'all'; weekFilter = 'all'" class="kp-btn kp-btn-secondary h-[38px]">
                     <i class="fas fa-times mr-1"></i> Reset
                 </button>
-                <button @click="previewWeek()" :disabled="cropYearFilter === 'all' || weekFilter === 'all' || filteredEntries.length === 0"
+                <button @click="previewWeek()" :disabled="cropYearFilter === 'all' || weekFilter === 'all' || matchingCount === 0"
                     class="kp-btn kp-btn-secondary h-[38px] disabled:opacity-50"
                     :title="weekFilter === 'all' ? 'Pick a crop year and week to print all its slips' : 'Print all slips for this week'">
                     <i class="fas fa-print mr-1"></i> Print Week
@@ -102,30 +102,65 @@
                 <table class="kp-table">
                     <thead>
                         <tr>
-                            <th>Crop Year / Week</th>
-                            <th>Week Ending</th>
-                            <th>Payee</th>
-                            <th>CV No.</th>
-                            <th>Plate #</th>
-                            <th class="text-right">Tonnage</th>
-                            <th class="text-right">Rate</th>
-                            <th class="text-right">Gross</th>
-                            <th class="text-right">Add</th>
-                            <th class="text-right">Less</th>
-                            <th class="text-right">Net</th>
-                            <th class="text-center">Actions</th>
+                            <th class="w-px whitespace-nowrap">Actions</th>
+                            <template x-for="col in columns" :key="col.key">
+                                <th class="cursor-pointer select-none whitespace-nowrap" :class="col.numeric ? 'text-right' : ''" @click="sortBy(col.key)">
+                                    <div class="flex items-center gap-1.5" :class="col.numeric ? 'justify-end' : ''">
+                                        <span x-text="col.label"></span>
+                                        <i class="fas text-[10px]" :class="sortField === col.key ? (sortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30'"></i>
+                                    </div>
+                                </th>
+                            </template>
                         </tr>
                     </thead>
                     <tbody>
-                        <template x-for="entry in filteredEntries" :key="entry.id">
+                        <template x-for="entry in sortedEntries" :key="entry.id">
                             <tr class="hover:bg-[var(--kp-hover)] transition-colors">
+                                <td class="w-px whitespace-nowrap">
+                                    <div class="kp-row-actions">
+                                        <button type="button" @click="previewSlip(entry)" class="is-view" title="Preview liquidation slip" aria-label="Preview liquidation slip">
+                                            <i class="fas fa-eye" aria-hidden="true"></i>
+                                        </button>
+                                        @if ($canManage)
+                                            <button type="button" @click="editEntry(entry)" class="is-edit" title="Edit entry" aria-label="Edit entry">
+                                                <i class="fas fa-pen" aria-hidden="true"></i>
+                                            </button>
+                                            <button type="button" @click="deleteEntry(entry)" class="is-delete" title="Delete entry" aria-label="Delete entry">
+                                                <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                            </button>
+                                        @endif
+                                    </div>
+                                </td>
                                 <td class="whitespace-nowrap" style="color: var(--kp-text)">
                                     <span class="font-medium" x-text="cropYearLabel(entry.crop_year)"></span>
                                     <span class="text-xs" style="color: var(--kp-muted)" x-text="' · Wk ' + entry.week_no"></span>
                                 </td>
                                 <td class="whitespace-nowrap" style="color: var(--kp-muted)" x-text="formatDate(entry.week_ending)"></td>
-                                <td class="font-medium" :style="entry.payee_name ? 'color: var(--kp-text)' : 'color: #B45309'"
-                                    x-text="entry.payee_name || 'Payee not set'"></td>
+                                <td class="font-medium">
+                                    <span x-show="entry.payee_name" style="color: var(--kp-text)" x-text="entry.payee_name"></span>
+                                    @if ($canManage)
+                                        {{-- The TLS upload has no payee: type it here; the plate keeps it in later weeks --}}
+                                        <template x-if="!entry.payee_name && payeeEdit.id !== entry.id">
+                                            <button type="button" @click="startPayee(entry)" class="kp-badge kp-badge--amber text-[11px] hover:opacity-80"
+                                                :title="'Set the hauler / driver of plate ' + (entry.truck_code || '')">
+                                                <i class="fas fa-pen text-[9px]" aria-hidden="true"></i> Payee not set
+                                            </button>
+                                        </template>
+                                        <template x-if="payeeEdit.id === entry.id">
+                                            <form @submit.prevent="savePayee(entry)" class="flex items-center gap-1">
+                                                <input type="text" x-model="payeeEdit.value" list="payee-names" maxlength="255"
+                                                    x-init="$nextTick(() => $el.focus())" @keydown.escape.prevent="payeeEdit = { id: null, value: '', saving: false }"
+                                                    placeholder="Hauler / driver name" class="kp-input py-1 px-2 text-xs w-48">
+                                                <button type="submit" :disabled="payeeEdit.saving || !payeeEdit.value.trim()" title="Save (Enter)"
+                                                    class="p-1 rounded text-[#005B2A] dark:text-[#52C97E] disabled:opacity-40">
+                                                    <i class="fas" :class="payeeEdit.saving ? 'fa-circle-notch fa-spin' : 'fa-check'"></i>
+                                                </button>
+                                            </form>
+                                        </template>
+                                    @else
+                                        <span x-show="!entry.payee_name" style="color: #B45309">Payee not set</span>
+                                    @endif
+                                </td>
                                 <td class="font-mono" style="color: var(--kp-muted)" x-text="entry.cv_no || '—'"></td>
                                 <td class="font-mono" style="color: var(--kp-muted)" x-text="entry.truck_code || '—'"></td>
                                 <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-text="formatNumber(entry.tonnage, 3)"></td>
@@ -134,35 +169,11 @@
                                 <td class="text-right font-mono tabular" style="color: var(--kp-muted)" x-text="formatNumber(entry.total_add, 2)"></td>
                                 <td class="text-right font-mono tabular" style="color: var(--kp-muted)" x-text="formatNumber(entry.total_less, 2)"></td>
                                 <td class="text-right font-mono font-semibold tabular" style="color: var(--kp-emerald)" x-text="formatNumber(entry.net_amount, 2)"></td>
-                                <td class="text-center">
-                                    <div class="flex items-center justify-center gap-1">
-                                        <button @click="previewSlip(entry)"
-                                            class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs font-semibold"
-                                            style="color: var(--kp-forest)" title="Preview Liquidation Slip">
-                                            <i class="fas fa-file-pdf"></i>
-                                        </button>
-                                        @if ($canManage)
-                                            <button @click="editEntry(entry)"
-                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs font-semibold"
-                                                style="color: var(--kp-cane)" title="Edit Entry">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button @click="deleteEntry(entry)"
-                                                class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs font-semibold text-red-500"
-                                                title="Delete Entry">
-                                                <i class="fas fa-trash-alt"></i>
-                                            </button>
-                                        @endif
-                                    </div>
-                                </td>
                             </tr>
                         </template>
-                        <tr x-show="filteredEntries.length === 0">
-                            <td colspan="12" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
-                                <i class="fas fa-truck-moving text-3xl mb-2 block opacity-30"></i>
-                                No liquidation entries match the current filters.
-                            </td>
-                        </tr>
+                        <template x-if="feed">
+                            @include('layouts.partials.feed-footer', ['feed' => 'feed', 'colspan' => 12, 'empty' => 'No liquidation entries match the current filters.'])
+                        </template>
                     </tbody>
                 </table>
             </div>
@@ -260,11 +271,11 @@
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Tonnage (MT) *</label>
-                                    <input type="number" x-model="form.tonnage" step="0.001" min="0" required class="kp-input w-full text-right">
+                                    <input type="number" x-model="form.tonnage" @input="$nextTick(() => applyFixedDeductions())" step="0.001" min="0" required class="kp-input w-full text-right">
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Rate per Ton *</label>
-                                    <input type="number" x-model="form.rate_per_ton" step="0.01" min="0" required class="kp-input w-full text-right">
+                                    <input type="number" x-model="form.rate_per_ton" @input="$nextTick(() => applyFixedDeductions())" step="0.01" min="0" required class="kp-input w-full text-right">
                                 </div>
                                 <div class="md:col-span-2">
                                     <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Gross Hauling Amount</label>
@@ -311,6 +322,9 @@
                                                 </div>
                                             </template>
                                             <p x-show="form[section.key].length === 0" class="text-xs py-1" style="color: var(--kp-muted)">No rows.</p>
+                                            <p x-show="section.key === 'less_items'" class="text-[11px] pt-1" style="color: var(--kp-muted)">
+                                                <i class="fas fa-calculator mr-1"></i>EWT = Gross Hauling × 2% · MIS. = Tonnage × 1.5% — computed from the hauling figures, you can still edit them.
+                                            </p>
                                             <p x-show="section.key === 'less_items' && autoInfo" class="text-[11px] pt-1" style="color: var(--kp-forest)">
                                                 <i class="fas fa-link mr-1"></i><span x-text="autoInfoText"></span>
                                             </p>
@@ -360,28 +374,65 @@
             function liquidationData() {
                 const DEFAULT_ADD_ROWS = ['Adjustment'];
                 const DEFAULT_LESS_ROWS = ['EWT', 'MIS.', 'Fuel Account', 'Cash Adv.', 'Cable Sling/Tire/Battery'];
+                const EWT_RATE = 0.02;  // EWT   = Gross Hauling x 2%
+                const MIS_RATE = 0.015; // MIS.  = Tonnage x 1.5%
 
                 return {
                     hauler: @json($hauler),
-                    entries: @json($entries),
+                    // Defaults of a new entry: the hauler's latest crop year, week and rate
+                    latest: @json($latest),
+                    // Entries come from the server in batches of 100 as the table scrolls (kpFeed);
+                    // filters, search and sorting run in the database
+                    feed: null,
+                    searchTimer: null,
                     cropYears: @json($cropYears),
                     weeks: @json($weeks),
                     planters: @json($planters),
                     search: '',
                     cropYearFilter: 'all',
                     weekFilter: 'all',
+                    // No column picked = server order (latest crop year / week first)
+                    sortField: null,
+                    sortDirection: 'asc',
+                    columns: [
+                        { key: 'period', label: 'Crop Year / Week' },
+                        { key: 'week_ending', label: 'Week Ending' },
+                        { key: 'payee_name', label: 'Payee' },
+                        { key: 'cv_no', label: 'CV No.' },
+                        { key: 'truck_code', label: 'Plate #' },
+                        { key: 'tonnage', label: 'Tonnage', numeric: true },
+                        { key: 'rate_per_ton', label: 'Rate', numeric: true },
+                        { key: 'gross_amount', label: 'Gross', numeric: true },
+                        { key: 'total_add', label: 'Add', numeric: true },
+                        { key: 'total_less', label: 'Less', numeric: true },
+                        { key: 'net_amount', label: 'Net', numeric: true },
+                    ],
                     showModal: false,
                     saving: false,
                     editingEntry: null,
                     form: {},
                     autoInfo: null,
                     autoRequest: 0,
+                    payeeEdit: { id: null, value: '', saving: false },
 
                     init() {
                         this.form = this.blankForm();
+                        this.feed = kpFeed('{{ route('hauling-liquidity.show', $hauler) }}', () => ({
+                            crop_year: this.cropYearFilter === 'all' ? '' : this.cropYearFilter,
+                            week_no: this.weekFilter === 'all' ? '' : this.weekFilter,
+                            search: this.search.trim(),
+                            sort: this.sortField || '', dir: this.sortDirection,
+                        }));
+                        this.feed.reset();
+                        this.$watch('cropYearFilter', () => this.feed.reset());
+                        this.$watch('weekFilter', () => this.feed.reset());
+                        this.$watch('search', () => {
+                            clearTimeout(this.searchTimer);
+                            this.searchTimer = setTimeout(() => this.feed.reset(), 350);
+                        });
                     },
                     blankForm() {
-                        const latest = this.entries[0];
+                        const latest = this.latest;
                         return {
                             crop_year: latest ? latest.crop_year : (this.cropYears[0] || ''),
                             week_no: latest ? String(latest.week_no) : '',
@@ -394,7 +445,7 @@
                             // Carry over the hauler's last rate since it rarely changes week to week
                             rate_per_ton: latest ? latest.rate_per_ton : '',
                             add_items: DEFAULT_ADD_ROWS.map(d => ({ description: d, amount: '0.00' })),
-                            less_items: DEFAULT_LESS_ROWS.map(d => ({ description: d, amount: '0.00' })),
+                            less_items: DEFAULT_LESS_ROWS.map(d => ({ description: d, amount: '' })),
                         };
                     },
 
@@ -436,16 +487,32 @@
                     },
 
                     // ---------- List ----------
+                    // Rows loaded so far, already filtered and sorted by the server
                     get filteredEntries() {
-                        const s = this.search.toLowerCase();
-                        return this.entries.filter(e =>
-                            (this.cropYearFilter === 'all' || e.crop_year === this.cropYearFilter) &&
-                            (this.weekFilter === 'all' || String(e.week_no) === this.weekFilter) &&
-                            (!s || [e.payee_name, e.planter_code, e.truck_code, e.cv_no, e.check_no].some(v => (v || '').toLowerCase().includes(s)))
-                        );
+                        return this.feed ? this.feed.rows : [];
                     },
+                    get sortedEntries() {
+                        return this.filteredEntries;
+                    },
+                    // How many entries match the filters (all of them, not only the loaded ones)
+                    get matchingCount() {
+                        return this.feed && this.feed.total !== null ? this.feed.total : 0;
+                    },
+                    sortBy(field) {
+                        this.sortDirection = this.sortField === field && this.sortDirection === 'asc' ? 'desc' : 'asc';
+                        this.sortField = field;
+                        this.feed.reset();
+                    },
+                    // Totals of every matching entry, worked out by the server
                     sumOf(field) {
-                        return this.filteredEntries.reduce((t, e) => t + this.num(e[field]), 0);
+                        return this.num(((this.feed && this.feed.extra.sums) || {})[field]);
+                    },
+                    // Keep the stat cards in step with a saved / deleted entry without reloading the list
+                    adjustSums(entry, sign) {
+                        const sums = this.feed.extra.sums;
+                        if (!sums || !entry) return;
+                        ['tonnage', 'gross_amount', 'total_less', 'net_amount']
+                            .forEach(k => sums[k] = this.num(sums[k]) + sign * this.num(entry[k]));
                     },
 
                     // ---------- Form ----------
@@ -482,14 +549,23 @@
                             // Leave the rows as they are; the user can still type the amounts
                         }
                     },
-                    setLessRow(label, amount) {
+                    // Zero leaves the amount blank so the 0.00 shows only as a placeholder.
+                    // onlyBlank keeps an amount already on the row (e.g. one saved by hand).
+                    setLessRow(label, amount, onlyBlank = false) {
                         const key = s => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
                         let row = this.form.less_items.find(r => key(r.description) === key(label));
                         if (!row) {
-                            row = { description: label, amount: '0.00' };
+                            row = { description: label, amount: '' };
                             this.form.less_items.push(row);
                         }
-                        row.amount = (Number(amount) || 0).toFixed(2);
+                        if (onlyBlank && this.num(row.amount) !== 0) return;
+                        const value = this.round2(Number(amount) || 0);
+                        row.amount = value !== 0 ? value.toFixed(2) : '';
+                    },
+                    // EWT and MIS. follow the tonnage and gross hauling amount; the amounts stay editable
+                    applyFixedDeductions(onlyBlank = false) {
+                        this.setLessRow('EWT', this.grossAmount * EWT_RATE, onlyBlank);
+                        this.setLessRow('MIS.', this.num(this.form.tonnage) * MIS_RATE, onlyBlank);
                     },
                     get autoInfoText() {
                         const d = this.autoInfo;
@@ -511,7 +587,8 @@
                     editEntry(entry) {
                         const rows = type => entry.items
                             .filter(i => i.type === type)
-                            .map(i => ({ description: i.description, amount: i.amount }));
+                            // LESS rows at zero open blank, with 0.00 only as the placeholder
+                            .map(i => ({ description: i.description, amount: type === 'less' && this.num(i.amount) === 0 ? '' : i.amount }));
                         this.editingEntry = entry;
                         this.autoInfo = null;
                         this.form = {
@@ -527,6 +604,8 @@
                             add_items: rows('add'),
                             less_items: rows('less'),
                         };
+                        // Entries from the TLS upload have no EWT / MIS. yet; fill them without touching saved amounts
+                        this.applyFixedDeductions(true);
                         this.showModal = true;
                     },
                     async post(url, body = {}) {
@@ -561,12 +640,16 @@
                         this.saving = true;
                         try {
                             const d = await this.post(url, payload);
-                            const i = this.entries.findIndex(e => e.id === d.entry.id);
-                            if (i !== -1) {
-                                this.entries.splice(i, 1, d.entry);
+                            const old = this.feed.rows.find(e => e.id === d.entry.id);
+                            if (old) {
+                                this.adjustSums(old, -1);
+                                this.feed.replace(d.entry);
                             } else {
-                                this.entries.unshift(d.entry);
+                                this.feed.rows.unshift(d.entry);
+                                if (this.feed.total !== null) this.feed.total++;
+                                this.latest = { crop_year: d.entry.crop_year, week_no: d.entry.week_no, rate_per_ton: d.entry.rate_per_ton };
                             }
+                            this.adjustSums(d.entry, 1);
                             this.showModal = false;
 
                             const res = await Swal.fire({
@@ -582,6 +665,26 @@
                             Swal.fire({ icon: 'error', title: 'Error', text: e.message });
                         } finally {
                             this.saving = false;
+                        }
+                    },
+                    // ---------- Payee set straight from the table ----------
+                    startPayee(entry) {
+                        this.payeeEdit = { id: entry.id, value: '', saving: false };
+                    },
+                    async savePayee(entry) {
+                        const name = this.payeeEdit.value.trim();
+                        if (!name) return;
+                        this.payeeEdit.saving = true;
+                        try {
+                            const d = await this.post('/hauling-liquidity/entries/' + entry.id + '/payee', { payee_name: name });
+                            this.feed.replace(d.entry);
+                            this.payeeEdit = { id: null, value: '', saving: false };
+                            // Jump to the next entry still without a payee, so a week can be filled in one go
+                            const next = this.sortedEntries.find(e => !e.payee_name);
+                            if (next) this.startPayee(next);
+                        } catch (e) {
+                            this.payeeEdit.saving = false;
+                            Swal.fire({ icon: 'error', title: 'Error', text: e.message });
                         }
                     },
                     previewSlip(entry) {
@@ -609,7 +712,8 @@
                         if (!res.isConfirmed) return;
                         try {
                             const d = await this.post('/hauling-liquidity/entries/' + entry.id + '/delete');
-                            this.entries = this.entries.filter(e => e.id !== entry.id);
+                            this.adjustSums(entry, -1);
+                            this.feed.remove(entry.id);
                             Swal.fire({ icon: 'success', title: 'Deleted', text: d.message, timer: 1500, showConfirmButton: false });
                         } catch (e) {
                             Swal.fire({ icon: 'error', title: 'Error', text: e.message });

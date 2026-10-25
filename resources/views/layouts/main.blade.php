@@ -94,6 +94,74 @@
             document.documentElement.classList.add('dark');
         }
 
+        /**
+         * Rows of a large table, fetched from the server in batches (App\Support\TableFeed).
+         * Usage: feed: kpFeed(url, () => ({ search: this.search, ... }))  then  feed.reset() / feed.more().
+         * The last table row carries x-load-more="feed.more()" so scrolling to it loads the next batch.
+         */
+        window.kpFeed = function (url, params) {
+            return {
+                rows: [], page: 0, hasMore: true, loading: false, total: null, extra: {}, error: '', request: 0,
+                reset() {
+                    this.request++;
+                    this.rows = []; this.page = 0; this.hasMore = true; this.total = null; this.extra = {}; this.error = ''; this.loading = false;
+                    return this.more();
+                },
+                async more() {
+                    if (this.loading || !this.hasMore) return;
+                    const id = this.request;
+                    this.loading = true;
+                    try {
+                        const query = new URLSearchParams();
+                        Object.entries(params() || {}).forEach(([key, value]) => {
+                            if (value !== '' && value !== null && value !== undefined) query.set(key, value);
+                        });
+                        query.set('page', this.page + 1);
+                        const response = await fetch(url + (url.includes('?') ? '&' : '?') + query, { headers: { 'Accept': 'application/json' } });
+                        const data = await response.json();
+                        if (id !== this.request) return;
+                        if (!response.ok) throw new Error(data.message || 'Could not load the records');
+                        this.rows.push(...data.data);
+                        this.page = data.page;
+                        this.hasMore = data.has_more;
+                        if (data.total !== null && data.total !== undefined) this.total = data.total;
+                        if (data.extra && !Array.isArray(data.extra)) this.extra = { ...this.extra, ...data.extra };
+                    } catch (e) {
+                        if (id === this.request) { this.error = e.message; this.hasMore = false; }
+                    } finally {
+                        if (id === this.request) this.loading = false;
+                    }
+                },
+                // Keep a loaded row in step after it was edited on the page
+                replace(row, key = 'id') {
+                    const i = this.rows.findIndex(r => r[key] === row[key]);
+                    if (i !== -1) this.rows.splice(i, 1, row);
+                },
+                remove(id, key = 'id') {
+                    const before = this.rows.length;
+                    this.rows = this.rows.filter(r => r[key] !== id);
+                    if (this.total !== null && this.rows.length < before) this.total--;
+                },
+            };
+        };
+
+        document.addEventListener('alpine:init', () => {
+            // x-load-more="feed.more()": runs when the element scrolls into view, and again while it stays
+            // in view (a short first batch), until the feed has no more rows
+            Alpine.directive('load-more', (el, { expression }, { evaluateLater, cleanup }) => {
+                const run = evaluateLater(expression);
+                let timer = null;
+                const observer = new IntersectionObserver(entries => {
+                    if (!entries.some(e => e.isIntersecting)) return;
+                    run();
+                    clearTimeout(timer);
+                    timer = setTimeout(() => { observer.unobserve(el); observer.observe(el); }, 500);
+                }, { rootMargin: '0px 0px 300px 0px' });
+                observer.observe(el);
+                cleanup(() => { clearTimeout(timer); observer.disconnect(); });
+            });
+        });
+
         // Alpine component for profile dropdown with theme toggle
         document.addEventListener('alpine:init', () => {
             Alpine.data('profileDropdown', () => ({
@@ -138,9 +206,14 @@
         <div class="kp-pdf-preview-header">
             <div class="min-w-0">
                 <h2 id="kpGlobalPdfTitle">PDF Preview</h2>
-                <p>Document preview</p>
+                <p id="kpGlobalPdfSub">Document preview</p>
             </div>
             <div class="kp-pdf-preview-actions">
+                {{-- Large reports come in parts so each one finishes within the server's time limit --}}
+                <label id="kpGlobalPdfPartWrap" class="flex items-center gap-2 text-xs" style="display: none; color: var(--kp-muted)">
+                    <span class="hidden sm:inline">Large report:</span>
+                    <select id="kpGlobalPdfPart" class="kp-input py-1.5 text-xs max-w-[17rem]" aria-label="Part of the report to show"></select>
+                </label>
                 <a id="kpGlobalPdfOpen" href="#" target="_blank" rel="noopener" class="kp-btn kp-btn-secondary" aria-label="Open PDF in a new tab">
                     <i class="fas fa-external-link-alt" aria-hidden="true"></i><span>Open in new tab</span>
                 </a>
@@ -157,26 +230,107 @@
             const frame = document.getElementById('kpGlobalPdfFrame');
             const title = document.getElementById('kpGlobalPdfTitle');
             const openLink = document.getElementById('kpGlobalPdfOpen');
+            const sub = document.getElementById('kpGlobalPdfSub');
+            const partWrap = document.getElementById('kpGlobalPdfPartWrap');
+            const partSelect = document.getElementById('kpGlobalPdfPart');
+            // URL paths of the reports that can be split into parts (App\Support\PdfParts)
+            const partPaths = @json(\App\Support\PdfParts::pathPatterns()).map(p => new RegExp(p));
             let returnFocus = null;
+            let baseUrl = null;
+            let openId = 0;
+
+            const show = url => {
+                openLink.href = url.toString();
+                frame.src = url.toString();
+            };
+            const showPart = part => {
+                const url = new URL(baseUrl);
+                url.searchParams.set('part', part);
+                show(url);
+            };
+            partSelect.addEventListener('change', () => showPart(partSelect.value));
 
             window.KusugpaPdfPreview = {
-                open(source, label = 'PDF Preview', trigger = document.activeElement) {
+                async open(source, label = 'PDF Preview', trigger = document.activeElement) {
                     if (!source) return;
+                    const id = ++openId;
                     const url = new URL(source, window.location.href);
                     url.searchParams.set('preview', '1');
+                    url.searchParams.delete('part');
+                    baseUrl = url;
                     title.textContent = label;
                     frame.title = label + ' PDF preview';
-                    openLink.href = url.toString();
+                    sub.textContent = 'Document preview';
+                    partWrap.style.display = 'none';
                     returnFocus = trigger;
-                    frame.src = url.toString();
                     if (!dialog.open) dialog.showModal();
                     document.getElementById('kpGlobalPdfClose').focus();
+
+                    if (!partPaths.some(re => re.test(url.pathname))) {
+                        show(url);
+                        return;
+                    }
+                    // Ask how many parts first; a report small enough loads whole
+                    sub.textContent = 'Preparing document…';
+                    frame.removeAttribute('src');
+                    try {
+                        const infoUrl = new URL(url);
+                        infoUrl.searchParams.set('pdf_parts', '1');
+                        const response = await fetch(infoUrl, { headers: { 'Accept': 'application/json' } });
+                        const info = response.ok ? await response.json() : null;
+                        if (id !== openId) return;
+                        if (info && info.parts > 1) {
+                            partSelect.innerHTML = '';
+                            info.labels.forEach((text, i) => partSelect.add(new Option(text, i + 1)));
+                            partWrap.style.display = '';
+                            sub.textContent = 'Split into ' + info.parts + ' parts of up to ' + info.size + ' ' + info.unit
+                                + ' so each loads quickly. Print each part.';
+                            showPart(1);
+                            return;
+                        }
+                    } catch (e) {
+                        // Fall back to the whole document
+                    }
+                    if (id !== openId) return;
+                    sub.textContent = 'Document preview';
+                    show(url);
+                },
+                // Download a report; one too large for one request opens in the preview, split into parts
+                async download(source, label = 'PDF Preview') {
+                    if (!source) return;
+                    const url = new URL(source, window.location.href);
+                    url.searchParams.delete('part');
+                    if (partPaths.some(re => re.test(url.pathname))) {
+                        try {
+                            const infoUrl = new URL(url);
+                            infoUrl.searchParams.set('pdf_parts', '1');
+                            const response = await fetch(infoUrl, { headers: { 'Accept': 'application/json' } });
+                            const info = response.ok ? await response.json() : null;
+                            if (info && info.parts > 1) {
+                                await this.open(url.toString(), label);
+                                if (window.Swal) {
+                                    Swal.fire({
+                                        toast: true, position: 'top-end', icon: 'info', timer: 6000, showConfirmButton: false,
+                                        title: 'Large report: ' + info.parts + ' parts',
+                                        text: 'Choose each part at the top of the preview and save it with the viewer\'s download button.',
+                                    });
+                                }
+                                return;
+                            }
+                        } catch (e) {
+                            // Fall through to a direct download
+                        }
+                    }
+                    url.searchParams.set('download', '1');
+                    window.location.assign(url.toString());
                 },
                 close() { if (dialog.open) dialog.close(); }
             };
 
             document.getElementById('kpGlobalPdfClose').addEventListener('click', () => dialog.close());
             dialog.addEventListener('close', () => {
+                openId++; // a parts request still on its way is dropped
+                partWrap.style.display = 'none';
                 frame.removeAttribute('src');
                 if (returnFocus && returnFocus.isConnected) returnFocus.focus();
                 returnFocus = null;

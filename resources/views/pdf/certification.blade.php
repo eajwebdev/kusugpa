@@ -53,7 +53,7 @@
         <div class="page">
             <table class="letterhead">
                 <tr>
-                    <td class="logo"><img src="data:image/png;base64,{{ $logo }}" alt="KUSUG-PA logo"></td>
+                    <td class="logo"><img src="{{ $logoPath }}" alt="KUSUG-PA logo"></td>
                     <td>
                         <div class="org-name">KABANKALAN UNITED SUGAR PLANTERS ASSOCIATION, INC.</div>
                         <div class="org-line">
@@ -69,7 +69,7 @@
 
             <p class="lead">
                 This is to certify that <span class="name">{{ strtoupper($certificate['planter_name']) }}</span>
-                has the following production based on Sugar and Molasses Production of
+                has the following production{{ $weekRange ? ' for ' . $weekRange : '' }} based on Sugar and Molasses Production of
                 <span class="mill">{{ strtoupper($signatories['mill_name']) }}</span>.
             </p>
 
@@ -78,18 +78,16 @@
                     <tr>
                         <th>CROP<br>YEAR</th>
                         <th>NET<br>TONS</th>
-                        <th>GROSS<br>SUGAR(LKG)</th>
                         <th>NET<br>SUGAR(LKG)</th>
                         <th>NET<br>MOL( metric ton)</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td></td><td></td><td></td><td></td></tr>
                     @foreach ($certificate['rows'] as $row)
                         <tr>
                             <td class="year">{{ $row['crop_year_label'] }}</td>
                             <td>{{ number_format($row['net_tons'], 2) }}</td>
-                            <td>{{-- Gross sugar left blank for now --}}</td>
                             <td>{{ number_format($row['net_lkg'], 2) }}</td>
                             <td>{{ number_format($row['net_mol'], 3) }}</td>
                         </tr>
@@ -98,7 +96,6 @@
                         <tr class="total">
                             <td class="year">TOTAL</td>
                             <td>{{ number_format($certificate['rows']->sum('net_tons'), 2) }}</td>
-                            <td></td>
                             <td>{{ number_format($certificate['rows']->sum('net_lkg'), 2) }}</td>
                             <td>{{ number_format($certificate['rows']->sum('net_mol'), 3) }}</td>
                         </tr>

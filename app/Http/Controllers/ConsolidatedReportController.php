@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\ConsolidatedUpload;
 use App\Models\AuditLog;
+use App\Support\PdfParts;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 
@@ -95,22 +96,30 @@ class ConsolidatedReportController extends Controller
         $query = ConsolidatedUpload::orderBy('planter_name');
         $this->applyFilters($query, $request);
         
-        $uploads = $query->take(500)->get();
-        
+        // Every matching row (no 500-row cap); large lists print in parts of 700
+        $uploads = $query->get();
+        $parts = PdfParts::make($request, $uploads, 700, 'rows');
+        if ($parts->wantsInfo($request)) {
+            return $parts->info();
+        }
+
         $preview = $request->boolean('preview');
 
         AuditLog::log($preview ? 'view' : 'export', 'reports', $preview ? 'Previewed consolidated report PDF' : 'Exported consolidated report PDF', [
             'records' => $uploads->count(),
             'crop_year' => $request->crop_year,
             'weeks' => $request->week_from . ' - ' . $request->week_to,
+            'part' => $parts->label() ?: 'whole',
         ]);
-        
+
         $pdf = Pdf::loadView('pdf.consolidated-report', [
-            'uploads' => $uploads,
+            'uploads' => $parts->items(),
+            'totalRows' => $uploads->count(),
+            'partLabel' => $parts->label(),
             'generatedDate' => now()->format('F d, Y H:i:s'),
         ])->setPaper('a3', 'landscape');
-        
-        $filename = 'consolidated-report-' . now()->format('Y-m-d') . '.pdf';
+
+        $filename = $parts->filename('consolidated-report-' . now()->format('Y-m-d'));
 
         return $preview ? $pdf->stream($filename) : $pdf->download($filename);
     }

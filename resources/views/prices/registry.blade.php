@@ -18,7 +18,7 @@
                         class="kp-btn kp-btn-danger text-xs">
                         <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Batch Delete
                     </button>
-                    <a :href="activeTab === 'quedan' ? '{{ route('quedan-registry.export') }}' : '{{ route('molasses-registry.export') }}'"
+                    <a :href="(activeTab === 'quedan' ? '{{ route('quedan-registry.export') }}' : '{{ route('molasses-registry.export') }}') + '?' + periodQuery()"
                         :data-pdf-preview="activeTab === 'quedan' ? 'Quedan Registry' : 'Molasses Registry'"
                         class="kp-btn kp-btn-secondary text-xs">
                         <i class="fas fa-file-pdf mr-1.5 text-rose-600 dark:text-rose-400" aria-hidden="true"></i> Preview <span x-text="activeTab === 'quedan' ? 'Quedan PDF' : 'Molasses PDF'"></span>
@@ -46,6 +46,37 @@
             </button>
         </div>
 
+        <!-- Crop Year / Week Filter (applies to both tabs and their PDFs) -->
+        <div class="kp-card p-4 flex flex-wrap items-end gap-3">
+            <div class="w-44">
+                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Crop Year</label>
+                <select x-model="period.cropYear" @change="period.weekNo = ''; onPeriodChange()" class="kp-input w-full py-1.5 text-xs">
+                    <option value="">All Crop Years (slower)</option>
+                    <template x-for="cy in periodCropYears" :key="cy">
+                        <option :value="cy" x-text="cy" :selected="cy === period.cropYear"></option>
+                    </template>
+                </select>
+            </div>
+            <div class="w-40">
+                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Week</label>
+                <select x-model="period.weekNo" @change="onPeriodChange()" :disabled="!period.cropYear"
+                    class="kp-input w-full py-1.5 text-xs disabled:opacity-50">
+                    <option value="" x-text="period.cropYear ? 'All Weeks' : 'Select crop year first'"></option>
+                    <template x-for="wk in periodWeeks" :key="wk">
+                        <option :value="wk" x-text="'Week ' + wk"></option>
+                    </template>
+                </select>
+            </div>
+            <button type="button" x-show="period.weekNo || period.cropYear !== @js($defaultCropYear)" x-cloak
+                @click="period = { cropYear: @js($defaultCropYear), weekNo: '' }; onPeriodChange()"
+                class="kp-btn kp-btn-secondary text-xs py-1.5" title="Back to the latest crop year, all weeks">
+                <i class="fas fa-times mr-1"></i> Clear
+            </button>
+            <span x-show="rowsLoading" x-cloak class="text-xs py-2" style="color: var(--kp-muted)">
+                <i class="fas fa-circle-notch fa-spin mr-1"></i> Loading records…
+            </span>
+        </div>
+
         <!-- Quedan Tab -->
         <div x-show="activeTab === 'quedan'" class="space-y-4" x-transition>
             <!-- Filter & Bulk Actions Bar -->
@@ -55,11 +86,12 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#52705F]">
                             <i class="fas fa-search text-xs" aria-hidden="true"></i>
                         </div>
-                        <input type="text" x-model="quedanSearch" @input="quedanCurrentPage = 1"
-                            placeholder="Search planter, code, or QDN #..." 
+                        <input type="text" x-model="quedanSearch" @input.debounce.400ms="quedanSelectedIds = []; quedanFeed.reset()"
+                            placeholder="Search planter, code, or QDN #..."
                             class="kp-input w-full pl-8 py-1.5 text-xs">
                     </div>
-                    <span class="text-xs text-[#52705F] dark:text-[#8AA895]" x-text="'Showing ' + filteredQuedans.length + ' of ' + totalQuedanCount + ' records'"></span>
+                    <span class="text-xs text-[#52705F] dark:text-[#8AA895]"
+                        x-text="quedanFeed && quedanFeed.total !== null ? 'Showing ' + filteredQuedans.length.toLocaleString() + ' of ' + quedanFeed.total.toLocaleString() + ' matching' : 'Loading…'"></span>
                 </div>
                 <div class="flex items-center gap-2">
                     <button x-show="quedanSelectedIds.length > 0" @click="confirmDeleteSelected('quedan')" x-cloak
@@ -72,26 +104,25 @@
             <!-- Table Card -->
             <div class="kp-card overflow-hidden">
                 <div class="kp-table-wrap overflow-x-auto" style="max-height: 580px; overflow-y: auto;">
-                    <table class="kp-table w-full">
+                    <table class="kp-table kp-table-sticky w-full">
                         <thead>
                             <tr>
                                 <th class="w-10 text-center">
                                     <input type="checkbox" @click="toggleSelectAllQuedan" :checked="isAllQuedanSelected"
                                         class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A]">
                                 </th>
-                                <th class="cursor-pointer select-none" @click="sortQuedan('crop_year')">Crop Year</th>
-                                <th class="cursor-pointer select-none text-center" @click="sortQuedan('week_no')">Week</th>
-                                <th class="cursor-pointer select-none" @click="sortQuedan('planter_code')">Planter Code</th>
-                                <th class="cursor-pointer select-none" @click="sortQuedan('planter_name')">Planter Name</th>
-                                <th>QDN No</th>
-                                <th>TIN No</th>
-                                <th class="cursor-pointer select-none text-right" @click="sortQuedan('total_liens')">Total Liens</th>
-                                <th class="cursor-pointer select-none text-right" @click="sortQuedan('sugar_lkg')">Sugar (Lkg)</th>
-                                <th class="cursor-pointer select-none text-right" @click="sortQuedan('labor_lkg')">Labor (Lkg)</th>
+                                <template x-for="col in quedanColumns" :key="col.key">
+                                    <th class="cursor-pointer select-none" :class="col.align" @click="sortQuedan(col.key)">
+                                        <span class="inline-flex items-center gap-1.5">
+                                            <span x-text="col.label"></span>
+                                            <i class="fas text-[10px]" :class="sortIcon(quedanSortField, quedanSortDir, col.key)"></i>
+                                        </span>
+                                    </th>
+                                </template>
                             </tr>
                         </thead>
                         <tbody>
-                            <template x-for="row in paginatedQuedans" :key="row.id">
+                            <template x-for="row in filteredQuedans" :key="row.id">
                                 <tr class="hover:bg-[#EAF5ED]/50 dark:hover:bg-[#1A3324]/50 transition-colors"
                                     :class="{ 'bg-[#EAF5ED]/80 dark:bg-[#1A3324]/80': quedanSelectedIds.includes(row.id) }">
                                     <td class="text-center">
@@ -105,31 +136,19 @@
                                     <td class="font-mono text-xs text-[#52705F] dark:text-[#8AA895]" x-text="row.planter_code"></td>
                                     <td class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]" x-text="row.planter_name"></td>
                                     <td class="text-xs font-mono text-[#52705F] dark:text-[#8AA895]" x-text="row.qdn_no || '—'"></td>
-                                    <td class="text-xs font-mono text-[#52705F] dark:text-[#8AA895]" x-text="row.tin_no || '—'"></td>
+                                    <td class="text-xs font-mono text-[#52705F] dark:text-[#8AA895]">
+                                        @include('prices.partials.tin-cell', ['type' => 'quedan'])
+                                    </td>
                                     <td class="text-xs text-right kp-num font-medium text-[#172B20] dark:text-[#EAF5ED]" x-text="formatNum(row.total_liens, 3)"></td>
                                     <td class="text-xs text-right kp-num font-semibold text-[#005B2A] dark:text-[#52C97E]" x-text="formatNum(row.sugar_lkg, 3)"></td>
                                     <td class="text-xs text-right kp-num font-medium text-[#172B20] dark:text-[#EAF5ED]" x-text="formatNum(row.labor_lkg, 3)"></td>
                                 </tr>
                             </template>
-                            <tr x-show="filteredQuedans.length === 0" x-cloak>
-                                <td colspan="10" class="py-12 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
-                                    <i class="fas fa-inbox text-3xl mb-2 text-[#8AA895] block"></i>
-                                    No quedan registry records found matching the filter criteria.
-                                </td>
-                            </tr>
+                            <template x-if="quedanFeed">
+                                @include('layouts.partials.feed-footer', ['feed' => 'quedanFeed', 'colspan' => 10, 'empty' => 'No quedan registry records found matching the filter criteria.'])
+                            </template>
                         </tbody>
                     </table>
-                </div>
-                <!-- Pagination -->
-                <div class="px-5 py-3 border-t border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324] flex items-center justify-between"
-                    x-show="quedanTotalPages > 1" x-cloak>
-                    <button type="button" @click="quedanCurrentPage--" :disabled="quedanCurrentPage === 1"
-                        class="kp-btn kp-btn-secondary text-xs px-3 py-1 disabled:opacity-40">Previous</button>
-                    <span class="text-xs text-[#52705F] dark:text-[#8AA895]">
-                        Page <strong class="text-[#172B20] dark:text-[#EAF5ED]" x-text="quedanCurrentPage"></strong> of <strong class="text-[#172B20] dark:text-[#EAF5ED]" x-text="quedanTotalPages"></strong>
-                    </span>
-                    <button type="button" @click="quedanCurrentPage++" :disabled="quedanCurrentPage >= quedanTotalPages"
-                        class="kp-btn kp-btn-secondary text-xs px-3 py-1 disabled:opacity-40">Next</button>
                 </div>
             </div>
         </div>
@@ -143,11 +162,12 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#52705F]">
                             <i class="fas fa-search text-xs" aria-hidden="true"></i>
                         </div>
-                        <input type="text" x-model="molassesSearch" @input="molassesCurrentPage = 1"
-                            placeholder="Search planter, code, or MC #..." 
+                        <input type="text" x-model="molassesSearch" @input.debounce.400ms="molassesSelectedIds = []; molassesFeed.reset()"
+                            placeholder="Search planter, code, or MC #..."
                             class="kp-input w-full pl-8 py-1.5 text-xs">
                     </div>
-                    <span class="text-xs text-[#52705F] dark:text-[#8AA895]" x-text="'Showing ' + filteredMolasses.length + ' of ' + totalMolassesCount + ' records'"></span>
+                    <span class="text-xs text-[#52705F] dark:text-[#8AA895]"
+                        x-text="molassesFeed && molassesFeed.total !== null ? 'Showing ' + filteredMolasses.length.toLocaleString() + ' of ' + molassesFeed.total.toLocaleString() + ' matching' : 'Loading…'"></span>
                 </div>
                 <div class="flex items-center gap-2">
                     <button x-show="molassesSelectedIds.length > 0" @click="confirmDeleteSelected('molasses')" x-cloak
@@ -160,7 +180,7 @@
             <!-- Table Card -->
             <div class="kp-card overflow-hidden">
                 <div class="kp-table-wrap overflow-x-auto" style="max-height: 580px; overflow-y: auto;">
-                    <table class="kp-table w-full">
+                    <table class="kp-table kp-table-sticky w-full">
                         <thead>
                             <tr>
                                 <th class="w-10 text-center">
@@ -168,17 +188,18 @@
                                         :checked="isAllMolassesSelected"
                                         class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A]">
                                 </th>
-                                <th class="cursor-pointer select-none" @click="sortMolasses('crop_year')">Crop Year</th>
-                                <th class="cursor-pointer select-none text-center" @click="sortMolasses('week_no')">Week</th>
-                                <th class="cursor-pointer select-none" @click="sortMolasses('planter_code')">Planter Code</th>
-                                <th class="cursor-pointer select-none" @click="sortMolasses('planter_name')">Planter Name</th>
-                                <th>TIN No</th>
-                                <th>MC No</th>
-                                <th class="cursor-pointer select-none text-right" @click="sortMolasses('mol_net')">Molasses Net (MT)</th>
+                                <template x-for="col in molassesColumns" :key="col.key">
+                                    <th class="cursor-pointer select-none" :class="col.align" @click="sortMolasses(col.key)">
+                                        <span class="inline-flex items-center gap-1.5">
+                                            <span x-text="col.label"></span>
+                                            <i class="fas text-[10px]" :class="sortIcon(molassesSortField, molassesSortDir, col.key)"></i>
+                                        </span>
+                                    </th>
+                                </template>
                             </tr>
                         </thead>
                         <tbody>
-                            <template x-for="row in paginatedMolasses" :key="row.id">
+                            <template x-for="row in filteredMolasses" :key="row.id">
                                 <tr class="hover:bg-[#EAF5ED]/50 dark:hover:bg-[#1A3324]/50 transition-colors"
                                     :class="{ 'bg-[#EAF5ED]/80 dark:bg-[#1A3324]/80': molassesSelectedIds.includes(row.id) }">
                                     <td class="text-center">
@@ -191,30 +212,18 @@
                                     <td class="text-center font-mono text-xs" x-text="row.week_no"></td>
                                     <td class="font-mono text-xs text-[#52705F] dark:text-[#8AA895]" x-text="row.planter_code"></td>
                                     <td class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]" x-text="row.planter_name"></td>
-                                    <td class="text-xs font-mono text-[#52705F] dark:text-[#8AA895]" x-text="row.tin_no || '—'"></td>
+                                    <td class="text-xs font-mono text-[#52705F] dark:text-[#8AA895]">
+                                        @include('prices.partials.tin-cell', ['type' => 'molasses'])
+                                    </td>
                                     <td class="text-xs font-mono text-[#52705F] dark:text-[#8AA895]" x-text="row.mc_no || '—'"></td>
                                     <td class="text-xs text-right kp-num font-bold text-[#005B2A] dark:text-[#52C97E]" x-text="formatNum(row.mol_net, 3)"></td>
                                 </tr>
                             </template>
-                            <tr x-show="filteredMolasses.length === 0" x-cloak>
-                                <td colspan="8" class="py-12 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
-                                    <i class="fas fa-inbox text-3xl mb-2 text-[#8AA895] block"></i>
-                                    No molasses registry records found matching the filter criteria.
-                                </td>
-                            </tr>
+                            <template x-if="molassesFeed">
+                                @include('layouts.partials.feed-footer', ['feed' => 'molassesFeed', 'colspan' => 8, 'empty' => 'No molasses registry records found matching the filter criteria.'])
+                            </template>
                         </tbody>
                     </table>
-                </div>
-                <!-- Pagination -->
-                <div class="px-5 py-3 border-t border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324] flex items-center justify-between"
-                    x-show="molassesTotalPages > 1" x-cloak>
-                    <button type="button" @click="molassesCurrentPage--" :disabled="molassesCurrentPage === 1"
-                        class="kp-btn kp-btn-secondary text-xs px-3 py-1 disabled:opacity-40">Previous</button>
-                    <span class="text-xs text-[#52705F] dark:text-[#8AA895]">
-                        Page <strong class="text-[#172B20] dark:text-[#EAF5ED]" x-text="molassesCurrentPage"></strong> of <strong class="text-[#172B20] dark:text-[#EAF5ED]" x-text="molassesTotalPages"></strong>
-                    </span>
-                    <button type="button" @click="molassesCurrentPage++" :disabled="molassesCurrentPage >= molassesTotalPages"
-                        class="kp-btn kp-btn-secondary text-xs px-3 py-1 disabled:opacity-40">Next</button>
                 </div>
             </div>
         </div>
@@ -373,24 +382,60 @@
                     totalQuedanCount: 0,
                     totalMolassesCount: 0,
 
+                    // Crop year / week filter shared by both tabs
+                    period: { cropYear: '', weekNo: '' },
+                    tinEdit: { type: null, id: null, value: '', saving: false },
+
+                    quedanColumns: [
+                        { key: 'crop_year', label: 'Crop Year' },
+                        { key: 'week_no', label: 'Week', align: 'text-center' },
+                        { key: 'planter_code', label: 'Planter Code' },
+                        { key: 'planter_name', label: 'Planter Name' },
+                        { key: 'qdn_no', label: 'QDN No' },
+                        { key: 'tin_no', label: 'TIN No' },
+                        { key: 'total_liens', label: 'Total Liens', align: 'text-right' },
+                        { key: 'sugar_lkg', label: 'Sugar (Lkg)', align: 'text-right' },
+                        { key: 'labor_lkg', label: 'Labor (Lkg)', align: 'text-right' },
+                    ],
+                    molassesColumns: [
+                        { key: 'crop_year', label: 'Crop Year' },
+                        { key: 'week_no', label: 'Week', align: 'text-center' },
+                        { key: 'planter_code', label: 'Planter Code' },
+                        { key: 'planter_name', label: 'Planter Name' },
+                        { key: 'tin_no', label: 'TIN No' },
+                        { key: 'mc_no', label: 'MC No' },
+                        { key: 'mol_net', label: 'Molasses Net (MT)', align: 'text-right' },
+                    ],
+
+                    // Rows come from the server in batches of 100 (kpFeed); search, crop year / week and
+                    // sorting are applied in the database, so the registry stays fast at any size
                     quedanSearch: '',
-                    quedanSortField: 'null',
+                    quedanSortField: '',
                     quedanSortDir: 'asc',
-                    quedanCurrentPage: 1,
                     quedanSelectedIds: [],
-                    perPage: 25,
-                    allQuedans: @json($quedans),
+                    quedanFeed: null,
 
                     molassesSearch: '',
-                    molassesSortField: 'null',
+                    molassesSortField: '',
                     molassesSortDir: 'asc',
-                    molassesCurrentPage: 1,
                     molassesSelectedIds: [],
-                    allMolasses: @json($molassesList),
+                    molassesFeed: null,
+                    cropYearOptions: @json($cropYears),
 
                     initRegistry() {
-                        this.totalQuedanCount = this.allQuedans.length;
-                        this.totalMolassesCount = this.allMolasses.length;
+                        // Whole-registry totals (tab badges, delete dialog); the tables load in batches
+                        this.totalQuedanCount = {{ (int) $totals['quedan'] }};
+                        this.totalMolassesCount = {{ (int) $totals['molasses'] }};
+                        this.period.cropYear = @json($defaultCropYear);
+                        const feedParams = (type, search, sort, dir) => () => ({
+                            type, search: search(), sort: sort(), dir: dir(),
+                            crop_year: this.period.cropYear, week_no: this.period.weekNo,
+                        });
+                        this.quedanFeed = kpFeed('{{ route('registry.data') }}', feedParams('quedan',
+                            () => this.quedanSearch.trim(), () => this.quedanSortField, () => this.quedanSortDir));
+                        this.molassesFeed = kpFeed('{{ route('registry.data') }}', feedParams('molasses',
+                            () => this.molassesSearch.trim(), () => this.molassesSortField, () => this.molassesSortDir));
+                        this.loadRows();
                         this.fetchAllFilters();
                     },
 
@@ -456,106 +501,125 @@
                         }
                     },
 
+                    // ---------- Crop year / week filter (both tabs) ----------
+                    // Crop years with quedan or molasses records (from the server)
+                    get periodCropYears() {
+                        return this.cropYearOptions;
+                    },
+                    // Weeks of the crop year that have records in either registry
+                    get periodWeeks() {
+                        if (!this.period.cropYear) return [];
+                        return [...new Set([...this.quedanAllWeeksData, ...this.molassesAllWeeksData]
+                                .filter(w => String(w.crop_year) === this.period.cropYear)
+                                .map(w => String(w.week_no)))]
+                            .sort((a, b) => parseInt(a) - parseInt(b));
+                    },
+                    get rowsLoading() {
+                        return (this.quedanFeed && this.quedanFeed.loading) || (this.molassesFeed && this.molassesFeed.loading);
+                    },
+                    // Start both tables over from their first batch
+                    loadRows() {
+                        this.quedanFeed.reset();
+                        this.molassesFeed.reset();
+                    },
+                    onPeriodChange() {
+                        this.resetSelections();
+                        this.loadRows();
+                    },
+                    periodQuery() {
+                        const params = new URLSearchParams();
+                        if (this.period.cropYear) params.set('crop_year', this.period.cropYear);
+                        if (this.period.weekNo) params.set('week_no', this.period.weekNo);
+                        return params.toString();
+                    },
+                    sortIcon(field, dir, key) {
+                        return field === key ? (dir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30';
+                    },
+
+                    // ---------- Missing TIN ----------
+                    isBlankTin(tin) {
+                        const t = String(tin ?? '').trim();
+                        return t === '' || t.toUpperCase() === 'NULL';
+                    },
+                    isEditingTin(type, id) {
+                        return this.tinEdit.type === type && this.tinEdit.id === id;
+                    },
+                    startTinEdit(type, row) {
+                        // A TIN typed for this planter on another loaded row is offered again
+                        const rows = type === 'quedan' ? this.quedanFeed.rows : this.molassesFeed.rows;
+                        const known = rows.find(r => r.planter_code === row.planter_code && !this.isBlankTin(r.tin_no));
+                        this.tinEdit = { type, id: row.id, value: known ? known.tin_no : '', saving: false };
+                    },
+                    cancelTinEdit() {
+                        this.tinEdit = { type: null, id: null, value: '', saving: false };
+                    },
+                    async saveTin() {
+                        const { type, id, value } = this.tinEdit;
+                        if (!value) return;
+                        this.tinEdit.saving = true;
+                        try {
+                            const response = await fetch(`/registry/${type}/${id}/tin`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                },
+                                body: JSON.stringify({ tin_no: value })
+                            });
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.message || 'Failed to save TIN');
+
+                            // The server filled every blank TIN of this planter in this registry
+                            const rows = type === 'quedan' ? this.quedanFeed.rows : this.molassesFeed.rows;
+                            rows.forEach(r => {
+                                if (r.planter_code === data.planter_code && this.isBlankTin(r.tin_no)) r.tin_no = data.tin_no;
+                            });
+                            this.cancelTinEdit();
+                            Swal.fire({ icon: 'success', title: 'TIN Saved', text: data.message, timer: 2200, showConfirmButton: false });
+                        } catch (error) {
+                            this.tinEdit.saving = false;
+                            Swal.fire({ icon: 'error', title: 'Error', text: error.message });
+                        }
+                    },
+
+                    // ---------- Quedan table ----------
                     get filteredQuedans() {
-                        let data = [...this.allQuedans];
-                        if (this.quedanSearch) {
-                            const s = this.quedanSearch.toLowerCase();
-                            data = data.filter(d => (d.planter_name || '').toLowerCase().includes(s) || (d.planter_code || '').toLowerCase().includes(s) || (d.qdn_no || '').toLowerCase().includes(s));
-                        }
-                        if (this.quedanSortField && this.quedanSortField !== 'null') {
-                            data.sort((a, b) => {
-                                let va = a[this.quedanSortField] ?? '';
-                                let vb = b[this.quedanSortField] ?? '';
-                                if (!isNaN(va) && !isNaN(vb)) {
-                                    return this.quedanSortDir === 'asc' ? va - vb : vb - va;
-                                }
-                                return this.quedanSortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
-                            });
-                        }
-                        return data;
+                        return this.quedanFeed ? this.quedanFeed.rows : [];
                     },
-
-                    get paginatedQuedans() {
-                        const start = (this.quedanCurrentPage - 1) * this.perPage;
-                        return this.filteredQuedans.slice(start, start + this.perPage);
-                    },
-
-                    get quedanTotalPages() {
-                        return Math.ceil(this.filteredQuedans.length / this.perPage) || 1;
-                    },
-
+                    // The header box selects every loaded row
                     get isAllQuedanSelected() {
-                        return this.paginatedQuedans.length > 0 && this.paginatedQuedans.every(r => this.quedanSelectedIds.includes(r.id));
+                        return this.filteredQuedans.length > 0 && this.filteredQuedans.every(r => this.quedanSelectedIds.includes(r.id));
                     },
-
                     toggleSelectAllQuedan() {
-                        if (this.isAllQuedanSelected) {
-                            const currentIds = this.paginatedQuedans.map(r => r.id);
-                            this.quedanSelectedIds = this.quedanSelectedIds.filter(id => !currentIds.includes(id));
-                        } else {
-                            const currentIds = this.paginatedQuedans.map(r => r.id);
-                            this.quedanSelectedIds = [...new Set([...this.quedanSelectedIds, ...currentIds])];
-                        }
+                        const ids = this.filteredQuedans.map(r => r.id);
+                        this.quedanSelectedIds = this.isAllQuedanSelected
+                            ? this.quedanSelectedIds.filter(id => !ids.includes(id))
+                            : [...new Set([...this.quedanSelectedIds, ...ids])];
                     },
-
                     sortQuedan(field) {
-                        if (this.quedanSortField === field) {
-                            this.quedanSortDir = this.quedanSortDir === 'asc' ? 'desc' : 'asc';
-                        } else {
-                            this.quedanSortField = field;
-                            this.quedanSortDir = 'asc';
-                        }
+                        this.quedanSortDir = this.quedanSortField === field && this.quedanSortDir === 'asc' ? 'desc' : 'asc';
+                        this.quedanSortField = field;
+                        this.quedanFeed.reset();
                     },
 
+                    // ---------- Molasses table ----------
                     get filteredMolasses() {
-                        let data = [...this.allMolasses];
-                        if (this.molassesSearch) {
-                            const s = this.molassesSearch.toLowerCase();
-                            data = data.filter(d => (d.planter_name || '').toLowerCase().includes(s) || (d.planter_code || '').toLowerCase().includes(s) || (d.mc_no || '').toLowerCase().includes(s));
-                        }
-                        if (this.molassesSortField && this.molassesSortField !== 'null') {
-                            data.sort((a, b) => {
-                                let va = a[this.molassesSortField] ?? '';
-                                let vb = b[this.molassesSortField] ?? '';
-                                if (!isNaN(va) && !isNaN(vb)) {
-                                    return this.molassesSortDir === 'asc' ? va - vb : vb - va;
-                                }
-                                return this.molassesSortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
-                            });
-                        }
-                        return data;
+                        return this.molassesFeed ? this.molassesFeed.rows : [];
                     },
-
-                    get paginatedMolasses() {
-                        const start = (this.molassesCurrentPage - 1) * this.perPage;
-                        return this.filteredMolasses.slice(start, start + this.perPage);
-                    },
-
-                    get molassesTotalPages() {
-                        return Math.ceil(this.filteredMolasses.length / this.perPage) || 1;
-                    },
-
                     get isAllMolassesSelected() {
-                        return this.paginatedMolasses.length > 0 && this.paginatedMolasses.every(r => this.molassesSelectedIds.includes(r.id));
+                        return this.filteredMolasses.length > 0 && this.filteredMolasses.every(r => this.molassesSelectedIds.includes(r.id));
                     },
-
                     toggleSelectAllMolasses() {
-                        if (this.isAllMolassesSelected) {
-                            const currentIds = this.paginatedMolasses.map(r => r.id);
-                            this.molassesSelectedIds = this.molassesSelectedIds.filter(id => !currentIds.includes(id));
-                        } else {
-                            const currentIds = this.paginatedMolasses.map(r => r.id);
-                            this.molassesSelectedIds = [...new Set([...this.molassesSelectedIds, ...currentIds])];
-                        }
+                        const ids = this.filteredMolasses.map(r => r.id);
+                        this.molassesSelectedIds = this.isAllMolassesSelected
+                            ? this.molassesSelectedIds.filter(id => !ids.includes(id))
+                            : [...new Set([...this.molassesSelectedIds, ...ids])];
                     },
-
                     sortMolasses(field) {
-                        if (this.molassesSortField === field) {
-                            this.molassesSortDir = this.molassesSortDir === 'asc' ? 'desc' : 'asc';
-                        } else {
-                            this.molassesSortField = field;
-                            this.molassesSortDir = 'asc';
-                        }
+                        this.molassesSortDir = this.molassesSortField === field && this.molassesSortDir === 'asc' ? 'desc' : 'asc';
+                        this.molassesSortField = field;
+                        this.molassesFeed.reset();
                     },
 
                     async confirmDeleteAll() {

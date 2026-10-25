@@ -414,6 +414,8 @@ html.kp-collapsed { --kp-sidebar-w: 76px; }
 .kp-content table tbody tr:last-child td { border-bottom: 0; }
 .kp-content table tbody tr { transition: background-color 0.12s ease; }
 .kp-content table tbody tr:hover { background-color: var(--kp-hover); }
+/* long lists that scroll inside their card keep the column titles in view */
+.kp-content table.kp-table-sticky thead th { position: sticky; top: 0; z-index: 2; }
 .kp-content table tbody tr.divide-none:hover, .kp-content table tbody tr[data-no-hover]:hover { background-color: transparent; }
 .kp-content .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: var(--kp-border); }
 
@@ -468,7 +470,19 @@ html.kp-collapsed { --kp-sidebar-w: 76px; }
 .dark .kp-alert-warn { background: rgba(204, 156, 51, 0.14); border-color: rgba(204, 156, 51, 0.4); color: #EFD38E; }
 .dark .kp-alert-info { background: rgba(90, 147, 175, 0.14); border-color: rgba(90, 147, 175, 0.4); color: #B5D6E5; }
 
-.kp-badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 9999px; font-size: 11px; font-weight: 600; line-height: 1.6; white-space: nowrap; }
+.kp-badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 9999px; font-size: 11px; font-weight: 600; line-height: 1.6; white-space: nowrap;
+    background: #EEF1EF; color: #3F4F45; border: 1px solid #D5DDD8; }
+/* Tones; views use both the "kp-badge--tone" and "kp-badge-tone" spellings */
+.kp-badge--forest, .kp-badge-forest, .kp-badge--emerald, .kp-badge-emerald { background: #EAF5ED; color: #005B2A; border-color: #B0D8BC; }
+.kp-badge--amber, .kp-badge-amber { background: #FBF0D9; color: #7A5410; border-color: #EBD28F; }
+.kp-badge--rose, .kp-badge-rose { background: #FCEEEE; color: #8A2A2A; border-color: #F0B4B4; }
+.kp-badge--info, .kp-badge-info { background: #EDF4F7; color: #1E4F66; border-color: #B6D2DF; }
+.kp-badge--neutral, .kp-badge-neutral { background: #EEF1EF; color: #4A5A50; border-color: #D5DDD8; }
+.dark .kp-badge, .dark .kp-badge--neutral, .dark .kp-badge-neutral { background: rgba(138, 168, 149, 0.14); color: #C5D3CA; border-color: rgba(138, 168, 149, 0.35); }
+.dark .kp-badge--forest, .dark .kp-badge-forest, .dark .kp-badge--emerald, .dark .kp-badge-emerald { background: rgba(62, 158, 101, 0.18); color: #A9E0C0; border-color: rgba(62, 158, 101, 0.45); }
+.dark .kp-badge--amber, .dark .kp-badge-amber { background: rgba(204, 156, 51, 0.18); color: #EFD38E; border-color: rgba(204, 156, 51, 0.45); }
+.dark .kp-badge--rose, .dark .kp-badge-rose { background: rgba(212, 95, 95, 0.18); color: #F5B5B5; border-color: rgba(212, 95, 95, 0.45); }
+.dark .kp-badge--info, .dark .kp-badge-info { background: rgba(90, 147, 175, 0.18); color: #B5D6E5; border-color: rgba(90, 147, 175, 0.45); }
 /* existing status pills (rounded-full + tinted bg) keep their meaning; give them a steadier shape */
 .kp-content span.rounded-full[class*="bg-"][class*="text-"][class*="px-"] { font-weight: 600; white-space: nowrap; }
 
@@ -785,3 +799,17 @@ div:where(.swal2-container) .swal2-popup .form-label i { color: var(--kp-emerald
     body { background: #fff !important; color: #000 !important; }
     .kp-card, .bg-white { box-shadow: none !important; }
 }
+
+/* Row actions: one compact, neutral button group per row. Icons stay quiet until hovered,
+   so long tables read as data first; each action takes its color only on hover/focus. */
+.kp-row-actions { display: inline-flex; align-items: center; border: 1px solid var(--kp-border); border-radius: var(--kp-radius); background: var(--kp-surface); overflow: hidden; vertical-align: middle; }
+.kp-row-actions > button, .kp-row-actions > a { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; color: var(--kp-faint); font-size: 12px; transition: background-color .15s var(--kp-ease), color .15s var(--kp-ease); }
+.kp-row-actions > * + * { border-left: 1px solid var(--kp-border); }
+.kp-row-actions > button:hover, .kp-row-actions > a:hover { background: var(--kp-surface-2); }
+.kp-row-actions > button:focus-visible, .kp-row-actions > a:focus-visible { outline: 2px solid var(--kp-ring); outline-offset: -2px; }
+.kp-row-actions .is-view:hover, .kp-row-actions .is-view:focus-visible { color: var(--kp-emerald); }
+.kp-row-actions .is-edit:hover, .kp-row-actions .is-edit:focus-visible { color: #B7791F; }
+.kp-row-actions .is-delete:hover, .kp-row-actions .is-delete:focus-visible { color: #DC2626; background: rgba(220, 38, 38, 0.08); }
+.dark .kp-row-actions .is-edit:hover, .dark .kp-row-actions .is-edit:focus-visible { color: #F0C75E; }
+.dark .kp-row-actions .is-delete:hover, .dark .kp-row-actions .is-delete:focus-visible { color: #F87171; background: rgba(248, 113, 113, 0.12); }
+@media print { .kp-row-actions { display: none; } }

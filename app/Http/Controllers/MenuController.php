@@ -18,6 +18,7 @@ use App\Models\LoanSetting;
 use App\Models\CashAdvanceAmortization;
 use App\Models\CashAdvanceDeduction;
 use App\Services\PlanterProceeds;
+use App\Support\PdfParts;
 use App\Models\TruckingAllowance;
 use App\Models\AuditLog;
 use App\Models\PlanterProfile;
@@ -212,48 +213,55 @@ class MenuController extends Controller
 
     public function previewPDF(Request $request)
     {
-        $cropYear = $request->input('crop_year');
-        $weekFrom = $request->input('week_from');
-        $weekTo = $request->input('week_to');
-
-        AuditLog::log('preview', 'reports', 'Previewed summary PDF', [
-            'crop_year' => $cropYear,
-            'weeks' => $weekFrom . ' - ' . $weekTo
-        ]);
-
-        $query = Summary::where('crop_year', $cropYear);
-        if ($weekFrom && $weekTo) {
-            $query->whereBetween('week_no', [$weekFrom, $weekTo]);
-        }
-        $summaries = $query->orderBy('week_no')->take(500)->get();
-
-        $pdf = Pdf::loadView('modal.viewSummaryPdf', compact('summaries', 'cropYear', 'weekFrom', 'weekTo'))
-                  ->setPaper('a4', 'portrait');
-
-        return $pdf->stream('summary-report.pdf');
+        return $this->summaryPdf($request, false);
     }
 
     public function downloadPDF(Request $request)
     {
+        return $this->summaryPdf($request, true);
+    }
+
+    /**
+     * Summary Report PDF: every matching row (no 500-row cap), in parts for large crop years
+     */
+    private function summaryPdf(Request $request, bool $download)
+    {
+        $download = $download || $request->boolean('download');
         $cropYear = $request->input('crop_year');
         $weekFrom = $request->input('week_from');
         $weekTo = $request->input('week_to');
 
-        AuditLog::log('download', 'reports', 'Downloaded summary PDF', [
-            'crop_year' => $cropYear,
-            'weeks' => $weekFrom . ' - ' . $weekTo
-        ]);
-
         $query = Summary::where('crop_year', $cropYear);
         if ($weekFrom && $weekTo) {
-            $query->whereBetween('week_no', [$weekFrom, $weekTo]);
+            // Week numbers are stored as text; compare as numbers so 1-10 includes weeks 2-9
+            $query->whereRaw('CAST(week_no AS UNSIGNED) BETWEEN ? AND ?', [(int) $weekFrom, (int) $weekTo]);
         }
-        $summaries = $query->orderBy('week_no')->take(500)->get();
+        $all = $query->orderByRaw('CAST(week_no AS UNSIGNED)')->orderBy('id')->get();
 
-        $pdf = Pdf::loadView('modal.viewSummaryPdf', compact('summaries', 'cropYear', 'weekFrom', 'weekTo'))
-                    ->setPaper('a4', 'portrait');
+        $parts = PdfParts::make($request, $all, 800, 'rows');
+        if ($parts->wantsInfo($request)) {
+            return $parts->info();
+        }
 
-        return $pdf->download('summary-report.pdf');
+        AuditLog::log($download ? 'download' : 'preview', 'reports', ($download ? 'Downloaded' : 'Previewed') . ' summary PDF', [
+            'crop_year' => $cropYear,
+            'weeks' => $weekFrom . ' - ' . $weekTo,
+            'rows' => $all->count(),
+            'part' => $parts->label() ?: 'whole',
+        ]);
+
+        $pdf = Pdf::loadView('modal.viewSummaryPdf', [
+            'summaries' => $parts->items(),
+            'offset' => $parts->offset(),
+            'partLabel' => $parts->label(),
+            'cropYear' => $cropYear,
+            'weekFrom' => $weekFrom,
+            'weekTo' => $weekTo,
+        ])->setPaper('a4', 'portrait');
+
+        $filename = $parts->filename('summary-report');
+
+        return $download ? $pdf->download($filename) : $pdf->stream($filename);
     }
 
     public function getPlanterNames(Request $request)
@@ -358,15 +366,21 @@ public function voucherPDF(Request $request)
     $weekTo = $request->input('week_to');
     $planterNames = $request->input('planter_name');
 
+    $summaryData = PlanterProceeds::summary($cropYear, $weekFrom, $weekTo, $planterNames);
+
+    // One voucher page per planter: a whole week is printed in parts of 80
+    $parts = PdfParts::make($request, $summaryData, 80, 'planters');
+    if ($parts->wantsInfo($request)) {
+        return $parts->info();
+    }
+    $summaryData = $parts->items();
+
     AuditLog::log('print', 'voucher', 'Generated voucher PDF from quedan and molasses data', [
         'crop_year' => $cropYear,
         'weeks' => $weekFrom . ' - ' . $weekTo,
-        'planters' => $planterNames ? count((array)$planterNames) : 'all'
+        'planters' => $planterNames ? count((array)$planterNames) : 'all',
+        'part' => $parts->label() ?: 'whole',
     ]);
-
-    $summaryData = PlanterProceeds::summary($cropYear, $weekFrom, $weekTo, $planterNames);
-
-    Log::info('Final summary data:', $summaryData->toArray());
 
     // Loan and Cash Advance payments are filled in by PlanterProceeds
     $autoDeduct = LoanSetting::get('auto_deduct', true);
@@ -375,7 +389,7 @@ public function voucherPDF(Request $request)
         'summaryData' => $summaryData,
         'autoDeduct' => $autoDeduct
     ]);
-    return $request->boolean('download') ? $pdf->download('voucher.pdf') : $pdf->stream('voucher-preview.pdf');
+    return $request->boolean('download') ? $pdf->download($parts->filename('voucher')) : $pdf->stream($parts->filename('voucher-preview'));
 }
 
  public function dashboardData(Request $request)

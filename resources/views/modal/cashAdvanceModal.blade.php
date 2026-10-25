@@ -54,8 +54,12 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Interest Rate (%) <span class="text-rose-600">*</span></label>
-                        <input type="number" name="interest_rate" x-model="interestRate" step="any" min="0" required
-                            class="kp-input w-full">
+                        {{-- Opens once an amount is entered; the interest applies right away --}}
+                        <input type="number" name="interest_rate" x-model="interestRate" @input="if (!manualSplit) autoSplit()" step="any" min="0" required
+                            :disabled="!hasAmount()" :title="hasAmount() ? '' : 'Enter the advance amount first'"
+                            class="kp-input w-full disabled:opacity-50 disabled:cursor-not-allowed">
+                        <p class="text-[11px] mt-1" :class="hasAmount() ? 'text-[#005B2A] dark:text-[#52C97E]' : 'text-[#52705F] dark:text-[#8AA895]'"
+                            x-text="hasAmount() ? 'Interest ₱' + formatNumber(interest()) : 'Enter the amount first'"></p>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Term (Weeks) <span class="text-rose-600">*</span></label>
@@ -69,15 +73,28 @@
                     </div>
                 </div>
 
+                <!-- Approval route, by amount -->
+                <div x-show="hasAmount()" x-cloak class="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+                    :class="needsManager() ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300' : 'bg-[#EAF5ED] text-[#005B2A] dark:bg-[#1A3324] dark:text-[#52C97E]'">
+                    <i class="fas mt-0.5" :class="needsManager() ? 'fa-user-tie' : 'fa-circle-check'" aria-hidden="true"></i>
+                    <span x-text="needsManager()
+                        ? 'This advance is ' + thresholdLabel + ' or more. It will wait as Pending until a Manager or Administrator approves it.'
+                        : 'Below ' + thresholdLabel + ': no approval needed. The advance is approved as soon as you submit it.'"></span>
+                </div>
+
                 <!-- Weekly Payment Schedule -->
                 <div class="rounded-xl p-4 bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B]">
-                    <div class="flex items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center justify-between gap-2 mb-1">
                         <h4 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Weekly Payment Schedule</h4>
                         <button type="button" @click="manualSplit = false; autoSplit()" :disabled="!schedule.length"
                             class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs disabled:opacity-50">
                             <i class="fas fa-arrow-right-arrow-left mr-1.5" aria-hidden="true"></i> Auto Split Evenly
                         </button>
                     </div>
+                    <p class="text-[11px] text-[#52705F] dark:text-[#8AA895] mb-3">
+                        Advance ₱<span x-text="formatNumber(amount)"></span> + Interest ₱<span x-text="formatNumber(interest())"></span>
+                        = <span class="font-bold text-[#172B20] dark:text-[#EAF5ED]">Total to Repay ₱<span x-text="formatNumber(repayable())"></span></span>
+                    </p>
 
                     <p x-show="!schedule.length" class="text-xs py-2 text-amber-700 dark:text-amber-400">
                         <i class="fas fa-triangle-exclamation mr-1" aria-hidden="true"></i>
@@ -139,13 +156,13 @@
                             <i class="fas fa-circle-xmark mr-1" aria-hidden="true"></i>
                             Week <span x-text="duplicateWeeks().join(', ')"></span> is listed more than once. Each week can only be used once.
                         </p>
-                        <p x-show="isBalanced() && (parseFloat(amount) || 0) > 0" class="text-xs mt-2 text-[#005B2A] dark:text-[#52C97E]">
-                            <i class="fas fa-circle-check mr-1" aria-hidden="true"></i> Weekly payments total is equal to the advance amount.
+                        <p x-show="isBalanced() && hasAmount()" class="text-xs mt-2 text-[#005B2A] dark:text-[#52C97E]">
+                            <i class="fas fa-circle-check mr-1" aria-hidden="true"></i> Weekly payments total is equal to the total to repay.
                         </p>
                         <p x-show="!isBalanced()" class="text-xs mt-2 text-rose-700 dark:text-rose-400">
                             <i class="fas fa-circle-xmark mr-1" aria-hidden="true"></i>
-                            Weekly payments total is <span x-text="totalAllocated() < (parseFloat(amount) || 0) ? 'short' : 'over'"></span>
-                            by ₱<span x-text="formatNumber(Math.abs((parseFloat(amount) || 0) - totalAllocated()))"></span>. It must equal the advance amount before you can submit.
+                            Weekly payments total is <span x-text="totalAllocated() < repayable() ? 'short' : 'over'"></span>
+                            by ₱<span x-text="formatNumber(Math.abs(repayable() - totalAllocated()))"></span>. It must equal the total to repay (advance + interest) before you can submit.
                         </p>
                     </div>
                 </div>
@@ -204,6 +221,9 @@
             manualSplit: false,
             purpose: '',
             submitting: false,
+            // ApprovalPolicy: from this amount up, a Manager or Administrator approves
+            threshold: {{ \App\Support\ApprovalPolicy::MANAGER_THRESHOLD }},
+            thresholdLabel: @json(\App\Support\ApprovalPolicy::thresholdLabel()),
 
             init() {
                 this.cropYear = this.defaultCropYear();
@@ -224,6 +244,19 @@
             },
             toCents(value) {
                 return Math.round((parseFloat(value) || 0) * 100) / 100;
+            },
+            hasAmount() {
+                return (parseFloat(this.amount) || 0) > 0;
+            },
+            // Flat interest, same as CashAdvance::flatInterest(): amount x rate%
+            interest() {
+                return this.toCents((parseFloat(this.amount) || 0) * (parseFloat(this.interestRate) || 0) / 100);
+            },
+            repayable() {
+                return this.toCents(this.toCents(this.amount) + this.interest());
+            },
+            needsManager() {
+                return this.toCents(this.amount) >= this.threshold;
             },
 
             updatePlanterName() {
@@ -273,11 +306,11 @@
                 this.schedule.forEach(r => seen[r.week_no] = (seen[r.week_no] || 0) + 1);
                 return Object.keys(seen).filter(w => seen[w] > 1);
             },
-            // Split the advance evenly in centavos; the last week takes the remainder
+            // Split the advance plus interest evenly in centavos; the last week takes the remainder
             autoSplit() {
                 const n = this.schedule.length;
                 if (!n) return;
-                const cents = Math.round((parseFloat(this.amount) || 0) * 100);
+                const cents = Math.round(this.repayable() * 100);
                 const each = Math.floor(cents / n);
                 this.schedule.forEach((row, i) => {
                     const c = i === n - 1 ? cents - each * (n - 1) : each;
@@ -288,12 +321,12 @@
                 return this.schedule.reduce((t, r) => t + this.toCents(r.amount), 0);
             },
             isBalanced() {
-                return Math.abs(this.totalAllocated() - (parseFloat(this.amount) || 0)) < 0.005;
+                return Math.abs(this.totalAllocated() - this.repayable()) < 0.005;
             },
             allocatedPercent() {
-                const amount = parseFloat(this.amount) || 0;
-                if (!amount) return '0%';
-                return parseFloat((this.totalAllocated() / amount * 100).toFixed(2)) + '%';
+                const total = this.repayable();
+                if (!total) return '0%';
+                return parseFloat((this.totalAllocated() / total * 100).toFixed(2)) + '%';
             },
 
             formatNumber(num) {
@@ -308,15 +341,15 @@
                 return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
             },
 
-            // Submitting needs distinct weeks whose payments add up to the advance amount
+            // Submitting needs distinct weeks whose payments add up to the advance plus interest
             canSubmit() {
-                return this.schedule.length > 0 && (parseFloat(this.amount) || 0) > 0 && !this.duplicateWeeks().length && this.isBalanced();
+                return this.schedule.length > 0 && this.hasAmount() && !this.duplicateWeeks().length && this.isBalanced();
             },
             submitBlockReason() {
                 if (!this.schedule.length) return 'No weeks are set up for this crop year.';
-                if (!((parseFloat(this.amount) || 0) > 0)) return 'Enter the advance amount.';
+                if (!this.hasAmount()) return 'Enter the advance amount.';
                 if (this.duplicateWeeks().length) return 'Week ' + this.duplicateWeeks().join(', ') + ' is listed more than once.';
-                return 'Weekly payments total must equal the advance amount.';
+                return 'Weekly payments total must equal the total to repay (advance + interest).';
             },
 
             async submitCAForm() {
@@ -351,11 +384,11 @@
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.message || 'Failed to create cash advance');
 
-                    Swal.fire({
+                    await Swal.fire({
                         icon: 'success',
-                        title: 'Success!',
-                        text: 'Cash advance application submitted successfully.',
-                        timer: 2000,
+                        title: data.auto_approved ? 'Approved!' : 'Submitted for Approval',
+                        text: data.message,
+                        timer: 2600,
                         showConfirmButton: false
                     });
                     this.showModal = false;

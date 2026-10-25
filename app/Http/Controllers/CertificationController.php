@@ -12,14 +12,15 @@ use App\Models\Molass;
 use App\Models\PlanterProfile;
 use App\Models\Quedan;
 use App\Models\SystemSetting;
+use App\Models\WeekNo;
+use App\Support\PdfParts;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
  * Production Certification — certifies a planter's crop-year production.
  *
- * Figures come from the weekly mill uploads:
+ * Figures come from the weekly mill uploads, optionally limited to a week range of the crop year:
  *   Net Tons        = SUM(consolidated_uploads.ta_wt)   (TA Wt on the Consolidated Report)
- *   Gross Sugar LKG = SUM(quedans.sugar_lkg)
  *   Net Sugar LKG   = SUM(quedans.sugar_lkg - quedans.labor_lkg)   (same net LKG the voucher uses)
  *   Net Molasses MT = SUM(molasses.mol_net)
  */
@@ -38,19 +39,20 @@ class CertificationController extends Controller
         AuditLog::log('view', 'reports', 'Viewed production certification page');
 
         $cropYears = CropYear::orderBy('crop_year', 'desc')->pluck('crop_year');
+        $weeks = WeekNo::byCropYear();
         $signatories = $this->signatories();
 
-        return view('reports.certification', compact('cropYears', 'signatories'));
+        return view('reports.certification', compact('cropYears', 'weeks', 'signatories'));
     }
 
     /**
-     * Planters with production in the crop year (or all crop years), with their totals
+     * Planters with production in the crop year and week range (or all crop years), with their totals
      */
     public function planters(Request $request)
     {
-        $rows = $this->production($request->get('crop_year'));
+        [$cropYear, $weekFrom, $weekTo] = $this->period($request);
 
-        return response()->json(['data' => $rows->values()]);
+        return response()->json(['data' => $this->production($cropYear, $weekFrom, $weekTo)->values()]);
     }
 
     public function saveSignatories(Request $request)
@@ -77,9 +79,11 @@ class CertificationController extends Controller
         $request->validate([
             'planters'    => 'required_unless:all,1|nullable|string',
             'issued_date' => 'nullable|date',
+            'week_from'   => 'nullable|integer|min:0',
+            'week_to'     => 'nullable|integer|min:0',
         ]);
 
-        $cropYear = $request->get('crop_year');
+        [$cropYear, $weekFrom, $weekTo] = $this->period($request);
         // Comma-separated codes keep the preview URL short when many planters are selected
         $selected = collect(explode(',', (string) $request->get('planters')))
             ->filter(fn ($code) => trim($code) !== '')
@@ -88,7 +92,7 @@ class CertificationController extends Controller
         $all = $request->boolean('all');
 
         // One certificate per planter; each lists a row per crop year
-        $certificates = $this->production($cropYear)
+        $certificates = $this->production($cropYear, $weekFrom, $weekTo)
             ->filter(fn ($row) => $all || $selected->contains($row['code_key']))
             ->groupBy('code_key')
             ->map(fn ($rows) => [
@@ -97,6 +101,13 @@ class CertificationController extends Controller
             ])
             ->sortBy('planter_name')
             ->values();
+
+        // One page per planter: "all planters" is printed in parts of 100
+        $parts = PdfParts::make($request, $certificates, 100, 'planters');
+        if ($parts->wantsInfo($request)) {
+            return $parts->info();
+        }
+        $certificates = $parts->items();
 
         $issuedDate = $request->filled('issued_date') ? Carbon::parse($request->issued_date) : now();
         $signatories = $this->signatories();
@@ -108,30 +119,64 @@ class CertificationController extends Controller
 
         AuditLog::log('print', 'reports', 'Generated production certification PDF', [
             'crop_year' => $cropYear ?: 'all',
+            'weeks' => $weekFrom !== null ? $weekFrom . ' - ' . $weekTo : 'all',
             'planters' => $certificates->count(),
+            'part' => $parts->label() ?: 'whole',
             'planter_codes' => $all ? 'all' : $selected->values()->take(50)->all(),
         ]);
 
         $pdf = Pdf::loadView('pdf.certification', [
             'certificates' => $certificates,
+            'weekRange' => $weekFrom === null ? null
+                : ($weekFrom === $weekTo ? 'Week ' . $weekFrom : 'Week ' . $weekFrom . ' to Week ' . $weekTo),
             'issuedDay' => strtoupper($issuedDate->format('jS')),
             'issuedMonthYear' => strtoupper($issuedDate->format('F, Y')),
             'signatories' => $signatories,
-            'logo' => base64_encode(file_get_contents(public_path('img/logo-512.png'))),
+            // A file path, not a base64 copy per certificate: dompdf loads it once, so "all planters" fits in memory
+            'logoPath' => public_path('img/logo-512.png'),
         ])->setPaper('a4', 'portrait');
 
-        $filename = 'production-certification-' . ($cropYear ?: 'all') . '.pdf';
+        $filename = $parts->filename('production-certification-' . ($cropYear ?: 'all')
+            . ($weekFrom !== null ? '-wk' . $weekFrom . '-' . $weekTo : ''));
 
         return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
+    }
+
+    /**
+     * Crop year and week range of the request. Weeks only apply within one crop year;
+     * a reversed range is swapped.
+     *
+     * @return array{0: ?string, 1: ?int, 2: ?int}
+     */
+    private function period(Request $request): array
+    {
+        $cropYear = $request->get('crop_year') ?: null;
+        if (!$cropYear || !$request->filled('week_from') || !$request->filled('week_to')) {
+            return [$cropYear, null, null];
+        }
+
+        $from = (int) $request->get('week_from');
+        $to = (int) $request->get('week_to');
+
+        return [$cropYear, min($from, $to), max($from, $to)];
     }
 
     /**
      * Production totals per planter per crop year, merged across summary, quedans and molasses.
      * Planter codes are matched without leading zeros because the summary upload stores them as integers.
      */
-    private function production(?string $cropYear)
+    private function production(?string $cropYear, ?int $weekFrom = null, ?int $weekTo = null)
     {
-        $scope = fn ($query) => $cropYear ? $query->where('crop_year', $cropYear) : $query;
+        $scope = function ($query) use ($cropYear, $weekFrom, $weekTo) {
+            if ($cropYear) {
+                $query->where('crop_year', $cropYear);
+            }
+            if ($weekFrom !== null) {
+                $query->whereRaw('CAST(week_no AS UNSIGNED) BETWEEN ? AND ?', [$weekFrom, $weekTo]);
+            }
+
+            return $query;
+        };
 
         $cane = $scope(ConsolidatedUpload::query())
             ->select('crop_year', 'planter_code', DB::raw('MAX(planter_name) as planter_name'),
@@ -141,7 +186,6 @@ class CertificationController extends Controller
 
         $sugar = $scope(Quedan::query())
             ->select('crop_year', 'planter_code', DB::raw('MAX(planter_name) as planter_name'),
-                DB::raw('SUM(sugar_lkg) as gross_lkg'),
                 DB::raw('SUM(sugar_lkg - labor_lkg) as net_lkg'))
             ->groupBy('crop_year', 'planter_code')
             ->get();
@@ -164,7 +208,6 @@ class CertificationController extends Controller
                 'code_key' => $key,
                 'planter_name' => trim((string) $record->planter_name),
                 'net_tons' => 0.0,
-                'gross_lkg' => 0.0,
                 'net_lkg' => 0.0,
                 'net_mol' => 0.0,
             ];
@@ -175,7 +218,7 @@ class CertificationController extends Controller
         };
 
         foreach ($cane as $r) $add($r, ['net_tons' => $r->net_tons]);
-        foreach ($sugar as $r) $add($r, ['gross_lkg' => $r->gross_lkg, 'net_lkg' => $r->net_lkg]);
+        foreach ($sugar as $r) $add($r, ['net_lkg' => $r->net_lkg]);
         foreach ($molasses as $r) $add($r, ['net_mol' => $r->net_mol]);
 
         // Prefer the registered planter profile name when one exists

@@ -56,6 +56,15 @@ class AuditLogVisibilityTest extends TestCase
             $table->string('crop_year');
             $table->timestamps();
         });
+        // The audit log page lists crop year weeks for its date filter
+        Schema::create('week_no', function (Blueprint $table) {
+            $table->id();
+            $table->string('crop_year');
+            $table->string('week_no');
+            $table->dateTime('week_start_date')->nullable();
+            $table->dateTime('week_end_date')->nullable();
+            $table->timestamps();
+        });
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->nullable();

@@ -12,7 +12,7 @@ class AuditLogController extends Controller
     public function index(Request $request)
 {
     // Server-side pagination - only load what's needed
-    $perPage = 100; // Load 100 records per page for client-side filtering
+    $perPage = 25; // the page shows the totals; the table loads its rows in batches from loadMore()
     
     $query = AuditLog::visibleTo($request->user())->with('user')->orderBy('created_at', 'desc');
     
@@ -38,32 +38,51 @@ class AuditLogController extends Controller
         'errors' => AuditLog::visibleTo($request->user())->where('action', 'error')->count(),
     ];
 
-    return view('audit-logs.index', compact('logs', 'modules', 'actions', 'stats'));
+    // Crop year / week picker: a week fills the From / To dates with its start and end
+    $weeks = \App\Models\WeekNo::orderByRaw('CAST(week_no AS UNSIGNED) ASC')
+        ->get(['crop_year', 'week_no', 'week_start_date', 'week_end_date'])
+        ->filter(fn ($w) => $w->week_start_date && $w->week_end_date)
+        ->map(fn ($w) => [
+            'crop_year' => (string) $w->crop_year,
+            'week_no' => (string) $w->week_no,
+            'start' => substr((string) $w->week_start_date, 0, 10),
+            'end' => substr((string) $w->week_end_date, 0, 10),
+        ])
+        ->unique(fn ($w) => $w['crop_year'] . '|' . $w['week_no'])
+        ->values();
+
+    return view('audit-logs.index', compact('logs', 'modules', 'actions', 'stats', 'weeks'));
 }
 
 // API endpoint for loading more logs
+/**
+ * Logs for the scrolling table, 100 at a time; every filter runs in the database
+ */
 public function loadMore(Request $request)
 {
-    $perPage = 100;
-    $page = $request->get('page', 1);
-    
-    $query = AuditLog::visibleTo($request->user())->with('user')->orderBy('created_at', 'desc');
-    
+    $query = AuditLog::visibleTo($request->user())->with('user');
+
     if ($request->date_from) {
-        $query->whereDate('created_at', '>=', $request->date_from);
+        $query->where('created_at', '>=', Carbon::parse($request->date_from)->startOfDay());
     }
     if ($request->date_to) {
-        $query->whereDate('created_at', '<=', $request->date_to);
+        $query->where('created_at', '<=', Carbon::parse($request->date_to)->endOfDay());
     }
-    
-    $logs = $query->paginate($perPage, ['*'], 'page', $page);
-    
-    return response()->json([
-        'data' => $logs->items(),
-        'current_page' => $logs->currentPage(),
-        'last_page' => $logs->lastPage(),
-        'total' => $logs->total(),
-    ]);
+    if ($request->module && $request->module !== 'all') {
+        $query->where('module', $request->module);
+    }
+    if ($request->action && $request->action !== 'all') {
+        $query->where('action', $request->action);
+    }
+    if ($search = trim((string) $request->search)) {
+        $query->where(fn ($q) => $q->where('description', 'like', "%{$search}%")
+            ->orWhere('user_name', 'like', "%{$search}%")
+            ->orWhere('ip_address', 'like', "%{$search}%")
+            ->orWhere('module', 'like', "%{$search}%")
+            ->orWhere('action', 'like', "%{$search}%"));
+    }
+
+    return \App\Support\TableFeed::respond($request, $query, ['created_at' => 'created_at'], [['created_at', 'desc']]);
 }
 
     public function show(Request $request, int $log)
@@ -97,16 +116,22 @@ public function loadMore(Request $request)
             $query->where('module', $request->module);
         }
 
-        $logs = $query->take(500)->get();
+        // Every matching log (no 500-row cap); long periods print in parts of 800, read one part at a time
+        $parts = \App\Support\PdfParts::forCount($request, (clone $query)->count(), 800, 'logs');
+        if ($parts->wantsInfo($request)) {
+            return $parts->info();
+        }
+        $logs = $query->skip($parts->offset())->take($parts->size())->get();
 
         $pdf = Pdf::loadView('pdf.audit-logs', [
             'logs' => $logs,
+            'partLabel' => $parts->label(),
             'dateFrom' => $request->date_from,
             'dateTo' => $request->date_to,
             'generatedDate' => now()->format('F d, Y H:i:s'),
         ])->setPaper('a4', 'landscape');
 
-        $filename = 'audit-logs-' . now()->format('Y-m-d') . '.pdf';
+        $filename = $parts->filename('audit-logs-' . now()->format('Y-m-d'));
         return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
     }
 

@@ -81,9 +81,14 @@ class UpdatesController extends Controller
             'user_id' => 'required|exists:users,id',
         ]);
 
-        $price = QuedanPrice::create($data);
+        // "b" and "B" are the same type; a week keeps one price per type (saving again replaces it)
+        $data['quedan_type'] = strtoupper(trim($data['quedan_type']));
+        $price = QuedanPrice::updateOrCreate(
+            ['crop_year' => $data['crop_year'], 'week_no' => $data['week_no'], 'quedan_type' => $data['quedan_type']],
+            $data
+        );
 
-        AuditLog::log('create', 'quedan_price', 'Set quedan price: ₱' . number_format($price->quedan_price, 2) . ' (Type: ' . $price->quedan_type . ')', [
+        AuditLog::log($price->wasRecentlyCreated ? 'create' : 'update', 'quedan_price', 'Set quedan price: ₱' . number_format($price->quedan_price, 2) . ' (Type: ' . $price->quedan_type . ')', [
             'type' => $price->quedan_type,
             'price' => $price->quedan_price,
             'crop_year' => $price->crop_year,
@@ -102,9 +107,13 @@ class UpdatesController extends Controller
             'user_id' => 'required|exists:users,id',
         ]);
 
-        $price = MolassesPrice::create($data);
+        // A week keeps one molasses price (saving again replaces it)
+        $price = MolassesPrice::updateOrCreate(
+            ['crop_year' => $data['crop_year'], 'week_no' => $data['week_no']],
+            $data
+        );
 
-        AuditLog::log('create', 'molasses_price', 'Set molasses price: ₱' . number_format($price->mol_price, 2), [
+        AuditLog::log($price->wasRecentlyCreated ? 'create' : 'update', 'molasses_price', 'Set molasses price: ₱' . number_format($price->mol_price, 2), [
             'price' => $price->mol_price,
             'crop_year' => $price->crop_year,
             'week_no' => $price->week_no,

@@ -19,12 +19,12 @@ class CashAdvanceSchedule
      */
     public static function validate(CashAdvance $ca, Collection $rows): void
     {
-        // Weeks must add up to the advance amount (compared in centavos)
+        // Weeks must add up to the advance plus its interest (compared in centavos)
         $scheduledCents = (int) $rows->sum(fn ($r) => (int) round((float) $r['amount'] * 100));
-        $amountCents = (int) round((float) $ca->amount * 100);
-        if ($scheduledCents !== $amountCents) {
+        $repayableCents = (int) round($ca->repayable() * 100);
+        if ($scheduledCents !== $repayableCents) {
             throw ValidationException::withMessages([
-                'deductions' => 'Deduction weeks total (₱' . number_format($scheduledCents / 100, 2) . ') must equal the advance amount (₱' . number_format($amountCents / 100, 2) . ').',
+                'deductions' => 'Deduction weeks total (₱' . number_format($scheduledCents / 100, 2) . ') must equal the amount to repay (₱' . number_format($repayableCents / 100, 2) . ').',
             ]);
         }
 

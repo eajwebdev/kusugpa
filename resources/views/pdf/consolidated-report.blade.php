@@ -14,11 +14,11 @@
         .meta { color: #52675a; font-size: 7px; }
         .count { float: right; color: #006c38; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        thead { display: table-header-group; }
-        tr { page-break-inside: avoid; }
         th { background: #e7f2e9; color: #173c28; border: 1px solid #b9d1bf; padding: 5px 3px; font-size: 6px; text-align: right; vertical-align: bottom; }
         td { border: 1px solid #d7e2da; padding: 4px 3px; text-align: right; vertical-align: top; overflow-wrap: break-word; }
-        tbody tr:nth-child(even) { background: #f6faf7; }
+        /* a class, not an nth-child rule: dompdf slows down sharply with nth-child on long tables */
+        tr.even { background: #f6faf7; }
+        .page-break { page-break-after: always; }
         .left { text-align: left; }
         .center { text-align: center; }
         .name { overflow-wrap: anywhere; }
@@ -42,11 +42,16 @@
         <h1>Consolidated Report</h1>
         <div class="meta">
             Generated {{ $generatedDate }} &nbsp; | &nbsp; Amounts in PHP; weights in metric tons
-            <span class="count">{{ number_format($uploads->count()) }} {{ $uploads->count() === 1 ? 'record' : 'records' }}</span>
+            <span class="count">
+                {{ number_format($totalRows ?? $uploads->count()) }} {{ ($totalRows ?? $uploads->count()) === 1 ? 'record' : 'records' }}
+                @if (!empty($partLabel)) · {{ $partLabel }} @endif
+            </span>
         </div>
     </div>
 
-    <table>
+    {{-- One table per page (35 rows): dompdf slows down sharply on a single table over many pages --}}
+    @forelse ($uploads->values()->chunk(35) as $pageRows)
+    <table class="{{ $loop->last ? '' : 'page-break' }}">
         <colgroup>
             <col style="width: 5%"><col style="width: 3%"><col style="width: 5%"><col style="width: 10%"><col style="width: 5%">
             <col style="width: 4.8%"><col style="width: 4.8%"><col style="width: 4.8%"><col style="width: 4.8%"><col style="width: 4.8%"><col style="width: 4.8%">
@@ -61,8 +66,8 @@
             </tr>
         </thead>
         <tbody>
-            @forelse($uploads as $upload)
-                <tr>
+            @foreach ($pageRows as $i => $upload)
+                <tr class="{{ $i % 2 ? 'even' : '' }}">
                     <td class="center">{{ $upload->crop_year ?: '-' }}</td>
                     <td class="center">{{ $upload->week_no ?: '-' }}</td>
                     <td class="left">{{ $upload->planter_code ?: '-' }}</td>
@@ -78,11 +83,12 @@
                         <td class="{{ $field === 'total_summary' ? 'total' : '' }}">{{ number_format((float) $upload->{$field}, 2) }}</td>
                     @endforeach
                 </tr>
-            @empty
-                <tr><td colspan="20" class="empty">No consolidated records are available for this report.</td></tr>
-            @endforelse
+            @endforeach
         </tbody>
     </table>
+    @empty
+        <table><tbody><tr><td class="empty">No consolidated records are available for this report.</td></tr></tbody></table>
+    @endforelse
     <div class="footer">KUSUG-PA Check and Voucher System</div>
 </body>
 </html>

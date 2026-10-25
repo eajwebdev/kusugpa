@@ -10,6 +10,8 @@ use App\Models\WeekNo;
 use App\Models\Quedan;
 use App\Models\Molass;
 use App\Models\AuditLog;
+use App\Support\LedgerPdf;
+use App\Support\TableFeed;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -76,7 +78,10 @@ class PriceController extends Controller
             'week_no' => 'required|string',
         ]);
 
-        $quedanPrice->update($request->only(['quedan_type', 'quedan_price', 'crop_year', 'week_no']));
+        $quedanPrice->update(array_merge(
+            $request->only(['quedan_price', 'crop_year', 'week_no']),
+            ['quedan_type' => strtoupper(trim($request->quedan_type))] // "b" and "B" are the same type
+        ));
         
         Log::info('Quedan Price updated: ' . $quedanPrice->id . ' by user: ' . auth()->user()->username);
         
@@ -123,19 +128,16 @@ class PriceController extends Controller
 
     public function registry()
 {
-    $quedans = Quedan::orderBy('crop_year', 'desc')
-    ->orderByRaw('CAST(week_no AS UNSIGNED) DESC')
-    ->orderBy('planter_name', 'asc')
-    ->get();
-    
-    $molassesList = Molass::orderBy('crop_year', 'desc')
-    ->orderByRaw('CAST(week_no AS UNSIGNED) DESC')
-    ->orderBy('planter_name', 'asc')
-    ->get();
-    
-    $cropYears = CropYear::orderBy('crop_year')->pluck('crop_year');
-    
-    return view('prices.registry', compact('quedans', 'molassesList', 'cropYears'));
+    // Rows load one crop year at a time from registryData(); every crop year at once was
+    // tens of thousands of rows (a 12 MB page)
+    $cropYears = Quedan::select('crop_year')->distinct()->pluck('crop_year')
+        ->merge(Molass::select('crop_year')->distinct()->pluck('crop_year'))
+        ->map(fn ($cy) => (string) $cy)
+        ->unique()->sort()->reverse()->values();
+    $defaultCropYear = $cropYears->first() ?? '';
+    $totals = ['quedan' => Quedan::count(), 'molasses' => Molass::count()];
+
+    return view('prices.registry', compact('cropYears', 'defaultCropYear', 'totals'));
 }
 
 public function registryData(Request $request)
@@ -143,13 +145,21 @@ public function registryData(Request $request)
     $type = $request->get('type', 'quedan');
     $cropYear = $request->get('crop_year');
     $weekNo = $request->get('week_no');
-    
+
+    // Batches for the scrolling tables (registry, buy pages): filter, search and sort in the database
+    if ($request->has('page')) {
+        return $this->registryFeed($request, $type, $cropYear, $weekNo);
+    }
+
+    // Only the columns the registry and buy pages show, to keep the response small
     if ($type === 'quedan') {
-        $query = Quedan::orderBy('crop_year', 'desc')
+        $query = Quedan::select('id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg', 'status')
+            ->orderBy('crop_year', 'desc')
             ->orderByRaw('CAST(week_no AS UNSIGNED) DESC')
             ->orderBy('planter_name', 'asc');
     } else {
-        $query = Molass::orderBy('crop_year', 'desc')
+        $query = Molass::select('id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'tin_no', 'mc_no', 'mol_net', 'status')
+            ->orderBy('crop_year', 'desc')
             ->orderByRaw('CAST(week_no AS UNSIGNED) DESC')
             ->orderBy('planter_name', 'asc');
     }
@@ -191,6 +201,68 @@ public function registryData(Request $request)
         'weeks' => $weeks,
         'stats' => $stats,
     ]);
+}
+
+/**
+ * One batch of quedan or molasses rows. The first batch also carries the status counts of the
+ * crop year / week / search (for the Buy pages' Pending / Bought buttons) and the crop year's weeks.
+ */
+private function registryFeed(Request $request, string $type, ?string $cropYear, ?string $weekNo)
+{
+    $isQuedan = $type === 'quedan';
+    $model = $isQuedan ? Quedan::class : Molass::class;
+    $numberColumn = $isQuedan ? 'qdn_no' : 'mc_no';
+
+    $filtered = function () use ($request, $model, $cropYear, $weekNo, $numberColumn) {
+        $query = $model::query();
+        if ($cropYear) {
+            $query->where('crop_year', $cropYear);
+        }
+        if ($weekNo) {
+            $query->where('week_no', $weekNo);
+        }
+        if ($search = trim((string) $request->get('search'))) {
+            $query->where(fn ($q) => $q->where('planter_name', 'like', "%{$search}%")
+                ->orWhere('planter_code', 'like', "%{$search}%")
+                ->orWhere($numberColumn, 'like', "%{$search}%"));
+        }
+        return $query;
+    };
+
+    $query = $filtered()->select($isQuedan
+        ? ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg', 'status']
+        : ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'tin_no', 'mc_no', 'mol_net', 'status']);
+    if ($status = $request->get('status')) {
+        $query->where('status', $status);
+    }
+
+    $sortable = [
+        'crop_year' => 'crop_year',
+        'week_no' => ['raw' => 'CAST(week_no AS UNSIGNED)'],
+        'planter_code' => 'planter_code',
+        'planter_name' => 'planter_name',
+        'tin_no' => 'tin_no',
+        'status' => 'status',
+    ] + ($isQuedan
+        ? ['qdn_no' => 'qdn_no', 'total_liens' => 'total_liens', 'sugar_lkg' => 'sugar_lkg', 'labor_lkg' => 'labor_lkg']
+        : ['mc_no' => 'mc_no', 'mol_net' => 'mol_net']);
+
+    return TableFeed::respond($request, $query, $sortable, [
+        ['crop_year', 'desc'], [['raw' => 'CAST(week_no AS UNSIGNED)'], 'desc'], ['planter_name', 'asc'],
+    ], null, function () use ($filtered, $model, $cropYear) {
+        $byStatus = $filtered()->selectRaw('status, COUNT(*) AS n')->groupBy('status')->pluck('n', 'status');
+        return [
+            'stats' => [
+                'total' => (int) $byStatus->sum(),
+                'bought' => (int) ($byStatus['bought'] ?? 0),
+                'pending' => (int) ($byStatus['pending'] ?? 0),
+            ],
+            'weeks' => $cropYear
+                ? $model::where('crop_year', $cropYear)->select('week_no')->distinct()->pluck('week_no')
+                    ->sortByDesc(fn ($w) => (int) $w)->values()
+                : [],
+        ];
+    });
 }
 
 public function bulkUpdateQuedan(Request $request)
@@ -242,13 +314,67 @@ public function buyMolasses()
 }
 
 
+/**
+ * Fill in a missing TIN on a registry row. The planter's other rows in the same registry
+ * that have no TIN get it too, since the TIN belongs to the planter.
+ */
+public function updateTin(Request $request, string $type, int $id)
+{
+    abort_unless(in_array($type, ['quedan', 'molasses'], true), 404);
+
+    $data = $request->validate([
+        'tin_no' => ['required', 'string', 'max:20', 'regex:/^\d[\d\- ]*\d$/'],
+    ], [
+        'tin_no.regex' => 'Enter the TIN using digits and dashes only, e.g. 123-456-789-000.',
+    ]);
+    $tin = trim($data['tin_no']);
+
+    $model = $type === 'quedan' ? Quedan::class : Molass::class;
+    $row = $model::findOrFail($id);
+
+    abort_if(!self::isBlankTin($row->tin_no), 422, 'This row already has a TIN.');
+
+    $updated = $model::where('planter_code', $row->planter_code)
+        ->where(fn ($q) => $q->whereNull('tin_no')->orWhereRaw("TRIM(tin_no) = ''")->orWhereRaw("UPPER(TRIM(tin_no)) = 'NULL'"))
+        ->update(['tin_no' => $tin]);
+
+    AuditLog::log('update', $type, 'Set TIN for ' . $row->planter_name . ' on ' . $updated . ' ' . $type . ' row(s)', [
+        'planter_code' => $row->planter_code,
+        'tin_no' => $tin,
+    ]);
+
+    return response()->json([
+        'message' => 'TIN saved on ' . $updated . ' ' . ($type === 'quedan' ? 'quedan' : 'molasses') . ' row(s) of ' . $row->planter_name . '.',
+        'tin_no' => $tin,
+        'planter_code' => $row->planter_code,
+    ]);
+}
+
+/** Uploads leave the TIN empty or as the text "NULL" when the mill file has none */
+private static function isBlankTin($tin): bool
+{
+    $tin = trim((string) $tin);
+
+    return $tin === '' || strtoupper($tin) === 'NULL';
+}
+
+/** Crop year / week filter of the registry page, applied to its PDF too */
+private function registryPeriod($query, Request $request)
+{
+    if ($request->filled('crop_year')) {
+        $query->where('crop_year', $request->crop_year);
+    }
+    if ($request->filled('week_no')) {
+        $query->where('week_no', $request->week_no);
+    }
+
+    return $query;
+}
+
 public function exportQuedanPDF(Request $request)
 {
-    $quedans = Quedan::orderBy('planter_name')->get();
-    $pdf = Pdf::loadView('pdf.ledger', [
-        'title' => 'Quedan Registry',
-        'rows' => $quedans,
-        'columns' => [
+    $quedans = $this->registryPeriod(Quedan::orderBy('planter_name'), $request)->get();
+    return LedgerPdf::response($request, $quedans, 'Quedan Registry', [
             ['key' => 'crop_year', 'label' => 'Season'],
             ['key' => 'week_no', 'label' => 'Week'],
             ['key' => 'planter_code', 'label' => 'Planter Code'],
@@ -259,20 +385,13 @@ public function exportQuedanPDF(Request $request)
             ['key' => 'sugar_lkg', 'label' => 'Sugar Lkg', 'decimals' => 3],
             ['key' => 'labor_lkg', 'label' => 'Labor Lkg', 'decimals' => 3],
             ['key' => 'status', 'label' => 'Status'],
-        ],
-        'generatedDate' => now()->format('F d, Y H:i:s'),
-    ])->setPaper('a4', 'landscape');
-    $filename = 'quedan-registry-' . now()->format('Y-m-d') . '.pdf';
-    return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
+    ], 'quedan-registry');
 }
 
 public function exportMolassesPDF(Request $request)
 {
-    $molassesList = Molass::orderBy('planter_name')->get();
-    $pdf = Pdf::loadView('pdf.ledger', [
-        'title' => 'Molasses Registry',
-        'rows' => $molassesList,
-        'columns' => [
+    $molassesList = $this->registryPeriod(Molass::orderBy('planter_name'), $request)->get();
+    return LedgerPdf::response($request, $molassesList, 'Molasses Registry', [
             ['key' => 'crop_year', 'label' => 'Season'],
             ['key' => 'week_no', 'label' => 'Week'],
             ['key' => 'planter_code', 'label' => 'Planter Code'],
@@ -281,11 +400,7 @@ public function exportMolassesPDF(Request $request)
             ['key' => 'tin_no', 'label' => 'TIN'],
             ['key' => 'mol_net', 'label' => 'Molasses Net', 'decimals' => 3],
             ['key' => 'status', 'label' => 'Status'],
-        ],
-        'generatedDate' => now()->format('F d, Y H:i:s'),
-    ])->setPaper('a4', 'landscape');
-    $filename = 'molasses-registry-' . now()->format('Y-m-d') . '.pdf';
-    return $request->boolean('preview') ? $pdf->stream($filename) : $pdf->download($filename);
+    ], 'molasses-registry');
 }
 
 

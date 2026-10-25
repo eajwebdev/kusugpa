@@ -79,7 +79,7 @@
                     <i class="fas fa-times mr-1"></i> Reset
                 </button>
                 <span class="text-xs font-mono ml-auto py-2" style="color: var(--kp-muted)"
-                    x-text="'Showing ' + filteredPlanters.length + ' planters'"></span>
+                    x-text="feed && feed.total !== null ? 'Showing ' + filteredPlanters.length.toLocaleString() + ' of ' + feed.total.toLocaleString() + ' planters' : 'Loading…'"></span>
             </div>
         </div>
 
@@ -109,7 +109,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <template x-for="planter in paginatedPlanters" :key="planter.id">
+                        <template x-for="planter in filteredPlanters" :key="planter.id">
                             <tr class="hover:bg-[var(--kp-hover)] transition-colors">
                                 <td class="font-mono font-semibold" style="color: var(--kp-text)" x-text="planter.planter_code"></td>
                                 <td>
@@ -149,7 +149,7 @@
                                     </div>
                                 </td>
                                 <td class="text-right font-mono font-medium tabular" style="color: var(--kp-text)"
-                                    x-text="formatNumber(getPlanterStat(planter.planter_code, 'total_cane'), 2) + ' tons'">
+                                    x-text="formatNumber(planter.total_cane, 2) + ' tons'">
                                 </td>
                                 <td class="text-center">
                                     <div class="flex items-center justify-center gap-1">
@@ -170,29 +170,11 @@
                                 </td>
                             </tr>
                         </template>
-                        <tr x-show="filteredPlanters.length === 0">
-                            <td colspan="7" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
-                                <i class="fas fa-address-book text-3xl mb-2 block opacity-30"></i>
-                                No planters match the current filters.
-                            </td>
-                        </tr>
+                        <template x-if="feed">
+                            @include('layouts.partials.feed-footer', ['feed' => 'feed', 'colspan' => 7, 'empty' => 'No planters match the current filters.'])
+                        </template>
                     </tbody>
                 </table>
-            </div>
-
-            <!-- Pagination -->
-            <div class="px-4 py-3 border-t flex items-center justify-between"
-                style="border-color: var(--kp-border); background: var(--kp-surface-2)"
-                x-show="totalPages > 1">
-                <button @click="currentPage--" :disabled="currentPage === 1"
-                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
-                    <i class="fas fa-chevron-left mr-1"></i> Previous
-                </button>
-                <span class="text-xs font-medium tabular" style="color: var(--kp-muted)" x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
-                <button @click="currentPage++" :disabled="currentPage >= totalPages"
-                    class="kp-btn kp-btn-secondary py-1 px-3 text-xs disabled:opacity-50">
-                    Next <i class="fas fa-chevron-right ml-1"></i>
-                </button>
             </div>
         </div>
 
@@ -275,14 +257,14 @@
         <script>
             function planterData() {
                 return {
-                    allPlanters: @json($allPlanters),
-                    planterStats: @json($planterStats),
+                    // Planters come from the server in batches of 100 as the table scrolls (kpFeed);
+                    // search, status and sorting run in the database
+                    feed: null,
+                    searchTimer: null,
                     search: '',
                     statusFilter: 'all',
                     sortField: 'planter_name',
                     sortDirection: 'asc',
-                    currentPage: 1,
-                    perPage: 25,
                     showModal: false,
                     editingPlanter: null,
                     form: {
@@ -298,53 +280,30 @@
                         notes: ''
                     },
 
+                    init() {
+                        this.feed = kpFeed('{{ route('planter-profiles.index') }}', () => ({
+                            search: this.search.trim(), status: this.statusFilter,
+                            sort: this.sortField, dir: this.sortDirection,
+                        }));
+                        this.feed.reset();
+                    },
                     get filteredPlanters() {
-                        let planters = [...this.allPlanters];
-                        if (this.search) {
-                            const s = this.search.toLowerCase();
-                            planters = planters.filter(p => (p.planter_name || '').toLowerCase().includes(s) || (p
-                                .planter_code || '').toLowerCase().includes(s));
-                        }
-                        if (this.statusFilter !== 'all') {
-                            planters = planters.filter(p => p.status === this.statusFilter);
-                        }
-                        planters.sort((a, b) => {
-                            let valA = a[this.sortField] ?? '',
-                                valB = b[this.sortField] ?? '';
-                            if (typeof valA === 'string') valA = valA.toLowerCase();
-                            if (typeof valB === 'string') valB = valB.toLowerCase();
-                            if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
-                            if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
-                            return 0;
-                        });
-                        return planters;
+                        return this.feed ? this.feed.rows : [];
                     },
-                    get paginatedPlanters() {
-                        const start = (this.currentPage - 1) * this.perPage;
-                        return this.filteredPlanters.slice(start, start + this.perPage);
-                    },
-                    get totalPages() {
-                        return Math.ceil(this.filteredPlanters.length / this.perPage);
-                    },
+                    // Reload from the first batch; typing in the search waits for a pause
                     applyFilters() {
-                        this.currentPage = 1;
+                        clearTimeout(this.searchTimer);
+                        this.searchTimer = setTimeout(() => this.feed.reset(), 300);
                     },
                     sortBy(field) {
-                        if (this.sortField === field) {
-                            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-                        } else {
-                            this.sortField = field;
-                            this.sortDirection = 'asc';
-                        }
+                        this.sortDirection = this.sortField === field && this.sortDirection === 'asc' ? 'desc' : 'asc';
+                        this.sortField = field;
+                        this.feed.reset();
                     },
                     clearFilters() {
                         this.search = '';
                         this.statusFilter = 'all';
                         this.applyFilters();
-                    },
-                    getPlanterStat(code, field) {
-                        const stat = this.planterStats[code];
-                        return stat ? parseFloat(stat[field] || 0) : 0;
                     },
                     formatNumber(num, decimals = 2) {
                         return parseFloat(num || 0).toLocaleString('en-US', {
@@ -419,11 +378,8 @@
                             });
                             const d = await r.json();
 
-                            // Update the planter in the allPlanters array
-                            const index = this.allPlanters.findIndex(p => p.id === planter.id);
-                            if (index !== -1) {
-                                this.allPlanters[index].status = d.status;
-                            }
+                            // Update the planter in the loaded rows
+                            planter.status = d.status;
 
                             Swal.fire({
                                 icon: 'success',

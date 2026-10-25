@@ -147,6 +147,11 @@ class NavigationPermissionsTest extends TestCase
             'certification-report.pdf' => 'view-certification-report',
             'tls-report.pdf' => 'view-tls-report',
             'proceeds-sheet-report.pdf' => 'view-proceeds-sheet-report',
+            'hauler-signature-report.pdf' => 'view-hauler-signature-report',
+            'planter-accounts-report.pdf' => 'view-planter-accounts-report',
+            'proceeds-deductions-report.pdf' => 'view-proceeds-deductions-report',
+            'planter-deductions.index' => 'view-planter-deductions',
+            'planter-deductions.store' => 'manage-planter-deductions',
             'loans.monthly-report-pdf' => 'view-loan-reports',
         ];
         foreach ($cases as $route => $expected) {
@@ -242,7 +247,8 @@ class NavigationPermissionsTest extends TestCase
     {
         $reportPrefixes = ['summaryReport', 'summary.', 'consolidated-report',
             'trucking-allowance-report', 'certification-report', 'tls-report',
-            'proceeds-sheet-report'];
+            'proceeds-sheet-report', 'hauler-signature-report', 'planter-accounts-report',
+            'proceeds-deductions-report', 'planter-deductions.'];
 
         foreach (Route::getRoutes() as $route) {
             $name = $route->getName();
@@ -265,6 +271,9 @@ class NavigationPermissionsTest extends TestCase
             'certification-report.probe' => 'view-certification-report',
             'tls-report.probe' => 'view-tls-report',
             'proceeds-sheet-report.probe' => 'view-proceeds-sheet-report',
+            'hauler-signature-report.probe' => 'view-hauler-signature-report',
+            'planter-accounts-report.probe' => 'view-planter-accounts-report',
+            'proceeds-deductions-report.probe' => 'view-proceeds-deductions-report',
         ];
         foreach (array_keys($reports) as $index => $name) {
             Route::middleware(['web', 'login_auth', 'navigation.access'])

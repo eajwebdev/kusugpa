@@ -8,6 +8,8 @@ use App\Models\ConsolidatedUpload;
 use App\Models\LoanAmortization;
 use App\Models\LoanSetting;
 use App\Models\Molass;
+use App\Models\MolassesPrice;
+use App\Models\PlanterDeductionWeek;
 use App\Models\Quedan;
 use App\Models\QuedanPrice;
 use App\Models\TruckingAllowance;
@@ -25,12 +27,16 @@ class PlanterProceeds
      */
     public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null): Collection
     {
+        // Week numbers are stored as text; compare them as numbers so 1-10 includes weeks 2-9
+        $weeks = [(int) $weekFrom, (int) $weekTo];
+        $inWeeks = fn ($column) => 'CAST(' . $column . ' AS UNSIGNED) BETWEEN ? AND ?';
+
         $weekEndDates = WeekNo::where('crop_year', $cropYear)
-            ->whereBetween('week_no', [$weekFrom, $weekTo])
+            ->whereRaw($inWeeks('week_no'), $weeks)
             ->pluck('week_end_date', 'week_no');
 
         $quedanQuery = Quedan::where('quedans.crop_year', $cropYear)
-            ->whereBetween('quedans.week_no', [(int)$weekFrom, (int)$weekTo]);
+            ->whereRaw($inWeeks('quedans.week_no'), $weeks);
 
         if (!empty($planterNames)) {
             $quedanQuery->whereIn('quedans.planter_code', (array) $planterNames);
@@ -38,28 +44,34 @@ class PlanterProceeds
 
         $quedans = $quedanQuery->get();
 
+        // Types are matched regardless of case ("b" = "B"); the latest price entered wins
         $quedanPrices = QuedanPrice::where('crop_year', $cropYear)
-            ->whereBetween('week_no', [$weekFrom, $weekTo])
+            ->whereRaw($inWeeks('week_no'), $weeks)
+            ->orderByDesc('id')
             ->get()
-            ->groupBy('quedan_type');
+            ->groupBy(fn ($p) => strtoupper(trim((string) $p->quedan_type)));
 
         $molassesQuery = Molass::where('molasses.crop_year', $cropYear)
-            ->whereBetween('molasses.week_no', [(int)$weekFrom, (int)$weekTo]);
+            ->whereRaw($inWeeks('molasses.week_no'), $weeks);
 
         if (!empty($planterNames)) {
             $molassesQuery->whereIn('molasses.planter_code', (array) $planterNames);
         }
 
-        $molasses = $molassesQuery
-            ->leftJoin('mol_price', function($join) {
-                $join->on('molasses.crop_year', '=', 'mol_price.crop_year')
-                     ->on('molasses.week_no', '=', 'mol_price.week_no');
-            })
-            ->select('molasses.*', 'mol_price.mol_price')
-            ->get();
+        // One molasses price per week, the latest entered. A join on mol_price would repeat each
+        // molasses record once per price row of its week and count its quantity twice.
+        $molPrices = MolassesPrice::where('crop_year', $cropYear)
+            ->whereRaw($inWeeks('week_no'), $weeks)
+            ->orderBy('id')
+            ->get()
+            ->mapWithKeys(fn ($p) => [(int) $p->week_no => $p->mol_price]);
+
+        $molasses = $molassesQuery->get()->each(function ($mol) use ($molPrices) {
+            $mol->mol_price = $molPrices[(int) $mol->week_no] ?? null;
+        });
 
         $consolidatedQuery = ConsolidatedUpload::where('crop_year', $cropYear)
-            ->whereBetween('week_no', [(int)$weekFrom, (int)$weekTo]);
+            ->whereRaw($inWeeks('week_no'), $weeks);
 
         if (!empty($planterNames)) {
             $consolidatedQuery->whereIn('planter_code', (array) $planterNames);
@@ -68,7 +80,7 @@ class PlanterProceeds
         $consolidatedUploads = $consolidatedQuery->get();
 
         $truckingQuery = TruckingAllowance::where('crop_year', $cropYear)
-            ->whereBetween('week_no', [(int)$weekFrom, (int)$weekTo]);
+            ->whereRaw($inWeeks('week_no'), $weeks);
 
         if (!empty($planterNames)) {
             $truckingQuery->whereIn('planter_code', (array) $planterNames);
@@ -276,25 +288,47 @@ class PlanterProceeds
         // the planter profile codes in spacing / case, so they are compared loosely and the name is the fallback
         $match = fn ($value) => strtoupper(preg_replace('/\s+/', ' ', trim((string) $value)));
         $voucherCodes = $summaryData->map(fn ($data) => $match($data['planter_code']))->flip();
-        $caByCode = collect();
-        $caByName = collect();
-        foreach ($caWeekly->concat($caMonthly) as $row) {
-            $code = $match($row['cash_advance']->planter_code);
-            if ($voucherCodes->has($code)) {
-                $caByCode[$code] = ($caByCode[$code] ?? 0) + $row['amount'];
-            } else {
-                $name = $match($row['cash_advance']->planter_name);
-                $caByName[$name] = ($caByName[$name] ?? 0) + $row['amount'];
+        $assign = function (Collection $rows, string $field) use (&$summaryData, $voucherCodes, $match) {
+            $byCode = collect();
+            $byName = collect();
+            foreach ($rows as $row) {
+                $code = $match($row['planter_code']);
+                if ($voucherCodes->has($code)) {
+                    $byCode[$code] = ($byCode[$code] ?? 0) + $row['amount'];
+                } else {
+                    $name = $match($row['planter_name']);
+                    $byName[$name] = ($byName[$name] ?? 0) + $row['amount'];
+                }
             }
-        }
+            $summaryData = $summaryData->map(function ($data) use ($byCode, $byName, $match, $field) {
+                $data[$field] = round(
+                    ($byCode[$match($data['planter_code'])] ?? 0) + ($byName[$match($data['planter_name'])] ?? 0),
+                    2
+                );
+                return $data;
+            });
+        };
 
-        $summaryData = $summaryData->map(function ($data) use ($caByCode, $caByName, $match) {
-            $data['ca_deduction'] = round(
-                ($caByCode[$match($data['planter_code'])] ?? 0) + ($caByName[$match($data['planter_name'])] ?? 0),
-                2
-            );
-            return $data;
-        });
+        $assign($caWeekly->concat($caMonthly)->map(fn ($row) => [
+            'planter_code' => $row['cash_advance']->planter_code,
+            'planter_name' => $row['cash_advance']->planter_name,
+            'amount' => $row['amount'],
+        ]), 'ca_deduction');
+
+        // Fuel & Others Deduction: the planter's scheduled weeks that fall in the voucher's weeks
+        $accountWeeks = PlanterDeductionWeek::where('crop_year', $cropYear)
+            ->whereRaw($inWeeks('week_no'), $weeks)
+            ->with('deduction:id,type,planter_code,planter_name')
+            ->get()
+            ->filter(fn ($w) => $w->deduction !== null)
+            ->map(fn ($w) => [
+                'type' => $w->deduction->type,
+                'planter_code' => $w->deduction->planter_code,
+                'planter_name' => $w->deduction->planter_name,
+                'amount' => (float) $w->amount,
+            ]);
+        $assign($accountWeeks->where('type', 'fuel')->values(), 'fuel_deduction');
+        $assign($accountWeeks->where('type', 'others')->values(), 'others_deduction');
 
         // Loan Payment: installments of the planter's loans due within the voucher's weeks,
         // from approved / active / completed loans, when loan auto-deduct is on
@@ -382,10 +416,13 @@ class PlanterProceeds
         $totalDeductions = $quedanTotalDeductions + $molasses_total_deductions + $consolidated_fuel_amount;
         $totalNetProceeds = $totalGrossProceeds - $totalDeductions;
 
-        // Loan and Cash Advance payments come off the proceeds paid to the planter
+        // Accounts applied (Loan, Cash Advance, Others, Fuel payments) come off the proceeds paid to the planter
         $loanPayment = (float) ($record['loan_deduction'] ?? 0);
         $caPayment = (float) ($record['ca_deduction'] ?? 0);
-        $netProceedsPaid = $totalNetProceeds - $loanPayment - $caPayment;
+        $othersPayment = (float) ($record['others_deduction'] ?? 0);
+        $fuelPayment = (float) ($record['fuel_deduction'] ?? 0);
+        $accountsApplied = $loanPayment + $caPayment + $othersPayment + $fuelPayment;
+        $netProceedsPaid = $totalNetProceeds - $accountsApplied;
 
         unset($record);
 

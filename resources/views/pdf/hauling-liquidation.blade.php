@@ -153,6 +153,12 @@
             border-bottom: 3px double #111;
         }
 
+        .check td {
+            font-weight: bold;
+            font-size: 9.5pt;
+            padding-top: 6px;
+        }
+
         /* TLS tickets behind the slip, printed like the mill's transloading summary */
         .tickets {
             font-family: Helvetica, Arial, sans-serif;
@@ -330,6 +336,11 @@
                         <td colspan="4" style="text-align: right">NET HAULING LIQUIDATION</td>
                         <td></td>
                         <td class="num total">&#8369; {{ number_format($entry->net_amount, 2) }}</td>
+                    </tr>
+                    <tr class="check">
+                        <td colspan="4" style="text-align: right">CHECK NO.</td>
+                        <td></td>
+                        <td class="num">{{ $entry->check_no ?: '—' }}</td>
                     </tr>
                 </tbody>
             </table>

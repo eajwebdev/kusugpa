@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\AuditLog;
 use App\Models\PlanterProfile;
 use App\Services\LoanSchedule;
+use App\Support\ApprovalPolicy;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -106,12 +107,18 @@ class LoanController extends Controller
             $query->where('crop_year', $request->crop_year);
         }
 
-        $loans = $query->orderBy('created_at', 'desc')->paginate(20);
-
-        $loans->getCollection()->transform(function ($loan) {
-            $loan->loan_type_name = $loan->loanType->name ?? 'N/A';
-            return $loan;
-        });
+        // The table loads its rows in batches as it scrolls (TableFeed / kpFeed)
+        if ($request->expectsJson()) {
+            return \App\Support\TableFeed::respond($request, $query, [
+                'loan_number' => 'loan_number',
+                'planter_name' => 'planter_name',
+                'principal_amount' => 'principal_amount',
+                'application_date' => 'application_date',
+            ], [['created_at', 'desc']], function ($loan) {
+                $loan->loan_type_name = $loan->loanType->name ?? 'N/A';
+                return $loan;
+            });
+        }
 
         $loanTypes = LoanType::where('is_active', true)->get();
         $cropYears = CropYear::pluck('crop_year');
@@ -126,7 +133,7 @@ class LoanController extends Controller
 
         $maxTerm = (int) LoanSetting::get('max_loan_term_months', 24);
 
-        return view('loans.index', compact('loans', 'loanTypes', 'cropYears', 'planters', 'stats', 'userPermissions', 'maxTerm'));
+        return view('loans.index', compact('loanTypes', 'cropYears', 'planters', 'stats', 'userPermissions', 'maxTerm'));
     }
 
     public function create()
@@ -189,9 +196,15 @@ class LoanController extends Controller
             : LoanSchedule::even($loan->total_amount, (int) $data['term_months']);
         LoanSchedule::validate($loan, $schedule);
 
-        DB::transaction(function () use ($loan, $schedule) {
+        $autoApprove = !ApprovalPolicy::needsManager($loan->principal_amount);
+
+        DB::transaction(function () use ($loan, $schedule, $autoApprove) {
             $loan->save();
             LoanSchedule::apply($loan, $schedule);
+            // Below the manager threshold no approval step is needed
+            if ($autoApprove) {
+                $this->markApproved($loan, now()->toDateString());
+            }
         });
 
         AuditLog::log('create', 'loans', 'Created loan application #' . $loan->loan_number, [
@@ -202,17 +215,55 @@ class LoanController extends Controller
             'term' => $loan->term_months . ' months',
             'total_repayable' => $loan->total_amount,
             'monthly_schedule' => $schedule->map(fn ($r) => $r['month'] . ' = ' . $r['amount'])->implode(', '),
+            'approval' => $autoApprove ? 'auto-approved (below ' . ApprovalPolicy::thresholdLabel() . ')' : 'awaiting manager approval',
         ]);
+
+        $message = 'Loan #' . $loan->loan_number . ($autoApprove
+            ? ' created and approved.'
+            : ' created. It is ' . ApprovalPolicy::thresholdLabel() . ' or more, so it waits for Manager approval.');
 
         if ($request->ajax() || $request->expectsJson()) {
             return response()->json([
-                'message' => 'Loan application #' . $loan->loan_number . ' created successfully.',
+                'message' => $message,
+                'auto_approved' => $autoApprove,
                 'loan' => $loan->load('loanType')
             ], 201);
         }
 
-        return redirect()->route('loans.index')
-            ->with('success', 'Loan application #' . $loan->loan_number . ' created successfully.');
+        return redirect()->route('loans.index')->with('success', $message);
+    }
+
+    /**
+     * Approve: the monthly schedule set at creation runs from the start date; its last month ends the loan
+     */
+    private function markApproved(Loan $loan, string $startDate): void
+    {
+        if (!$loan->amortizations()->exists()) {
+            LoanSchedule::apply($loan, LoanSchedule::even((float) $loan->total_amount, (int) $loan->term_months));
+        }
+
+        $loan->status = 'approved';
+        $loan->approved_by = auth()->id();
+        $loan->approved_date = now();
+        $loan->start_date = $startDate;
+        $loan->end_date = $loan->amortizations()->max('due_date');
+        $loan->save();
+    }
+
+    /**
+     * Approve, reject or activate: Manager / Administrator for ₱50,000 and up, loan staff below that
+     */
+    private function canDecide(Loan $loan): bool
+    {
+        return ApprovalPolicy::canDecide($this->user(), $loan->principal_amount, $this->canApproveLoans() || $this->canProcessLoans());
+    }
+
+    private function denyDecision(Loan $loan, string $action)
+    {
+        AuditLog::log('error', 'loans', 'Unauthorized loan ' . $action . ' attempt for #' . $loan->loan_number);
+        abort(403, ApprovalPolicy::needsManager($loan->principal_amount)
+            ? 'Loans of ' . ApprovalPolicy::thresholdLabel() . ' or more can only be ' . $action . 'd by a Manager or Administrator.'
+            : 'Unauthorized');
     }
 
     public function show(Loan $loan)
@@ -221,10 +272,13 @@ class LoanController extends Controller
             $q->orderBy('payment_number');
         }, 'approvedByUser', 'createdByUser']);
 
+        $canDecide = $this->canDecide($loan);
         $userPermissions = [
-            'canApprove' => $this->canApproveLoans() && $loan->status === 'pending',
-            'canActivate' => $this->canApproveLoans() && $loan->status === 'approved',
-            'canReject' => $this->canApproveLoans() && $loan->status === 'pending',
+            'canApprove' => $canDecide && $loan->status === 'pending',
+            'canActivate' => $canDecide && $loan->status === 'approved',
+            'canReject' => $canDecide && $loan->status === 'pending',
+            // ₱50,000 and up waits for a Manager / Administrator
+            'awaitingManager' => !$canDecide && $loan->status === 'pending' && ApprovalPolicy::needsManager($loan->principal_amount),
             // Payments can start once approved; the first payment activates the loan
             'canPay' => $this->canProcessLoans() && in_array($loan->status, ['approved', 'active']),
             'canUndoPayment' => $this->canProcessLoans() && in_array($loan->status, ['active', 'completed']),
@@ -240,9 +294,8 @@ class LoanController extends Controller
 
     public function approve(Request $request, Loan $loan)
     {
-        if (!$this->canApproveLoans()) {
-            AuditLog::log('error', 'loans', 'Unauthorized loan approval attempt for #' . $loan->loan_number);
-            abort(403, 'Unauthorized. Only managers and administrators can approve loans.');
+        if (!$this->canDecide($loan)) {
+            $this->denyDecision($loan, 'approve');
         }
 
         if ($loan->status !== 'pending') {
@@ -251,17 +304,7 @@ class LoanController extends Controller
 
         $request->validate(['start_date' => 'nullable|date']);
 
-        // The monthly schedule was set when the loan was created; its last month ends the loan
-        if (!$loan->amortizations()->exists()) {
-            DB::transaction(fn () => LoanSchedule::apply($loan, LoanSchedule::even((float) $loan->total_amount, (int) $loan->term_months)));
-        }
-
-        $loan->status = 'approved';
-        $loan->approved_by = auth()->id();
-        $loan->approved_date = now();
-        $loan->start_date = $request->start_date ?: now()->toDateString();
-        $loan->end_date = $loan->amortizations()->max('due_date');
-        $loan->save();
+        DB::transaction(fn () => $this->markApproved($loan, $request->start_date ?: now()->toDateString()));
 
         AuditLog::log('approve', 'loans', 'Approved loan #' . $loan->loan_number, [
             'amount' => $loan->principal_amount,
@@ -277,9 +320,8 @@ class LoanController extends Controller
 
     public function activate(Loan $loan)
     {
-        if (!$this->canApproveLoans()) {
-            AuditLog::log('error', 'loans', 'Unauthorized loan activation attempt for #' . $loan->loan_number);
-            abort(403, 'Unauthorized');
+        if (!$this->canDecide($loan)) {
+            $this->denyDecision($loan, 'activate');
         }
 
         if ($loan->status !== 'approved') {
@@ -300,9 +342,8 @@ class LoanController extends Controller
 
     public function reject(Request $request, Loan $loan)
     {
-        if (!$this->canApproveLoans()) {
-            AuditLog::log('error', 'loans', 'Unauthorized loan rejection attempt for #' . $loan->loan_number);
-            abort(403, 'Unauthorized. Only managers and administrators can reject loans.');
+        if (!$this->canDecide($loan)) {
+            $this->denyDecision($loan, 'reject');
         }
 
         if ($loan->status !== 'pending') {
