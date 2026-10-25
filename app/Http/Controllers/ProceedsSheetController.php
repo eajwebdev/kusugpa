@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 class ProceedsSheetController extends Controller
 {
     private const ROWS_PER_PAGE = 15;
+    private const PAGES_PER_PART = 20;
 
     public function index()
     {
@@ -73,8 +74,9 @@ class ProceedsSheetController extends Controller
         $to = (int) $data['week_to'];
         $weekLabel = $from === $to ? str_pad($from, 2, '0', STR_PAD_LEFT) : str_pad($from, 2, '0', STR_PAD_LEFT) . '-' . str_pad($to, 2, '0', STR_PAD_LEFT);
 
-        // Large weeks print in parts of 40 pages; check numbers above are already numbered across all rows
-        $parts = PdfParts::make($request, $rows, self::ROWS_PER_PAGE * 40, 'planters');
+        // Keep each Dompdf render below shared-host proxy and memory limits; check
+        // numbers above are already numbered continuously across every part.
+        $parts = PdfParts::make($request, $rows, self::ROWS_PER_PAGE * self::PAGES_PER_PART, 'planters');
         if ($parts->wantsInfo($request)) {
             return $parts->info();
         }

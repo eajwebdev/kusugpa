@@ -27,16 +27,23 @@ class PlanterProceeds
      */
     public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null): Collection
     {
-        // Week numbers are stored as text; compare them as numbers so 1-10 includes weeks 2-9
-        $weeks = [(int) $weekFrom, (int) $weekTo];
-        $inWeeks = fn ($column) => 'CAST(' . $column . ' AS UNSIGNED) BETWEEN ? AND ?';
+        $from = min((int) $weekFrom, (int) $weekTo);
+        $to = max((int) $weekFrom, (int) $weekTo);
+        // An IN list keeps MySQL on the (crop_year, week_no) indexes. Casting the
+        // stored column forced a full scan and made whole-season/all-planter PDFs
+        // exceed production web-server timeouts. Include legacy zero-padded weeks.
+        $weekValues = collect(range($from, $to))
+            ->flatMap(fn ($week) => [(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)])
+            ->unique()
+            ->values()
+            ->all();
 
         $weekEndDates = WeekNo::where('crop_year', $cropYear)
-            ->whereRaw($inWeeks('week_no'), $weeks)
+            ->whereIn('week_no', $weekValues)
             ->pluck('week_end_date', 'week_no');
 
         $quedanQuery = Quedan::where('quedans.crop_year', $cropYear)
-            ->whereRaw($inWeeks('quedans.week_no'), $weeks);
+            ->whereIn('quedans.week_no', $weekValues);
 
         if (!empty($planterNames)) {
             $quedanQuery->whereIn('quedans.planter_code', (array) $planterNames);
@@ -46,13 +53,13 @@ class PlanterProceeds
 
         // Types are matched regardless of case ("b" = "B"); the latest price entered wins
         $quedanPrices = QuedanPrice::where('crop_year', $cropYear)
-            ->whereRaw($inWeeks('week_no'), $weeks)
+            ->whereIn('week_no', $weekValues)
             ->orderByDesc('id')
             ->get()
             ->groupBy(fn ($p) => strtoupper(trim((string) $p->quedan_type)));
 
         $molassesQuery = Molass::where('molasses.crop_year', $cropYear)
-            ->whereRaw($inWeeks('molasses.week_no'), $weeks);
+            ->whereIn('molasses.week_no', $weekValues);
 
         if (!empty($planterNames)) {
             $molassesQuery->whereIn('molasses.planter_code', (array) $planterNames);
@@ -61,7 +68,7 @@ class PlanterProceeds
         // One molasses price per week, the latest entered. A join on mol_price would repeat each
         // molasses record once per price row of its week and count its quantity twice.
         $molPrices = MolassesPrice::where('crop_year', $cropYear)
-            ->whereRaw($inWeeks('week_no'), $weeks)
+            ->whereIn('week_no', $weekValues)
             ->orderBy('id')
             ->get()
             ->mapWithKeys(fn ($p) => [(int) $p->week_no => $p->mol_price]);
@@ -71,7 +78,7 @@ class PlanterProceeds
         });
 
         $consolidatedQuery = ConsolidatedUpload::where('crop_year', $cropYear)
-            ->whereRaw($inWeeks('week_no'), $weeks);
+            ->whereIn('week_no', $weekValues);
 
         if (!empty($planterNames)) {
             $consolidatedQuery->whereIn('planter_code', (array) $planterNames);
@@ -80,7 +87,7 @@ class PlanterProceeds
         $consolidatedUploads = $consolidatedQuery->get();
 
         $truckingQuery = TruckingAllowance::where('crop_year', $cropYear)
-            ->whereRaw($inWeeks('week_no'), $weeks);
+            ->whereIn('week_no', $weekValues);
 
         if (!empty($planterNames)) {
             $truckingQuery->whereIn('planter_code', (array) $planterNames);
@@ -266,7 +273,7 @@ class PlanterProceeds
         // Cash Advance Payment: the planter's cash advance weeks that fall in the voucher's weeks
         // (the same weekly schedule Hauling Liquidity deducts), from approved / active / completed advances
         $caWeekly = CashAdvanceDeduction::where('crop_year', $cropYear)
-            ->whereRaw('CAST(week_no AS UNSIGNED) BETWEEN ? AND ?', [(int) $weekFrom, (int) $weekTo])
+            ->whereIn('week_no', $weekValues)
             ->whereHas('cashAdvance', fn ($q) => $q->whereIn('status', ['approved', 'active', 'completed']))
             ->with('cashAdvance:id,planter_code,planter_name')
             ->get()
@@ -317,7 +324,7 @@ class PlanterProceeds
 
         // Fuel & Others Deduction: the planter's scheduled weeks that fall in the voucher's weeks
         $accountWeeks = PlanterDeductionWeek::where('crop_year', $cropYear)
-            ->whereRaw($inWeeks('week_no'), $weeks)
+            ->whereIn('week_no', $weekValues)
             ->with('deduction:id,type,planter_code,planter_name')
             ->get()
             ->filter(fn ($w) => $w->deduction !== null)

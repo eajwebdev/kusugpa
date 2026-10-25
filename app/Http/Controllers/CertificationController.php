@@ -26,6 +26,9 @@ use Barryvdh\DomPDF\Facade\Pdf;
  */
 class CertificationController extends Controller
 {
+    /** Keep Dompdf comfortably below shared-host request and memory limits. */
+    private const CERTIFICATES_PER_PART = 40;
+
     private const SIGNATORY_DEFAULTS = [
         'certification_mill_name'      => 'URC-SONEDCO',
         'certification_prepared_name'  => 'SHELAMAE G. NONATURA',
@@ -102,8 +105,9 @@ class CertificationController extends Controller
             ->sortBy('planter_name')
             ->values();
 
-        // One page per planter: "all planters" is printed in parts of 100
-        $parts = PdfParts::make($request, $certificates, 100, 'planters');
+        // One page per planter. Forty pages keeps each Dompdf request small enough
+        // for production/shared hosting while the preview still exposes every part.
+        $parts = PdfParts::make($request, $certificates, self::CERTIFICATES_PER_PART, 'planters');
         if ($parts->wantsInfo($request)) {
             return $parts->info();
         }
@@ -167,12 +171,22 @@ class CertificationController extends Controller
      */
     private function production(?string $cropYear, ?int $weekFrom = null, ?int $weekTo = null)
     {
-        $scope = function ($query) use ($cropYear, $weekFrom, $weekTo) {
+        // Do not CAST week_no in the report queries. CAST forces MySQL to scan every
+        // row and bypasses the (crop_year, week_no) indexes, which is slow enough to
+        // hit a hosted web server timeout for a whole season/all planters. Include
+        // zero-padded values for older uploads that stored week 3 as "03".
+        $weekValues = $weekFrom === null ? null : collect(range($weekFrom, $weekTo))
+            ->flatMap(fn ($week) => [(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)])
+            ->unique()
+            ->values()
+            ->all();
+
+        $scope = function ($query) use ($cropYear, $weekValues) {
             if ($cropYear) {
                 $query->where('crop_year', $cropYear);
             }
-            if ($weekFrom !== null) {
-                $query->whereRaw('CAST(week_no AS UNSIGNED) BETWEEN ? AND ?', [$weekFrom, $weekTo]);
+            if ($weekValues !== null) {
+                $query->whereIn('week_no', $weekValues);
             }
 
             return $query;
