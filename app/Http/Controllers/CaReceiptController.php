@@ -80,13 +80,14 @@ class CaReceiptController extends Controller
     }
 
     /**
-     * Save CV No., Check No. and deduction weeks of a cash advance
+     * Save interest, CV No., Check No. and deduction weeks of a cash advance
      */
     public function update(Request $request, CashAdvance $cashAdvance)
     {
         abort_unless($this->canManage(), 403, 'Unauthorized');
 
         $data = $request->validate([
+            'interest_rate' => 'required|numeric|min:0|max:100',
             'cv_no' => 'nullable|string|max:50',
             'check_no' => 'nullable|string|max:50',
             'deductions' => 'array',
@@ -101,10 +102,17 @@ class CaReceiptController extends Controller
 
         $deductions = collect($data['deductions'] ?? []);
 
+        // Validate the edited schedule against the new rate, not the rate that was
+        // stored when the receipt dialog opened. Nothing is persisted until the
+        // transaction below succeeds.
+        $cashAdvance->interest_rate = round((float) $data['interest_rate'], 2);
+        $cashAdvance->interest_amount = CashAdvance::flatInterest($cashAdvance->amount, $cashAdvance->interest_rate);
         CashAdvanceSchedule::validate($cashAdvance, $deductions);
 
         DB::transaction(function () use ($cashAdvance, $data, $deductions) {
             $cashAdvance->update([
+                'interest_rate' => $cashAdvance->interest_rate,
+                'interest_amount' => $cashAdvance->interest_amount,
                 'cv_no' => $data['cv_no'] ?? null,
                 'check_no' => $data['check_no'] ?? null,
                 'receipt_signatories' => collect(array_keys(self::SIGNATORIES))
@@ -115,6 +123,8 @@ class CaReceiptController extends Controller
         });
 
         AuditLog::log('update', 'cash_advances', 'Updated receipt details of cash advance #' . $cashAdvance->ca_number, [
+            'interest_rate' => $cashAdvance->interest_rate . '%',
+            'interest' => $cashAdvance->interest_amount,
             'cv_no' => $cashAdvance->cv_no,
             'check_no' => $cashAdvance->check_no,
             'deduction_weeks' => $deductions->map(fn ($d) => 'Wk ' . $d['week_no'] . ' = ' . $d['amount'])->implode(', '),
@@ -127,6 +137,10 @@ class CaReceiptController extends Controller
             'message' => 'Receipt details saved',
             'cash_advance' => [
                 'id' => $fresh->id,
+                'interest_rate' => $fresh->interest_rate,
+                'interest_amount' => $fresh->interest_amount,
+                'total_amount' => $fresh->total_amount,
+                'balance' => $fresh->balance,
                 'cv_no' => $fresh->cv_no,
                 'check_no' => $fresh->check_no,
                 'receipt_signatories' => $fresh->receipt_signatories,

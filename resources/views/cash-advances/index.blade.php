@@ -219,13 +219,13 @@
                             <p class="text-xs" style="color: var(--kp-muted)"
                                 x-text="receiptCA ? receiptCA.ca_number + ' · ' + receiptCA.planter_name + ' · ₱' + formatNumber(receiptCA.amount) : ''"></p>
                         </div>
-                        <button @click="receiptModal = false" class="text-xs p-1 rounded hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
-                            <i class="fas fa-times text-sm"></i>
+                        <button type="button" @click="receiptModal = false" aria-label="Close receipt details" class="text-xs p-2 rounded hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
+                            <i class="fas fa-times text-sm" aria-hidden="true"></i>
                         </button>
                     </div>
 
                     <form @submit.prevent="saveReceiptDetails()" class="space-y-4">
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
                                 <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">CV No.</label>
                                 <input type="text" x-model="receiptForm.cv_no" placeholder="e.g. 00016625" class="kp-input w-full">
@@ -234,7 +234,16 @@
                                 <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Check No.</label>
                                 <input type="text" x-model="receiptForm.check_no" class="kp-input w-full">
                             </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Cash Advance Interest (%)</label>
+                                <input type="number" x-model="receiptForm.interest_rate" step="0.01" min="0" max="100" required
+                                    class="kp-input w-full text-right" aria-describedby="receipt-interest-summary">
+                            </div>
                         </div>
+                        <p id="receipt-interest-summary" class="text-xs -mt-2" style="color: var(--kp-muted)">
+                            Interest <span class="font-mono font-semibold" x-text="'₱' + formatNumber(receiptInterest)"></span>
+                            · Total to repay <span class="font-mono font-semibold" style="color: var(--kp-text)" x-text="'₱' + formatNumber(receiptRepayable)"></span>
+                        </p>
 
                         <div class="rounded-lg border overflow-hidden" style="border-color: var(--kp-border)">
                             <div class="flex items-center justify-between px-4 py-2" style="background: var(--kp-surface-2)">
@@ -334,7 +343,7 @@
                     receiptModal: false,
                     receiptSaving: false,
                     receiptCA: null,
-                    receiptForm: { cv_no: '', check_no: '', deductions: [], signatories: {} },
+                    receiptForm: { interest_rate: '', cv_no: '', check_no: '', deductions: [], signatories: {} },
                     signatoryDefaults: @json($signatoryDefaults),
                     signatorySlots: [
                         { key: 'committee', label: 'Approved Loan Committee (By)' },
@@ -414,10 +423,14 @@
                         this.receiptForm.deductions.forEach(d => { if (d.week_no) seen[d.week_no] = (seen[d.week_no] || 0) + 1; });
                         return Object.keys(seen).filter(w => seen[w] > 1);
                     },
-                    // What the deduction weeks must add up to: the advance plus its interest
+                    get receiptInterest() {
+                        if (!this.receiptCA) return 0;
+                        return Math.round((parseFloat(this.receiptCA.amount) || 0) * (parseFloat(this.receiptForm.interest_rate) || 0)) / 100;
+                    },
+                    // What the deduction weeks must add up to: the advance plus the edited interest
                     get receiptRepayable() {
                         if (!this.receiptCA) return 0;
-                        return Math.round(((parseFloat(this.receiptCA.amount) || 0) + (parseFloat(this.receiptCA.interest_amount) || 0)) * 100) / 100;
+                        return Math.round(((parseFloat(this.receiptCA.amount) || 0) + this.receiptInterest) * 100) / 100;
                     },
                     // Saving needs distinct weeks that add up to the amount to repay
                     get receiptCanSave() {
@@ -437,6 +450,7 @@
                     openReceiptDetails(ca) {
                         this.receiptCA = ca;
                         this.receiptForm = {
+                            interest_rate: ca.interest_rate ?? 0,
                             cv_no: ca.cv_no || '',
                             check_no: ca.check_no || '',
                             deductions: (ca.deductions || []).map(d => ({ week_no: String(d.week_no), amount: d.amount })),
