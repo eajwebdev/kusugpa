@@ -236,7 +236,8 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-medium mb-1" style="color: var(--kp-muted)">Cash Advance Interest (%)</label>
-                                <input type="number" x-model="receiptForm.interest_rate" step="0.01" min="0" max="100" required
+                                <input type="number" x-model="receiptForm.interest_rate" @input="if (!receiptManualSplit) splitReceiptDeductionsEvenly()"
+                                    step="0.01" min="0" max="100" required
                                     class="kp-input w-full text-right" aria-describedby="receipt-interest-summary">
                             </div>
                         </div>
@@ -246,14 +247,20 @@
                         </p>
 
                         <div class="rounded-lg border overflow-hidden" style="border-color: var(--kp-border)">
-                            <div class="flex items-center justify-between px-4 py-2" style="background: var(--kp-surface-2)">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2" style="background: var(--kp-surface-2)">
                                 <div>
                                     <p class="text-sm font-bold">Deduction Weeks</p>
                                     <p class="text-[11px]" style="color: var(--kp-muted)">Filled into Hauler TLS LIQ's "Cash Adv." for this planter and week.</p>
                                 </div>
-                                <button type="button" @click="receiptForm.deductions.push({ week_no: '', amount: '' })" class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs">
-                                    <i class="fas fa-plus mr-1"></i> Add Week
-                                </button>
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" @click="splitReceiptDeductionsEvenly()" :disabled="!receiptForm.deductions.length"
+                                        class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs disabled:opacity-50">
+                                        <i class="fas fa-arrow-right-arrow-left mr-1" aria-hidden="true"></i> Auto Split Evenly
+                                    </button>
+                                    <button type="button" @click="addReceiptDeduction()" class="kp-btn kp-btn-secondary py-1 px-2.5 text-xs">
+                                        <i class="fas fa-plus mr-1" aria-hidden="true"></i> Add Week
+                                    </button>
+                                </div>
                             </div>
                             <div class="px-4 py-3 space-y-2">
                                 <div class="grid grid-cols-[1fr_9rem_2rem] gap-2 text-xs font-semibold" style="color: var(--kp-muted)">
@@ -268,9 +275,9 @@
                                                 <option :value="w.week_no" x-text="'Week ' + w.week_no" :selected="w.week_no === row.week_no"></option>
                                             </template>
                                         </select>
-                                        <input type="number" x-model="row.amount" step="any" min="0.01" required class="kp-input w-full text-right" placeholder="0.00">
-                                        <button type="button" @click="receiptForm.deductions.splice(i, 1)" class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-red-500" title="Remove week">
-                                            <i class="fas fa-trash-alt text-xs"></i>
+                                        <input type="number" x-model="row.amount" @input="receiptManualSplit = true" step="any" min="0.01" required class="kp-input w-full text-right" placeholder="0.00">
+                                        <button type="button" @click="removeReceiptDeduction(i)" aria-label="Remove deduction week" class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-red-500" title="Remove week">
+                                            <i class="fas fa-trash-alt text-xs" aria-hidden="true"></i>
                                         </button>
                                     </div>
                                 </template>
@@ -343,6 +350,7 @@
                     receiptModal: false,
                     receiptSaving: false,
                     receiptCA: null,
+                    receiptManualSplit: true,
                     receiptForm: { interest_rate: '', cv_no: '', check_no: '', deductions: [], signatories: {} },
                     signatoryDefaults: @json($signatoryDefaults),
                     signatorySlots: [
@@ -444,6 +452,41 @@
                         if (!this.receiptCA) return false;
                         return Math.round(this.scheduledTotal * 100) === Math.round(this.receiptRepayable * 100);
                     },
+                    addReceiptDeduction() {
+                        this.receiptForm.deductions.push({ week_no: '', amount: '' });
+                        if (!this.receiptManualSplit) this.splitReceiptDeductionsEvenly();
+                    },
+                    removeReceiptDeduction(index) {
+                        this.receiptForm.deductions.splice(index, 1);
+                        if (!this.receiptManualSplit) this.splitReceiptDeductionsEvenly();
+                    },
+                    // Same centavo-safe split used by New Cash Advance: equal rows,
+                    // with the final row receiving any one-cent remainder.
+                    splitReceiptDeductionsEvenly() {
+                        const rows = this.receiptForm.deductions;
+                        if (!rows.length) return;
+                        const totalCents = Math.round(this.receiptRepayable * 100);
+                        const each = Math.floor(totalCents / rows.length);
+                        rows.forEach((row, i) => {
+                            const cents = i === rows.length - 1
+                                ? totalCents - each * (rows.length - 1)
+                                : each;
+                            row.amount = (cents / 100).toFixed(2);
+                        });
+                        this.receiptManualSplit = false;
+                    },
+                    receiptDeductionsAreEven() {
+                        const rows = this.receiptForm.deductions;
+                        if (!rows.length) return false;
+                        const totalCents = Math.round(this.receiptRepayable * 100);
+                        const each = Math.floor(totalCents / rows.length);
+                        return rows.every((row, i) => {
+                            const expected = i === rows.length - 1
+                                ? totalCents - each * (rows.length - 1)
+                                : each;
+                            return Math.round((parseFloat(row.amount) || 0) * 100) === expected;
+                        });
+                    },
                     previewReceipt(ca) {
                         window.KusugpaPdfPreview.open('/cash-advances/' + ca.id + '/receipt-pdf', 'CA Receipt · ' + ca.ca_number + ' · ' + ca.planter_name);
                     },
@@ -456,6 +499,9 @@
                             deductions: (ca.deductions || []).map(d => ({ week_no: String(d.week_no), amount: d.amount })),
                             signatories: { ...(ca.receipt_signatories || {}) },
                         };
+                        // Preserve intentionally custom allocations. If the saved
+                        // schedule is even, percentage edits continue auto-splitting.
+                        this.receiptManualSplit = !this.receiptDeductionsAreEven();
                         this.receiptModal = true;
                     },
                     async saveReceiptDetails() {
