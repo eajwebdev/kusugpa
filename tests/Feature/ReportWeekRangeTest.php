@@ -136,6 +136,33 @@ class ReportWeekRangeTest extends TestCase
         $this->assertStringContainsString('30.00', $html); // net tons of weeks 1-2
     }
 
+    public function test_all_planter_certifications_are_split_into_host_safe_parts(): void
+    {
+        foreach (range(1, 41) as $i) {
+            $row = [
+                'crop_year' => '20252026',
+                'week_no' => $i === 1 ? '03' : '3',
+                'planter_code' => (string) (1000 + $i),
+                'planter_name' => sprintf('PLANTER %02d', $i),
+            ];
+            DB::table('consolidated_uploads')->insert($row + ['ta_wt' => 1]);
+            DB::table('quedans')->insert($row + ['sugar_lkg' => 1, 'labor_lkg' => 0]);
+            DB::table('molasses')->insert($row + ['mol_net' => 1]);
+        }
+
+        $info = $this->getJson(route('certification-report.pdf', [
+            'crop_year' => '20252026',
+            'week_from' => '3',
+            'week_to' => '34',
+            'all' => 1,
+            'pdf_parts' => 1,
+        ]))->assertOk()->json();
+
+        $this->assertGreaterThan(40, $info['total']);
+        $this->assertSame(2, $info['parts']);
+        $this->assertSame(40, $info['size']);
+    }
+
     public function test_trucking_allowance_filters_by_crop_year_and_week_range(): void
     {
         $data = $this->getJson(route('trucking-allowance-report', [

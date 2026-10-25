@@ -279,10 +279,18 @@ class MenuController extends Controller
     if (!$cropYear || !$weekFrom || !$weekTo) {
         return response()->json([]);
     }
+
+    $from = min((int) $weekFrom, (int) $weekTo);
+    $to = max((int) $weekFrom, (int) $weekTo);
+    $weekValues = collect(range($from, $to))
+        ->flatMap(fn ($week) => [(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)])
+        ->unique()
+        ->values()
+        ->all();
     
     // Get unique planter codes with names from quedans
      $quedanPlanters = Quedan::where('crop_year', $cropYear)
-        ->whereBetween('week_no', [(int)$weekFrom, (int)$weekTo])
+        ->whereIn('week_no', $weekValues)
         ->select('planter_code', 'planter_name')
         ->distinct()
         ->get();
@@ -291,7 +299,7 @@ class MenuController extends Controller
     
     // Get unique planter codes with names from molasses
     $molassesPlanters = Molass::where('crop_year', $cropYear)
-        ->whereBetween('week_no', [(int)$weekFrom, (int)$weekTo])
+        ->whereIn('week_no', $weekValues)
         ->select('planter_code', 'planter_name')
         ->distinct()
         ->get();
@@ -300,7 +308,7 @@ class MenuController extends Controller
     
     // Get unique planter codes with names from consolidated uploads
     $consolidatedPlanters = ConsolidatedUpload::where('crop_year', $cropYear)
-        ->whereBetween('week_no', [(int)$weekFrom, (int)$weekTo])
+        ->whereIn('week_no', $weekValues)
         ->select('planter_code', 'planter_name')
         ->distinct()
         ->get();
@@ -368,8 +376,9 @@ public function voucherPDF(Request $request)
 
     $summaryData = PlanterProceeds::summary($cropYear, $weekFrom, $weekTo, $planterNames);
 
-    // One voucher page per planter: a whole week is printed in parts of 80
-    $parts = PdfParts::make($request, $summaryData, 80, 'planters');
+    // One voucher page per planter. Smaller parts avoid production proxy timeouts
+    // and memory exhaustion on shared hosting.
+    $parts = PdfParts::make($request, $summaryData, 30, 'planters');
     if ($parts->wantsInfo($request)) {
         return $parts->info();
     }
