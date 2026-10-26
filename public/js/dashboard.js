@@ -27,6 +27,7 @@ function dashboardData() {
         selectedCropYear: null,
         selectedWeek: null,
         dataRequestId: 0,
+        loadError: '',
 
         init() {
             this.loadDashboardData();
@@ -71,9 +72,14 @@ function dashboardData() {
                 this.recommendations = data.recommendations || [];
                 this.riskPlanters = data.riskPlanters || [];
                 this.loanStats = data.loanStats || {};
+                this.loadError = '';
+                window.dispatchEvent(new CustomEvent('dashboard-scope', { detail: { cropYear: data.stats.currentCropYear } }));
 
                 setTimeout(() => { this.createCharts(); }, 300);
-            } catch (error) { console.error('Error:', error); }
+            } catch (error) {
+                console.error('Error:', error);
+                if (requestId === this.dataRequestId) this.loadError = 'Could not load the overview figures. Check your connection and try again.';
+            }
         },
 
         get sortedRecentPrices() {
