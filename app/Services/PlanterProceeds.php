@@ -34,7 +34,8 @@ class PlanterProceeds
         // exceed production web-server timeouts. Include legacy zero-padded weeks.
         $weekValues = collect(range($from, $to))
             ->flatMap(fn ($week) => [(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)])
-            ->unique()
+            // Strict: a loose unique() treats "3" and "03" as equal and drops the padded spelling
+            ->uniqueStrict()
             ->values()
             ->all();
 

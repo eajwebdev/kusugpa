@@ -8,14 +8,14 @@
 @endpush
 
 @section('content')
-    <div x-data="dashboardData()" data-dashboard-url="{{ route('dashboard.data') }}" class="space-y-4 kp-fade-in kp-dashboard">
+    <div x-data="dashboardTabs(@js($tabs))" data-tab-url="{{ route('dashboard.tab', ['tab' => '__TAB__']) }}" class="space-y-4 kp-fade-in kp-dashboard">
 
         <!-- Page header -->
         <header class="kp-dashboard-hero">
             <div class="kp-dashboard-hero-copy">
                 <p class="kp-dashboard-greeting">Good day,</p>
                 <h1>Welcome back, {{ auth()->user()->fname }}!</h1>
-                <p>Here's an overview of your sugarcane production for crop year <span x-text="stats.currentCropYear || '—'"></span>.</p>
+                <p>Here's an overview of your sugarcane production for crop year <span x-text="cropYear || '—'"></span><span x-show="week" x-text="', week ' + week"></span>.</p>
             </div>
             <p class="kp-dashboard-motto">Stronger Planters<br>Brighter Harvests</p>
             <div x-data="clockData()" x-init="startClock()" class="kp-dashboard-clock" role="timer" aria-label="Current date and time">
@@ -32,6 +32,35 @@
             </p>
             @include('layouts.partials.crop-week-filter')
         </div>
+
+        <!-- Tabs: one per module group; each loads its own figures when opened -->
+        <nav class="kp-dash-tabs" role="tablist" aria-label="Dashboard sections" @keydown.right.prevent="moveTab(1)" @keydown.left.prevent="moveTab(-1)">
+            <template x-for="t in tabs" :key="t.key">
+                <button type="button" role="tab" class="kp-dash-tab" :id="'tab-' + t.key" :aria-controls="'panel-' + t.key"
+                    :aria-selected="(tab === t.key).toString()" :tabindex="tab === t.key ? 0 : -1" @click="select(t.key)">
+                    <i :class="t.icon" aria-hidden="true"></i>
+                    <span x-text="t.label"></span>
+                    <span x-show="t.key === 'balance' && balanceIssues > 0" class="kp-dash-tab-badge" x-text="balanceIssues"
+                        :aria-label="balanceIssues + ' balance issues'"></span>
+                </button>
+            </template>
+        </nav>
+
+        <!-- ==================== OVERVIEW ==================== -->
+        <div x-show="tab === 'overview'" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+        <div x-data="dashboardData()" data-dashboard-url="{{ route('dashboard.data') }}" class="space-y-4">
+
+        <div x-show="loadError" x-cloak class="kp-dash-error" role="alert">
+            <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+            <span x-text="loadError"></span>
+            <button type="button" class="kp-btn kp-btn-secondary" @click="loadDashboardData()">Try again</button>
+        </div>
+
+        @if (collect($tabs)->contains('key', 'finance'))
+            @include('menu.dashboard.collections', ['withPlanters' => false])
+        @endif
+
+        @include('menu.dashboard.modules')
 
         <!-- Primary figures -->
         <section aria-label="Production and value" class="kp-kpis kp-dashboard-kpis">
@@ -381,10 +410,25 @@
             </div>
         </div>
         </div>
+        </div>
+        </div>
+
+        @include('menu.dashboard.production')
+        @if (collect($tabs)->contains('key', 'finance'))
+            @include('menu.dashboard.finance')
+        @endif
+        @if (collect($tabs)->contains('key', 'proceeds'))
+            @include('menu.dashboard.proceeds')
+        @endif
+        @if (collect($tabs)->contains('key', 'hauling'))
+            @include('menu.dashboard.hauling')
+        @endif
+        @include('menu.dashboard.balance')
     </div>
 
     @push('scripts')
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-        <script src="{{ asset('js/dashboard.js') }}"></script>
+        <script src="{{ asset('js/dashboard.js') }}?v={{ @filemtime(public_path('js/dashboard.js')) }}"></script>
+        <script src="{{ asset('js/dashboard-tabs.js') }}?v={{ @filemtime(public_path('js/dashboard-tabs.js')) }}"></script>
     @endpush
 @endsection

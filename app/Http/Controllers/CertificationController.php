@@ -177,7 +177,8 @@ class CertificationController extends Controller
         // zero-padded values for older uploads that stored week 3 as "03".
         $weekValues = $weekFrom === null ? null : collect(range($weekFrom, $weekTo))
             ->flatMap(fn ($week) => [(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)])
-            ->unique()
+            // Strict: a loose unique() treats "3" and "03" as equal and drops the padded spelling
+            ->uniqueStrict()
             ->values()
             ->all();
 

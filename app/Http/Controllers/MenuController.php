@@ -126,7 +126,8 @@ class MenuController extends Controller
     public function dashboard()
     {
         AuditLog::log('view', 'dashboard', 'Viewed dashboard');
-        return view('menu.dashboard');
+        $tabs = \App\Services\DashboardAnalytics::tabsFor(\App\Services\DashboardAnalytics::accessFor(auth()->user()));
+        return view('menu.dashboard', compact('tabs'));
     }
 
     public function summaryReport(Request $request)
@@ -284,7 +285,8 @@ class MenuController extends Controller
     $to = max((int) $weekFrom, (int) $weekTo);
     $weekValues = collect(range($from, $to))
         ->flatMap(fn ($week) => [(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)])
-        ->unique()
+        // Strict: a loose unique() treats "3" and "03" as equal and drops the padded spelling
+        ->uniqueStrict()
         ->values()
         ->all();
     
@@ -432,7 +434,8 @@ public function voucherPDF(Request $request)
     $lastYearTAWT = $previousCropYear ? (clone $previousYearQuery)->sum(DB::raw('CAST(ta_wt AS DECIMAL(12,3))')) : 0;
     
     $caneChange = $lastYearTAWT > 0 ? (($totalTAWT - $lastYearTAWT) / $lastYearTAWT) * 100 : 0;
-    $maxWeek = ConsolidatedUpload::where('crop_year', $currentCropYear)->max('week_no') ?? 0;
+    // Week numbers are text: the highest is found as a number, or "9" would beat "10"
+    $maxWeek = (int) ConsolidatedUpload::where('crop_year', $currentCropYear)->pluck('week_no')->map(fn ($w) => (int) $w)->max();
     $bestWeekData = ConsolidatedUpload::where('crop_year', $currentCropYear)
         ->select('week_no', DB::raw('SUM(CAST(ta_wt AS DECIMAL(12,3))) as total_ta_wt'))
         ->groupBy('week_no')

@@ -27,6 +27,7 @@ use App\Http\Controllers\ProceedsDeductionsController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\HaulingLiquidityController;
 use App\Http\Controllers\CaReceiptController;
+use App\Http\Controllers\DashboardAnalyticsController;
 use Illuminate\Http\Request;
 
 
@@ -208,6 +209,9 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     // Dashboard API endpoints
     Route::get('/dashboard/data', [MenuController::class, 'dashboardData'])->name('dashboard.data');
     Route::get('/dashboard/weekly', [MenuController::class, 'dashboardWeekly'])->name('dashboard.weekly');
+    Route::get('/dashboard/tab/{tab}', [DashboardAnalyticsController::class, 'tab'])
+        ->where('tab', 'modules|collections|production|finance|proceeds|hauling|balance')
+        ->name('dashboard.tab');
 
     // Reports
     Route::get('/summary-report', [MenuController::class, 'summaryReport'])->name('summaryReport');
