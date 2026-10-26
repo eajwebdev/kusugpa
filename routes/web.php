@@ -234,6 +234,9 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::get('/tls-report', [TlsReportController::class, 'index'])->name('tls-report');
     Route::get('/tls-report/data', [TlsReportController::class, 'data'])->name('tls-report.data');
     Route::get('/tls-report/pdf', [TlsReportController::class, 'pdf'])->name('tls-report.pdf');
+    // Group delete: one or more weeks of a crop year (POST: shared hosts may block DELETE)
+    Route::get('/tls-report/weeks', [TlsReportController::class, 'weeksWithTickets'])->name('tls-report.weeks');
+    Route::post('/tls-report/delete-weeks', [TlsReportController::class, 'destroyWeeks'])->name('tls-report.delete-weeks');
 
     // Production Certification
     Route::get('/proceeds-sheet-report', [ProceedsSheetController::class, 'index'])->name('proceeds-sheet-report');

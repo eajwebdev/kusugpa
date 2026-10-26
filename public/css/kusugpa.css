@@ -458,6 +458,9 @@ html.kp-collapsed { --kp-sidebar-w: 76px; }
 .kp-btn-secondary:hover { background: var(--kp-hover); border-color: var(--kp-emerald); }
 .kp-btn-quiet { background: transparent; color: var(--kp-muted); }
 .kp-btn-quiet:hover { background: var(--kp-hover); color: var(--kp-text); }
+.kp-btn-danger { background: #A32F2F; color: #fff; box-shadow: 0 1px 2px rgba(131, 39, 39, 0.3); }
+.kp-btn-danger:hover { background: #832727; }
+.kp-btn:disabled { cursor: not-allowed; }
 
 /* 9. ALERTS, BADGES, EMPTY STATES ----------------------------------------- */
 .kp-alert { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--kp-radius); border: 1px solid; font-size: 13px; }

@@ -7,9 +7,12 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use App\Models\AuditLog;
 use App\Models\CropYear;
+use App\Models\HaulingLiquidation;
+use App\Models\HaulingLiquidationItem;
 use App\Models\TlsHaulingUpload;
 use App\Models\WeekNo;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Summary of Transloading Delivery — the weekly TLS hauling upload grouped
@@ -29,7 +32,127 @@ class TlsReportController extends Controller
                 'label' => 'Week ' . $w->week_no . ($w->week_end_date ? ' · ending ' . Carbon::parse($w->week_end_date)->format('M j') : ''),
             ]);
 
-        return view('reports.tls-delivery', compact('cropYears', 'weeks'));
+        $canDelete = $this->canDelete();
+
+        return view('reports.tls-delivery', compact('cropYears', 'weeks', 'canDelete'));
+    }
+
+    /**
+     * Removing uploaded tickets is for whoever may upload them
+     */
+    private function canDelete(): bool
+    {
+        return (bool) auth()->user()?->hasPermission('upload-tls');
+    }
+
+    /**
+     * Week values of the picked weeks in both spellings ("3" and the older zero-padded "03")
+     */
+    private function weekValues(array $weeks): array
+    {
+        return collect($weeks)
+            ->flatMap(fn ($week) => [(string) (int) $week, str_pad((string) (int) $week, 2, '0', STR_PAD_LEFT)])
+            ->uniqueStrict()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Liquidation entries already worked on for payment: a CV no., check no. or release date is set
+     * (the same entries TLS regeneration keeps)
+     */
+    private function released($query)
+    {
+        return $query->where(fn ($q) => $q->whereNotNull('date_released')
+            ->orWhere(fn ($q) => $q->whereNotNull('check_no')->where('check_no', '!=', ''))
+            ->orWhere(fn ($q) => $q->whereNotNull('cv_no')->where('cv_no', '!=', '')));
+    }
+
+    /**
+     * Weeks of a crop year with uploaded tickets, for the delete dialog: tickets, tons, and the
+     * liquidation entries generated from them (released ones lock the week)
+     */
+    public function weeksWithTickets(Request $request)
+    {
+        $cropYear = $request->validate(['crop_year' => 'required|string'])['crop_year'];
+
+        $tickets = TlsHaulingUpload::where('crop_year', $cropYear)
+            ->get(['week_no', 'net_cane_wt', 'hauling_liquidation_id']);
+        $entryIds = $tickets->pluck('hauling_liquidation_id')->filter()->unique();
+        $released = $this->released(HaulingLiquidation::whereIn('id', $entryIds))->pluck('id')->flip();
+
+        $weeks = $tickets->groupBy(fn ($t) => (int) $t->week_no)
+            ->map(function ($rows, $week) use ($released) {
+                $entries = $rows->pluck('hauling_liquidation_id')->filter()->unique();
+                return [
+                    'week_no' => (int) $week,
+                    'tickets' => $rows->count(),
+                    'tons' => round((float) $rows->sum('net_cane_wt'), 3),
+                    'entries' => $entries->count(),
+                    'released' => $entries->filter(fn ($id) => $released->has($id))->count(),
+                ];
+            })
+            ->sortKeys()
+            ->values();
+
+        return response()->json(['crop_year' => $cropYear, 'weeks' => $weeks]);
+    }
+
+    /**
+     * Delete the uploaded TLS tickets of the picked weeks, with the hauling liquidation entries generated
+     * from them. Weeks whose entries are already released (check issued) are refused as a whole.
+     */
+    public function destroyWeeks(Request $request)
+    {
+        if (!$this->canDelete()) {
+            return response()->json(['message' => 'You do not have permission to delete TLS hauling records.'], 403);
+        }
+
+        $data = $request->validate([
+            'crop_year' => 'required|string',
+            'weeks' => 'required|array|min:1',
+            'weeks.*' => 'required|integer|min:1|max:99',
+        ], ['weeks.required' => 'Select at least one week.']);
+
+        $weekValues = $this->weekValues($data['weeks']);
+        $tickets = TlsHaulingUpload::where('crop_year', $data['crop_year'])->whereIn('week_no', $weekValues);
+        $entryIds = (clone $tickets)->whereNotNull('hauling_liquidation_id')->distinct()->pluck('hauling_liquidation_id');
+
+        $locked = $this->released(HaulingLiquidation::whereIn('id', $entryIds))->pluck('week_no')
+            ->map(fn ($w) => (int) $w)->unique()->sort()->values();
+        if ($locked->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Week ' . $locked->implode(', ') . ' already has released hauling liquidations (CV / check issued). '
+                    . 'Nothing was deleted. Remove those weeks from the selection, or undo the release in Hauler TLS LIQ first.',
+                'locked_weeks' => $locked,
+            ], 422);
+        }
+
+        $ticketCount = (clone $tickets)->count();
+        if ($ticketCount === 0) {
+            return response()->json(['message' => 'No TLS hauling tickets found for the selected weeks.'], 404);
+        }
+
+        DB::transaction(function () use ($tickets, $entryIds) {
+            (clone $tickets)->delete();
+            HaulingLiquidationItem::whereIn('hauling_liquidation_id', $entryIds)->delete();
+            HaulingLiquidation::whereIn('id', $entryIds)->delete();
+        });
+
+        $weeks = collect($data['weeks'])->map(fn ($w) => (int) $w)->unique()->sort()->values();
+        AuditLog::log('delete', 'tls_hauling', "Deleted TLS hauling tickets for {$data['crop_year']} week(s) " . $weeks->implode(', '), [
+            'crop_year' => $data['crop_year'],
+            'weeks' => $weeks->all(),
+            'tickets' => $ticketCount,
+            'liquidation_entries' => $entryIds->count(),
+        ]);
+
+        return response()->json([
+            'message' => "Deleted {$ticketCount} TLS ticket(s) and {$entryIds->count()} hauling liquidation entr"
+                . ($entryIds->count() === 1 ? 'y' : 'ies') . " for {$data['crop_year']} week " . $weeks->implode(', ') . '.',
+            'tickets' => $ticketCount,
+            'entries' => $entryIds->count(),
+        ]);
     }
 
     /**
