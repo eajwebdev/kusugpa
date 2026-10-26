@@ -225,6 +225,89 @@ class TlsHaulingUploadTest extends TestCase
         $this->assertSame(5, DB::table('hauling_liquidations')->count());
     }
 
+    /** Weeks 3 and 4 of the same tickets, each with its generated liquidation entries */
+    private function uploadTwoWeeks(): void
+    {
+        DB::table('week_no')->insert(['crop_year' => '20262027', 'week_no' => '4', 'week_start_date' => '2026-10-19', 'week_end_date' => '2026-10-25']);
+        $this->upload(implode("\n", self::ROWS))->assertOk();
+        $this->upload(implode("\n", self::ROWS), '4')->assertOk();
+        $this->assertSame(14, DB::table('tls_hauling_uploads')->count());
+    }
+
+    public function test_group_delete_removes_the_picked_weeks_tickets_and_their_liquidations(): void
+    {
+        $this->uploadTwoWeeks();
+        $hauler = DB::table('haulers')->value('id');
+        // A manually added week-3 entry has no tickets and stays
+        DB::table('hauling_liquidations')->insert(['hauler_id' => $hauler, 'crop_year' => '20262027', 'week_no' => '3', 'week_ending' => '2026-10-18', 'payee_name' => 'MANUAL']);
+
+        $this->getJson(route('tls-report.weeks', ['crop_year' => '20262027']))
+            ->assertOk()
+            ->assertJsonPath('weeks.0.week_no', 3)
+            ->assertJsonPath('weeks.0.tickets', 7)
+            ->assertJsonPath('weeks.0.entries', 5)
+            ->assertJsonPath('weeks.1.week_no', 4);
+
+        $this->postJson(route('tls-report.delete-weeks'), ['crop_year' => '20262027', 'weeks' => [3]])
+            ->assertOk()
+            ->assertJsonPath('tickets', 7)
+            ->assertJsonPath('entries', 5);
+
+        $this->assertSame(0, DB::table('tls_hauling_uploads')->where('week_no', '3')->count());
+        $this->assertSame(7, DB::table('tls_hauling_uploads')->where('week_no', '4')->count());
+        $this->assertSame(['MANUAL'], DB::table('hauling_liquidations')->where('week_no', '3')->pluck('payee_name')->all());
+        $this->assertSame(5, DB::table('hauling_liquidations')->where('week_no', '4')->count());
+        $this->assertSame(0, DB::table('hauling_liquidation_items')->whereNotIn('hauling_liquidation_id', DB::table('hauling_liquidations')->pluck('id'))->count());
+
+        // Several weeks at once
+        $this->postJson(route('tls-report.delete-weeks'), ['crop_year' => '20262027', 'weeks' => [4]])->assertOk();
+        $this->assertSame(0, DB::table('tls_hauling_uploads')->count());
+    }
+
+    public function test_group_delete_refuses_weeks_with_a_released_liquidation(): void
+    {
+        $this->uploadTwoWeeks();
+        DB::table('hauling_liquidations')->where('week_no', '4')->where('truck_code', 'RKK626')->update(['check_no' => '000123']);
+
+        $this->getJson(route('tls-report.weeks', ['crop_year' => '20262027']))->assertJsonPath('weeks.1.released', 1);
+        $this->postJson(route('tls-report.delete-weeks'), ['crop_year' => '20262027', 'weeks' => [3, 4]])
+            ->assertStatus(422)
+            ->assertJsonPath('locked_weeks', [4]);
+
+        $this->assertSame(14, DB::table('tls_hauling_uploads')->count());
+        $this->assertSame(10, DB::table('hauling_liquidations')->count());
+    }
+
+    public function test_group_delete_needs_the_tls_upload_permission(): void
+    {
+        $this->uploadTwoWeeks();
+        Schema::create('permissions', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->timestamps();
+        });
+        Schema::create('permission_user', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('permission_id');
+            $table->unsignedBigInteger('user_id');
+            $table->timestamps();
+        });
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('fname');
+            $table->string('role');
+            $table->timestamps();
+        });
+        $viewer = User::create(['fname' => 'Viewer', 'role' => 'User']);
+        $viewer->permissions()->attach(\App\Models\Permission::create(['name' => 'View TLS report', 'slug' => 'view-tls-report']));
+
+        $this->actingAs($viewer)
+            ->postJson(route('tls-report.delete-weeks'), ['crop_year' => '20262027', 'weeks' => [3]])
+            ->assertForbidden();
+        $this->assertSame(14, DB::table('tls_hauling_uploads')->count());
+    }
+
     public function test_week_must_exist_in_crop_and_week_management(): void
     {
         $response = $this->upload(implode("\n", self::ROWS), '9');
