@@ -323,7 +323,7 @@
                                             </template>
                                             <p x-show="form[section.key].length === 0" class="text-xs py-1" style="color: var(--kp-muted)">No rows.</p>
                                             <p x-show="section.key === 'less_items'" class="text-[11px] pt-1" style="color: var(--kp-muted)">
-                                                <i class="fas fa-calculator mr-1"></i>EWT = Gross Hauling × 2% · MIS. = Tonnage × 1.5% — computed from the hauling figures, you can still edit them.
+                                                <i class="fas fa-calculator mr-1"></i>EWT = Gross Hauling × 2% · MIS. = Tonnage × ₱1.50 — computed from the hauling figures, you can still edit them.
                                             </p>
                                             <p x-show="section.key === 'less_items' && autoInfo" class="text-[11px] pt-1" style="color: var(--kp-forest)">
                                                 <i class="fas fa-link mr-1"></i><span x-text="autoInfoText"></span>
@@ -375,7 +375,7 @@
                 const DEFAULT_ADD_ROWS = ['Adjustment'];
                 const DEFAULT_LESS_ROWS = ['EWT', 'MIS.', 'Fuel Account', 'Cash Adv.', 'Cable Sling/Tire/Battery'];
                 const EWT_RATE = 0.02;  // EWT   = Gross Hauling x 2%
-                const MIS_RATE = 0.015; // MIS.  = Tonnage x 1.5%
+                const MIS_RATE = 1.5;   // MIS.  = Tonnage x ₱1.50 per ton
 
                 return {
                     hauler: @json($hauler),
