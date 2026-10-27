@@ -46,29 +46,6 @@ class TlsReportController extends Controller
     }
 
     /**
-     * Week values of the picked weeks in both spellings ("3" and the older zero-padded "03")
-     */
-    private function weekValues(array $weeks): array
-    {
-        return collect($weeks)
-            ->flatMap(fn ($week) => [(string) (int) $week, str_pad((string) (int) $week, 2, '0', STR_PAD_LEFT)])
-            ->uniqueStrict()
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Liquidation entries already worked on for payment: a CV no., check no. or release date is set
-     * (the same entries TLS regeneration keeps)
-     */
-    private function released($query)
-    {
-        return $query->where(fn ($q) => $q->whereNotNull('date_released')
-            ->orWhere(fn ($q) => $q->whereNotNull('check_no')->where('check_no', '!=', ''))
-            ->orWhere(fn ($q) => $q->whereNotNull('cv_no')->where('cv_no', '!=', '')));
-    }
-
-    /**
      * Weeks of a crop year with uploaded tickets, for the delete dialog: tickets, tons, and the
      * liquidation entries generated from them (released ones lock the week)
      */
@@ -79,7 +56,7 @@ class TlsReportController extends Controller
         $tickets = TlsHaulingUpload::where('crop_year', $cropYear)
             ->get(['week_no', 'net_cane_wt', 'hauling_liquidation_id']);
         $entryIds = $tickets->pluck('hauling_liquidation_id')->filter()->unique();
-        $released = $this->released(HaulingLiquidation::whereIn('id', $entryIds))->pluck('id')->flip();
+        $released = HaulingLiquidation::whereIn('id', $entryIds)->released()->pluck('id')->flip();
 
         $weeks = $tickets->groupBy(fn ($t) => (int) $t->week_no)
             ->map(function ($rows, $week) use ($released) {
@@ -114,11 +91,11 @@ class TlsReportController extends Controller
             'weeks.*' => 'required|integer|min:1|max:99',
         ], ['weeks.required' => 'Select at least one week.']);
 
-        $weekValues = $this->weekValues($data['weeks']);
+        $weekValues = HaulingLiquidation::weekValues($data['weeks']);
         $tickets = TlsHaulingUpload::where('crop_year', $data['crop_year'])->whereIn('week_no', $weekValues);
         $entryIds = (clone $tickets)->whereNotNull('hauling_liquidation_id')->distinct()->pluck('hauling_liquidation_id');
 
-        $locked = $this->released(HaulingLiquidation::whereIn('id', $entryIds))->pluck('week_no')
+        $locked = HaulingLiquidation::whereIn('id', $entryIds)->released()->pluck('week_no')
             ->map(fn ($w) => (int) $w)->unique()->sort()->values();
         if ($locked->isNotEmpty()) {
             return response()->json([
