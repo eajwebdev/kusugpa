@@ -40,8 +40,13 @@
                         Password <span x-show="!editingUser" class="text-rose-600">*</span>
                     </label>
                     <input type="password" x-model="userForm.password" :required="!editingUser"
+                        minlength="8" maxlength="64" autocomplete="new-password"
                         class="kp-input w-full py-1.5 text-xs"
-                        :placeholder="editingUser ? 'Leave blank to retain current password' : 'Enter login password'">
+                        :placeholder="editingUser ? 'Leave blank to retain current password' : 'Enter temporary password'">
+                    <p class="mt-1 text-[11px] text-[#52705F] dark:text-[#8AA895]">
+                        8+ characters with uppercase, lowercase, a number and a symbol, not containing the username.
+                        <span x-show="!editingUser || editingUser.id !== {{ auth()->id() }}">The user must change it at their next sign-in.</span>
+                    </p>
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold text-[#52705F] dark:text-[#8AA895] uppercase mb-1">Assigned Role *</label>

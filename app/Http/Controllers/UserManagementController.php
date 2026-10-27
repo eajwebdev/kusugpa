@@ -8,7 +8,7 @@ use App\Models\AuditLog;
 use App\Support\NavigationPermissions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
+use App\Support\PasswordPolicy;
 
 class UserManagementController extends Controller
 {
@@ -46,7 +46,7 @@ class UserManagementController extends Controller
             'fname' => ['required', 'string', 'max:255'],
             'lname' => ['nullable', 'string', 'max:255'],
             'username' => ['required', 'string', 'max:255', 'unique:users'],
-            'password' => ['required', Password::defaults()],
+            'password' => ['required', ...PasswordPolicy::rules($request->username)],
             'role' => ['required', 'in:Administrator,super_admin,manager,loan_officer,User,Viewer'],
         ]);
 
@@ -69,6 +69,8 @@ class UserManagementController extends Controller
             'username' => $request->username,
             'password' => Hash::make($request->password),
             'role' => $request->role,
+            // The admin-issued password is temporary: the user picks their own at first sign-in
+            'must_change_password' => true,
         ]);
 
         AuditLog::log('create', 'users', 'Created user: ' . $user->username . ' with role ' . $user->role, [
@@ -110,8 +112,10 @@ class UserManagementController extends Controller
             ];
 
             if ($request->filled('password')) {
-                $request->validate(['password' => [Password::defaults()]]);
+                $request->validate(['password' => PasswordPolicy::rules($request->username)]);
                 $updateData['password'] = Hash::make($request->password);
+                $updateData['must_change_password'] = false;
+                $updateData['password_changed_at'] = now();
             }
 
             $user->update($updateData);
@@ -167,8 +171,10 @@ class UserManagementController extends Controller
         ];
 
         if ($request->filled('password')) {
-            $request->validate(['password' => [Password::defaults()]]);
+            $request->validate(['password' => PasswordPolicy::rules($request->username)]);
             $updateData['password'] = Hash::make($request->password);
+            // Resetting someone else's password issues a temporary one they must replace
+            $updateData['must_change_password'] = !$isOwnAccount;
         }
 
         $user->update($updateData);

@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LoginAuthController;
+use App\Http\Controllers\AccountPasswordController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\UpdatesController;
@@ -73,6 +74,8 @@ Route::get('/home', function () {
 Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::get('/account/google', [GoogleAuthController::class, 'settings'])->name('account.google');
     Route::get('/auth/google/link', [GoogleAuthController::class, 'linkGoogle'])->name('google.link');
+    Route::get('/account/password', [AccountPasswordController::class, 'edit'])->name('account.password.edit');
+    Route::put('/account/password', [AccountPasswordController::class, 'update'])->middleware('throttle:6,1')->name('account.password.update');
     // Dashboard
     Route::get('/dashboard', [MenuController::class, 'dashboard'])->name('dashboard');
 

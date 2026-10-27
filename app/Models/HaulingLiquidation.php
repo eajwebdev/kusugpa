@@ -68,6 +68,29 @@ class HaulingLiquidation extends Model
             ->get();
     }
 
+    /**
+     * Entries already worked on for payment: a CV no., check no. or release date is set
+     * (the entries TLS regeneration keeps, and group deletes refuse)
+     */
+    public function scopeReleased($query)
+    {
+        return $query->where(fn ($q) => $q->whereNotNull('date_released')
+            ->orWhere(fn ($q) => $q->whereNotNull('check_no')->where('check_no', '!=', ''))
+            ->orWhere(fn ($q) => $q->whereNotNull('cv_no')->where('cv_no', '!=', '')));
+    }
+
+    /**
+     * Week values in both spellings ("3" and the older zero-padded "03")
+     */
+    public static function weekValues(array $weeks): array
+    {
+        return collect($weeks)
+            ->flatMap(fn ($week) => [(string) (int) $week, str_pad((string) (int) $week, 2, '0', STR_PAD_LEFT)])
+            ->uniqueStrict()
+            ->values()
+            ->all();
+    }
+
     public function lessItems()
     {
         return $this->items()->where('type', 'less');

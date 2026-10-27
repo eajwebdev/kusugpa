@@ -75,7 +75,7 @@ class GoogleLoginTest extends TestCase
             'fname' => 'Google',
             'lname' => 'Tester',
             'username' => $username,
-            'password' => Hash::make('correct-password'),
+            'password' => Hash::make('Correct-Passw0rd!'),
             'role' => $role,
         ]);
         $user->google_id = $googleId;
@@ -133,7 +133,7 @@ class GoogleLoginTest extends TestCase
         $user = $this->createUser('linked-user', 'manager');
         $this->mockGoogle();
 
-        $this->post('/login', ['username' => $user->username, 'password' => 'correct-password'])
+        $this->post('/login', ['username' => $user->username, 'password' => 'Correct-Passw0rd!'])
             ->assertRedirect(route('dashboard'));
         $this->keepBrowserSession();
         $this->get('/auth/google/link')->assertRedirect('https://accounts.google.test/authorize');
@@ -201,7 +201,7 @@ class GoogleLoginTest extends TestCase
         $owner = $this->createUser('owner', 'User', 'google-123');
         $other = $this->createUser('other');
         $this->mockGoogle();
-        $this->post('/login', ['username' => $other->username, 'password' => 'correct-password']);
+        $this->post('/login', ['username' => $other->username, 'password' => 'Correct-Passw0rd!']);
         $this->keepBrowserSession();
 
         $this->get('/auth/google/link')->assertRedirect();

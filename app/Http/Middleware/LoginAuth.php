@@ -31,6 +31,15 @@ class LoginAuth
                 return redirect()->route('getLogin')->with('error', 'Invalid user role.');
             }
 
+            // A default or weak password must be replaced before anything else is reachable
+            if ($user->mustChangePassword() && !$request->routeIs('account.password.*')) {
+                $message = 'You must change your password before continuing.';
+                if ($wantsJson) {
+                    return response()->json(['message' => $message, 'redirect' => route('account.password.edit')], 403);
+                }
+                return redirect()->route('account.password.edit')->with('error', $message);
+            }
+
             // Administrator and super_admin always have full access
             $isFullAccess = $user->role === 'Administrator' || $user->role === 'super_admin';
 

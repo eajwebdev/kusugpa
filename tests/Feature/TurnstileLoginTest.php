@@ -67,7 +67,7 @@ class TurnstileLoginTest extends TestCase
             'fname' => 'Turnstile',
             'lname' => 'Tester',
             'username' => 'turnstile-user',
-            'password' => Hash::make('correct-password'),
+            'password' => Hash::make('Correct-Passw0rd!'),
             'role' => $role,
         ]);
     }
@@ -104,13 +104,13 @@ class TurnstileLoginTest extends TestCase
         Http::fake();
 
         $this->post('/login', [
-            'username' => 'turnstile-user', 'password' => 'correct-password',
+            'username' => 'turnstile-user', 'password' => 'Correct-Passw0rd!',
         ])->assertRedirect(route('getLogin'));
         $this->post('/login/demo', ['username' => 'turnstile-user'])
             ->assertRedirect(route('getLogin'));
         $this->post('/auth/google/redirect')->assertRedirect(route('getLogin'));
         $this->post('/system/auth/admin-login', [
-            'username' => 'turnstile-user', 'password' => 'correct-password',
+            'username' => 'turnstile-user', 'password' => 'Correct-Passw0rd!',
             'security_key' => 'server-only-admin-key',
         ])->assertRedirect(route('admin.getLogin'));
 
@@ -125,7 +125,7 @@ class TurnstileLoginTest extends TestCase
 
         $this->post('/login', [
             'username' => $user->username,
-            'password' => 'correct-password',
+            'password' => 'Correct-Passw0rd!',
             'cf-turnstile-response' => 'valid-token',
         ])->assertRedirect(route('dashboard'));
 
@@ -148,7 +148,7 @@ class TurnstileLoginTest extends TestCase
 
         $this->post('/login', [
             'username' => $user->username,
-            'password' => 'correct-password',
+            'password' => 'Correct-Passw0rd!',
             'cf-turnstile-response' => 'expired-token',
         ])->assertRedirect(route('getLogin'));
 
@@ -163,7 +163,7 @@ class TurnstileLoginTest extends TestCase
         Http::fake();
 
         $this->post('/login', [
-            'username' => 'turnstile-user', 'password' => 'correct-password',
+            'username' => 'turnstile-user', 'password' => 'Correct-Passw0rd!',
             'cf-turnstile-response' => 'anything',
         ])->assertRedirect(route('getLogin'));
 
@@ -178,7 +178,7 @@ class TurnstileLoginTest extends TestCase
         $this->validTokenResponse();
 
         $this->post('/login', [
-            'username' => 'turnstile-user', 'password' => 'correct-password',
+            'username' => 'turnstile-user', 'password' => 'Correct-Passw0rd!',
             'cf-turnstile-response' => 'token',
         ])->assertRedirect(route('getLogin'));
 
@@ -191,7 +191,7 @@ class TurnstileLoginTest extends TestCase
         $this->validTokenResponse('login');
 
         $this->post('/system/auth/admin-login', [
-            'username' => 'turnstile-user', 'password' => 'correct-password',
+            'username' => 'turnstile-user', 'password' => 'Correct-Passw0rd!',
             'security_key' => 'server-only-admin-key',
             'cf-turnstile-response' => 'token',
         ])->assertRedirect(route('admin.getLogin'));
@@ -210,14 +210,14 @@ class TurnstileLoginTest extends TestCase
         ]);
 
         $this->post('/login', [
-            'username' => $user->username, 'password' => 'correct-password',
+            'username' => $user->username, 'password' => 'Correct-Passw0rd!',
             'cf-turnstile-response' => 'XXXX.DUMMY.TOKEN.XXXX',
         ])->assertRedirect(route('dashboard'));
 
         $this->post('/logout');
         config(['app.env' => 'production']);
         $this->post('/login', [
-            'username' => $user->username, 'password' => 'correct-password',
+            'username' => $user->username, 'password' => 'Correct-Passw0rd!',
             'cf-turnstile-response' => 'XXXX.DUMMY.TOKEN.XXXX',
         ])->assertRedirect(route('getLogin'));
 
@@ -231,7 +231,7 @@ class TurnstileLoginTest extends TestCase
         Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('unavailable'));
 
         $this->post('/login', [
-            'username' => 'turnstile-user', 'password' => 'correct-password',
+            'username' => 'turnstile-user', 'password' => 'Correct-Passw0rd!',
             'cf-turnstile-response' => 'token',
         ])->assertRedirect(route('getLogin'));
 
@@ -245,7 +245,7 @@ class TurnstileLoginTest extends TestCase
 
         $this->post('/system/auth/admin-login', [
             'username' => $user->username,
-            'password' => 'correct-password',
+            'password' => 'Correct-Passw0rd!',
             'security_key' => 'server-only-admin-key',
             'cf-turnstile-response' => 'valid-token',
         ])->assertRedirect(route('admin.dashboard'));

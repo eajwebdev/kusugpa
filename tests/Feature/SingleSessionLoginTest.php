@@ -65,7 +65,7 @@ class SingleSessionLoginTest extends TestCase
             'fname' => 'Single',
             'lname' => 'Session',
             'username' => $username,
-            'password' => Hash::make('correct-password'),
+            'password' => Hash::make('Correct-Passw0rd!'),
             'role' => $role,
         ]);
     }
@@ -79,7 +79,7 @@ class SingleSessionLoginTest extends TestCase
     {
         $user = $this->createUser();
 
-        $this->post('/login', ['username' => $user->username, 'password' => 'correct-password'])
+        $this->post('/login', ['username' => $user->username, 'password' => 'Correct-Passw0rd!'])
             ->assertRedirect(route('dashboard'));
         $this->keepBrowserSession();
 
@@ -98,7 +98,7 @@ class SingleSessionLoginTest extends TestCase
         $this->assertGuest();
         $this->assertSame($newHash, $user->fresh()->active_session_hash);
 
-        $this->post('/login', ['username' => $user->username, 'password' => 'correct-password'])
+        $this->post('/login', ['username' => $user->username, 'password' => 'Correct-Passw0rd!'])
             ->assertRedirect(route('dashboard'));
         $this->keepBrowserSession();
         $this->assertNotSame($firstHash, $user->fresh()->active_session_hash);
@@ -110,7 +110,7 @@ class SingleSessionLoginTest extends TestCase
     {
         $user = $this->createUser($role);
 
-        $this->post('/login', ['username' => $user->username, 'password' => 'correct-password'])
+        $this->post('/login', ['username' => $user->username, 'password' => 'Correct-Passw0rd!'])
             ->assertRedirect(route('dashboard'));
         $this->keepBrowserSession();
 
@@ -136,7 +136,7 @@ class SingleSessionLoginTest extends TestCase
         $user = $this->createUser();
         $cookieName = config('session.cookie');
 
-        $this->post('/login', ['username' => $user->username, 'password' => 'correct-password'])
+        $this->post('/login', ['username' => $user->username, 'password' => 'Correct-Passw0rd!'])
             ->assertRedirect(route('dashboard'));
         $firstSessionId = session()->getId();
         $firstHash = $user->fresh()->active_session_hash;
@@ -145,7 +145,7 @@ class SingleSessionLoginTest extends TestCase
         Auth::forgetGuards();
         session()->flush();
         $this->withCookie($cookieName, str_repeat('B', 40))->withCredentials();
-        $this->post('/login', ['username' => $user->username, 'password' => 'correct-password'])
+        $this->post('/login', ['username' => $user->username, 'password' => 'Correct-Passw0rd!'])
             ->assertRedirect(route('dashboard'));
         $secondSessionId = session()->getId();
         $this->assertNotSame($firstHash, $user->fresh()->active_session_hash);
@@ -164,7 +164,7 @@ class SingleSessionLoginTest extends TestCase
     public function test_logout_clears_only_the_current_account_session(): void
     {
         $user = $this->createUser();
-        $this->post('/login', ['username' => $user->username, 'password' => 'correct-password']);
+        $this->post('/login', ['username' => $user->username, 'password' => 'Correct-Passw0rd!']);
         $this->keepBrowserSession();
 
         $this->post('/logout')->assertRedirect('/');
@@ -175,7 +175,7 @@ class SingleSessionLoginTest extends TestCase
     public function test_replaced_browser_cannot_clear_the_newer_login_on_logout(): void
     {
         $user = $this->createUser();
-        $this->post('/login', ['username' => $user->username, 'password' => 'correct-password']);
+        $this->post('/login', ['username' => $user->username, 'password' => 'Correct-Passw0rd!']);
         $this->keepBrowserSession();
 
         $newHash = hash('sha256', 'newer-browser-session');
@@ -192,7 +192,7 @@ class SingleSessionLoginTest extends TestCase
 
         $this->post('/system/auth/admin-login', [
             'username' => $user->username,
-            'password' => 'correct-password',
+            'password' => 'Correct-Passw0rd!',
             'security_key' => 'test-security-key',
         ])->assertRedirect(route('admin.dashboard'));
         $this->keepBrowserSession();
