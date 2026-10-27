@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log; 
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\PasswordPolicy;
 use App\Support\SingleSession;
 
 class LoginAuthController extends Controller
@@ -37,6 +38,7 @@ class LoginAuthController extends Controller
             if ($user->hasLoginRole()) {
                 $request->session()->regenerate();
                 SingleSession::establish($user, $request);
+                PasswordPolicy::flagIfWeak($user, $request->password);
                 AuditLog::log('login', 'auth', 'Signed in');
                 return redirect()->route('dashboard')->with('success', 'You have successfully logged in.');
             }
@@ -149,6 +151,7 @@ public function postAdminLogin(Request $request)
         Log::info('Admin login successful: ' . $user->username . ' from IP: ' . $request->ip());
         $request->session()->regenerate();
         SingleSession::establish($user, $request);
+        PasswordPolicy::flagIfWeak($user, $request->password);
         AuditLog::log('login', 'auth', 'Signed in through the admin portal');
         
         return redirect()->route('admin.dashboard')

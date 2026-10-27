@@ -50,6 +50,10 @@
                     <i class="fab fa-google w-5 text-center" style="color: var(--kp-emerald)"></i>
                     <span>Google sign-in</span>
                 </a>
+                <a href="{{ route('account.password.edit') }}" role="menuitem">
+                    <i class="fas fa-key w-5 text-center" style="color: var(--kp-emerald)"></i>
+                    <span>Change password</span>
+                </a>
                 @if (auth()->user()->role === 'Administrator')
                     <a href="{{ route('admin.dashboard') }}" role="menuitem">
                         <i class="fas fa-shield-halved w-5 text-center" style="color: var(--kp-emerald)"></i>

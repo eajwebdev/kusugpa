@@ -19,6 +19,8 @@ class User extends Authenticatable
         'username',
         'password',
         'role',
+        'must_change_password',
+        'password_changed_at',
     ];
 
     protected $hidden = [
@@ -30,6 +32,8 @@ class User extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'must_change_password' => 'boolean',
+        'password_changed_at' => 'datetime',
     ];
 
       public function permissions()
@@ -104,6 +108,20 @@ class User extends Authenticatable
     public function hasLoginRole(): bool
     {
         return in_array($this->role, ['Administrator', 'super_admin', 'manager', 'loan_officer', 'User', 'Viewer'], true);
+    }
+
+    /**
+     * Demo accounts share a known password; only exempt them while demo mode is on
+     */
+    public function isDemoAccount(): bool
+    {
+        return config('demo.enabled')
+            && collect(config('demo.accounts'))->contains('username', $this->username);
+    }
+
+    public function mustChangePassword(): bool
+    {
+        return (bool) $this->must_change_password && !$this->isDemoAccount();
     }
 
     public function isManager()
