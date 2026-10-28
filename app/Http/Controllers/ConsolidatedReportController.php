@@ -13,8 +13,6 @@ class ConsolidatedReportController extends Controller
 {
     public function index(Request $request)
 {
-    AuditLog::log('view', 'reports', 'Viewed consolidated report');
-    
     $perPage = $request->get('per_page', 50);
     
     $query = ConsolidatedUpload::query();
@@ -105,7 +103,7 @@ class ConsolidatedReportController extends Controller
 
         $preview = $request->boolean('preview');
 
-        AuditLog::log($preview ? 'view' : 'export', 'reports', $preview ? 'Previewed consolidated report PDF' : 'Exported consolidated report PDF', [
+        AuditLog::log($preview ? 'preview' : 'export', 'reports', $preview ? 'Previewed consolidated report PDF' : 'Exported consolidated report PDF', [
             'records' => $uploads->count(),
             'crop_year' => $request->crop_year,
             'weeks' => $request->week_from . ' - ' . $request->week_to,

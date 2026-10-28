@@ -185,11 +185,11 @@
                                                 <i class="fas fa-file-signature"></i>
                                             </button>
                                         @endif
-                                        @if ($userPermissions['canCreate'])
-                                            <button x-show="['pending', 'rejected'].includes(ca.status)" @click="deleteCA(ca)"
+                                        @if ($userPermissions['canDelete'])
+                                            <button @click="deleteCA(ca)"
                                                 class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs font-semibold text-red-500"
-                                                title="Delete cash advance">
-                                                <i class="fas fa-trash"></i>
+                                                title="Delete cash advance" aria-label="Delete cash advance">
+                                                <i class="fas fa-trash" aria-hidden="true"></i>
                                             </button>
                                         @endif
                                     </div>
@@ -538,13 +538,17 @@
                         }
                     },
 
-                    // Only pending or rejected cash advances can be deleted
+                    // Administrators only, any status: the schedule, payments and installments go with it
                     async deleteCA(ca) {
                         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+                        const payments = parseInt(ca.payments_count) || 0;
                         const res = await Swal.fire({
                             icon: 'warning',
                             title: 'Delete cash advance?',
-                            html: 'Cash advance <b>' + esc(ca.ca_number) + '</b> of ' + esc(ca.planter_name) + ' (₱' + this.formatNumber(ca.amount) + ') and its weekly schedule will be permanently deleted.',
+                            html: 'Cash advance <b>' + esc(ca.ca_number) + '</b> of ' + esc(ca.planter_name) + ' (₱' + this.formatNumber(ca.amount)
+                                + ', ' + esc(ca.status) + ') will be permanently deleted with its weekly schedule'
+                                + (payments ? ' and <b>' + payments + ' recorded payment' + (payments > 1 ? 's' : '') + ' (₱' + this.formatNumber(ca.payments_total) + ')</b>' : '')
+                                + '. This cannot be undone.',
                             showCancelButton: true,
                             confirmButtonText: 'Delete',
                             confirmButtonColor: '#dc2626',
@@ -562,7 +566,11 @@
                             const d = await r.json();
                             if (!r.ok) throw new Error(d.message || 'Request failed');
                             this.feed.remove(ca.id);
-                            Swal.fire({ icon: 'success', title: 'Deleted', text: d.message, timer: 2000, showConfirmButton: false });
+                            if (d.warning) {
+                                Swal.fire({ icon: 'warning', title: 'Deleted', text: d.message + ' ' + d.warning });
+                            } else {
+                                Swal.fire({ icon: 'success', title: 'Deleted', text: d.message, timer: 2000, showConfirmButton: false });
+                            }
                         } catch (e) {
                             Swal.fire({ icon: 'error', title: 'Error', text: e.message });
                         }

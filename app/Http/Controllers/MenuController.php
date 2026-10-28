@@ -31,8 +31,6 @@ class MenuController extends Controller
 
     public function adminDashboard()
     {
-        AuditLog::log('view', 'admin', 'Viewed admin dashboard');
-        
         $stats = [
             'totalUsers' => User::count(),
             'totalPlanters' => Summary::distinct('planter_code')->count(),
@@ -45,7 +43,6 @@ class MenuController extends Controller
 
     public function adminSettings()
     {
-        AuditLog::log('view', 'admin_settings', 'Viewed admin settings');
         return view('menu.admin-settings');
     }
 
@@ -77,8 +74,6 @@ class MenuController extends Controller
 
     public function systemInfo()
     {
-        AuditLog::log('view', 'system', 'Viewed system information');
-        
         $info = [
             'php_version' => PHP_VERSION,
             'laravel_version' => app()->version(),
@@ -125,15 +120,12 @@ class MenuController extends Controller
 
     public function dashboard()
     {
-        AuditLog::log('view', 'dashboard', 'Viewed dashboard');
         $tabs = \App\Services\DashboardAnalytics::tabsFor(\App\Services\DashboardAnalytics::accessFor(auth()->user()));
         return view('menu.dashboard', compact('tabs'));
     }
 
     public function summaryReport(Request $request)
     {
-        AuditLog::log('view', 'reports', 'Viewed summary report');
-        
         $perPage = $request->get('per_page', 50);
         
         $summaries = Summary::select('id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'net_cane', 'net_amount')
@@ -345,8 +337,6 @@ class MenuController extends Controller
 
     public function printVoucher(Request $request)
 {
-    AuditLog::log('view', 'voucher', 'Viewed print voucher page');
-    
     $cropYear = CropYear::pluck('crop_year');
     
     // Get week numbers sorted numerically

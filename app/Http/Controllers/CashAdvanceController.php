@@ -7,7 +7,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use App\Models\CashAdvance;
 use App\Models\CashAdvanceAmortization;
+use App\Models\CashAdvanceDeduction;
 use App\Models\CashAdvancePayment;
+use App\Models\HaulingLiquidation;
 use App\Models\LoanSetting;
 use App\Models\Summary;
 use App\Models\CropYear;
@@ -82,7 +84,9 @@ class CashAdvanceController extends Controller
 
     public function index(Request $request)
     {
-        $query = CashAdvance::with(['approvedByUser', 'deductions']);
+        $query = CashAdvance::with(['approvedByUser', 'deductions'])
+            ->withCount('payments')
+            ->withSum('payments as payments_total', 'amount');
 
         if ($request->search) {
             $search = $request->search;
@@ -133,6 +137,7 @@ class CashAdvanceController extends Controller
             'canApprove' => $this->canApproveCA(),
             'canManageSettings' => $this->canManageSettings(),
             'canEditReceipt' => CaReceiptController::canManageReceipt($this->user()),
+            'canDelete' => $this->user()->isAdmin(),
         ];
         $signatoryDefaults = CaReceiptController::signatoryDefaults();
 
@@ -340,7 +345,7 @@ class CashAdvanceController extends Controller
             'canPayWeekly' => $this->canProcessCA() && in_array($cashAdvance->status, ['approved', 'active']),
             'canUndoPayment' => $this->canProcessCA() && in_array($cashAdvance->status, ['active', 'completed']),
             'canEditSchedule' => $this->canProcessCA() && in_array($cashAdvance->status, ['pending', 'approved', 'active']),
-            'canDelete' => $this->canProcessCA() && in_array($cashAdvance->status, ['pending', 'rejected']),
+            'canDelete' => $this->user()->isAdmin(),
         ];
 
         // Weekly cash advances: repayment follows the weekly schedule
@@ -609,40 +614,82 @@ class CashAdvanceController extends Controller
         ]);
     }
 
+    /**
+     * Administrators only, any status: removes the cash advance with its weekly schedule,
+     * recorded payments and monthly installments
+     */
     public function destroy(Request $request, CashAdvance $cashAdvance)
     {
-        if (!$this->canProcessCA()) {
+        if (!$this->user()->isAdmin()) {
             AuditLog::log('error', 'cash_advances', 'Unauthorized deletion attempt for #' . $cashAdvance->ca_number);
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Unauthorized'], 403);
+                return response()->json(['message' => 'Only administrators can delete cash advances.'], 403);
             }
-            abort(403, 'Unauthorized');
+            abort(403, 'Only administrators can delete cash advances.');
         }
 
-        if (!in_array($cashAdvance->status, ['pending', 'rejected'])) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'Only pending or rejected cash advances can be deleted.'], 422);
-            }
-            return back()->with('error', 'Only pending or rejected cash advances can be deleted.');
-        }
+        // Hauling Liquidity slips keep the Cash Adv. amount they were made with, so list the ones to re-check
+        $slips = $this->haulingSlipsDeducting($cashAdvance);
 
         $caInfo = [
             'ca_number' => $cashAdvance->ca_number,
             'planter' => $cashAdvance->planter_name,
             'amount' => $cashAdvance->amount,
+            'status' => $cashAdvance->status,
+            'balance' => $cashAdvance->balance,
+            'schedule_weeks' => $cashAdvance->deductions()->pluck('week_no')->implode(', '),
+            'payments_removed' => CashAdvancePayment::where('cash_advance_id', $cashAdvance->id)->count(),
+            'payments_total' => round((float) CashAdvancePayment::where('cash_advance_id', $cashAdvance->id)->sum('amount'), 2),
+            'installments_removed' => CashAdvanceAmortization::where('cash_advance_id', $cashAdvance->id)->count(),
         ];
+        if ($slips->isNotEmpty()) {
+            $caInfo['hauling_slips_to_check'] = $slips->implode(', ');
+        }
 
-        $cashAdvance->amortizations()->delete();
-        $cashAdvance->delete();
+        DB::transaction(function () use ($cashAdvance) {
+            CashAdvancePayment::where('cash_advance_id', $cashAdvance->id)->delete();
+            CashAdvanceDeduction::where('cash_advance_id', $cashAdvance->id)->delete();
+            CashAdvanceAmortization::where('cash_advance_id', $cashAdvance->id)->delete();
+            $cashAdvance->delete();
+        });
 
         AuditLog::log('delete', 'cash_advances', 'Deleted cash advance #' . $caInfo['ca_number'], $caInfo);
 
+        $message = 'Cash advance #' . $caInfo['ca_number'] . ' deleted with its schedule'
+            . ($caInfo['payments_removed'] ? ' and ' . $caInfo['payments_removed'] . ' recorded payment(s)' : '') . '.';
+        $warning = $slips->isNotEmpty()
+            ? 'Hauling Liquidity already deducted a Cash Adv. for this planter on: ' . $slips->implode(', ') . '. Check those slips.'
+            : null;
+
         if ($request->expectsJson()) {
-            return response()->json(['message' => 'Cash advance #' . $caInfo['ca_number'] . ' deleted.']);
+            return response()->json(['message' => $message, 'warning' => $warning, 'hauling_slips' => $slips->values()]);
         }
 
         return redirect()->route('cash-advances.index')
-            ->with('success', 'Cash advance deleted successfully.');
+            ->with('success', $message . ($warning ? ' ' . $warning : ''));
+    }
+
+    /**
+     * Hauling Liquidity slips of the planter in this advance's schedule weeks that carry a Cash Adv. deduction
+     * (only approved / active / completed advances are ever deducted there), e.g. "Wk 3 · CAUAYAN HAULER TLS LIQ. · RJG480"
+     */
+    private function haulingSlipsDeducting(CashAdvance $ca)
+    {
+        $code = ltrim(trim((string) $ca->planter_code), '0');
+        $weeks = $ca->deductions()->pluck('week_no')->all();
+        if ($code === '' || !$weeks || !in_array($ca->status, ['approved', 'active', 'completed'])) {
+            return collect();
+        }
+
+        return HaulingLiquidation::with('hauler:id,name')
+            ->where('crop_year', $ca->crop_year)
+            ->whereIn('week_no', HaulingLiquidation::weekValues($weeks))
+            ->whereHas('items', fn ($q) => $q->where('type', 'less')->where('description', 'Cash Adv.')->where('amount', '>', 0))
+            ->orderBy('week_no')
+            ->get()
+            ->filter(fn ($slip) => ltrim(trim((string) $slip->planter_code), '0') === $code)
+            ->map(fn ($slip) => 'Wk ' . (int) $slip->week_no . ' · ' . ($slip->hauler->name ?? 'Hauler') . ($slip->truck_code ? ' · ' . $slip->truck_code : ''))
+            ->values();
     }
 
     public function settings()

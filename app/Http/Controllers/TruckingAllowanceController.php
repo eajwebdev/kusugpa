@@ -13,8 +13,6 @@ class TruckingAllowanceController extends Controller
 {
     public function index(Request $request)
     {
-        AuditLog::log('view', 'reports', 'Viewed trucking allowance report');
-        
         $perPage = $request->get('per_page', 50);
         
         $query = TruckingAllowance::orderBy('planter_name');
@@ -125,7 +123,7 @@ class TruckingAllowanceController extends Controller
             ['key' => 'net_cane', 'label' => 'Net Cane (t)', 'decimals' => 3],
             ['key' => 'ta_amount', 'label' => 'TA Amount (PHP)', 'decimals' => 2],
         ], 'trucking-allowance-report', function ($parts) use ($request, $uploads, $preview) {
-            AuditLog::log($preview ? 'view' : 'export', 'reports', $preview ? 'Previewed trucking allowance report PDF' : 'Exported trucking allowance report PDF', [
+            AuditLog::log($preview ? 'preview' : 'export', 'reports', $preview ? 'Previewed trucking allowance report PDF' : 'Exported trucking allowance report PDF', [
                 'records' => $uploads->count(),
                 'crop_year' => $request->crop_year ?: 'all',
                 'weeks' => $request->filled('week_from') ? $request->week_from . ' - ' . $request->week_to : 'all',

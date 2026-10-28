@@ -22,8 +22,6 @@ class TlsReportController extends Controller
 {
     public function index()
     {
-        AuditLog::log('view', 'reports', 'Viewed TLS delivery report');
-
         $cropYears = CropYear::orderBy('crop_year', 'desc')->pluck('crop_year');
         $weeks = WeekNo::orderByRaw('CAST(week_no AS UNSIGNED) ASC')->get(['crop_year', 'week_no', 'week_start_date', 'week_end_date'])
             ->map(fn ($w) => [
