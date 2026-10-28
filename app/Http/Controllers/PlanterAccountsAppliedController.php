@@ -21,8 +21,6 @@ class PlanterAccountsAppliedController extends Controller
 
     public function index()
     {
-        AuditLog::log('view', 'reports', 'Viewed planter accounts applied page');
-
         $cropYear = CropYear::pluck('crop_year');
         $weeks = WeekNo::byCropYear();
 

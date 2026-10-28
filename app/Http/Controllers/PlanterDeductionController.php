@@ -62,8 +62,6 @@ class PlanterDeductionController extends Controller
             ]);
         $canManage = $this->canManage();
 
-        AuditLog::log('view', 'planter_deductions', 'Viewed Fuel & Others Deduction page');
-
         return view('planter-deductions.index', compact('cropYears', 'planters', 'weeks', 'canManage'));
     }
 

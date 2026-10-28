@@ -72,8 +72,8 @@
                             </button>
                         </form>
                     @endif
-                    @if ($canProcess && in_array($cashAdvance->status, ['pending', 'rejected']))
-                        <form action="{{ route('cash-advances.destroy', $cashAdvance) }}" method="POST" onsubmit="return confirm('Permanently delete this cash advance application?')">
+                    @if ($userPermissions['canDelete'])
+                        <form action="{{ route('cash-advances.destroy', $cashAdvance) }}" method="POST" onsubmit="return confirm('Permanently delete this cash advance with its weekly schedule and recorded payments? This cannot be undone.')">
                             @csrf @method('DELETE')
                             <button type="submit" class="kp-btn kp-btn-secondary text-xs text-rose-600 hover:text-rose-700">
                                 <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Delete

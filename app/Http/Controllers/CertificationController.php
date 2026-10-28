@@ -39,8 +39,6 @@ class CertificationController extends Controller
 
     public function index()
     {
-        AuditLog::log('view', 'reports', 'Viewed production certification page');
-
         $cropYears = CropYear::orderBy('crop_year', 'desc')->pluck('crop_year');
         $weeks = WeekNo::byCropYear();
         $signatories = $this->signatories();

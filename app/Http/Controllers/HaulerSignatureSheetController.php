@@ -22,8 +22,6 @@ class HaulerSignatureSheetController extends Controller
 
     public function index()
     {
-        AuditLog::log('view', 'reports', 'Viewed hauler TLS signature sheet page');
-
         $cropYear = CropYear::pluck('crop_year');
         $weeks = WeekNo::byCropYear();
         $haulers = Hauler::orderBy('name')->get(['id', 'name', 'is_active']);

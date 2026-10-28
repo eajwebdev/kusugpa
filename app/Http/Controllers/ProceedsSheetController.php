@@ -22,8 +22,6 @@ class ProceedsSheetController extends Controller
 
     public function index()
     {
-        AuditLog::log('view', 'reports', 'Viewed proceeds sheet page');
-
         $cropYear = CropYear::pluck('crop_year');
         $weeks = WeekNo::byCropYear();
 

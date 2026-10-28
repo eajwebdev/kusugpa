@@ -40,8 +40,6 @@ class ProceedsDeductionsController extends Controller
 
     public function index()
     {
-        AuditLog::log('view', 'reports', 'Viewed proceeds and deductions page');
-
         $cropYear = CropYear::pluck('crop_year');
         $weeks = WeekNo::byCropYear();
 
