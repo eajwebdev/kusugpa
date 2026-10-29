@@ -1,0 +1,53 @@
+.kp-manual-help {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #b9d4c2;
+    border-radius: 50%;
+    background: #fff;
+    color: #07502e;
+    box-shadow: 0 2px 9px rgba(0, 45, 22, .09);
+    font: 800 23px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+    text-decoration: none;
+    transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
+}
+.kp-manual-help:hover {
+    transform: translateY(-1px);
+    background: #eaf5ed;
+    border-color: #087a3d;
+    color: #003f20;
+}
+.kp-manual-help:focus-visible {
+    outline: 3px solid #b7841f;
+    outline-offset: 3px;
+}
+.kp-manual-help--on-dark {
+    background: rgba(255, 255, 255, .1);
+    border-color: rgba(255, 255, 255, .4);
+    color: #fff;
+    box-shadow: none;
+}
+.kp-manual-help--on-dark:hover {
+    background: rgba(255, 255, 255, .2);
+    border-color: #fff;
+    color: #fff;
+}
+.kp-manual-help--fixed {
+    position: fixed;
+    z-index: 60;
+    top: max(16px, env(safe-area-inset-top));
+    right: max(16px, env(safe-area-inset-right));
+}
+.dark .kp-manual-help:not(.kp-manual-help--on-dark) {
+    background: #183326;
+    border-color: #456b50;
+    color: #eaf5ed;
+}
+.dark .kp-manual-help:not(.kp-manual-help--on-dark):hover {
+    background: #245138;
+}
+@media print {
+    .kp-manual-help { display: none !important; }
+}

@@ -92,5 +92,6 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="{{ asset('css/kusugpa.css') }}?v={{ @filemtime(public_path('css/kusugpa.css')) }}">
+<link rel="stylesheet" href="{{ asset('css/manual-help.css') }}?v={{ @filemtime(public_path('css/manual-help.css')) }}">
 {{-- Makes every <select> searchable (desktop popover / phone bottom sheet); add data-native to opt out --}}
 <script defer src="{{ asset('js/kp-searchable-select.js') }}?v={{ @filemtime(public_path('js/kp-searchable-select.js')) }}"></script>

@@ -293,8 +293,8 @@ html.kp-collapsed { --kp-sidebar-w: 76px; }
     background: transparent; border: 0; cursor: pointer; text-align: left; text-decoration: none; transition: background-color 0.15s ease;
 }
 .kp-menu a:hover, .kp-menu button.kp-menu-item:hover { background: var(--kp-hover); }
-.kp-menu a.kp-danger { color: #A32F2F; } .kp-menu a.kp-danger:hover { background: #FCEEEE; }
-.dark .kp-menu a.kp-danger { color: #F19A9A; } .dark .kp-menu a.kp-danger:hover { background: rgba(212, 95, 95, 0.14); }
+.kp-menu .kp-danger { color: #A32F2F; } .kp-menu .kp-danger:hover { background: #FCEEEE; }
+.dark .kp-menu .kp-danger { color: #F19A9A; } .dark .kp-menu .kp-danger:hover { background: rgba(212, 95, 95, 0.14); }
 .kp-menu-head { padding: 12px 14px; background: var(--kp-surface-2); border-bottom: 1px solid var(--kp-border); }
 
 /* collapsed (desktop only) */

@@ -5,6 +5,12 @@
 
 <!-- Dashboard -->
 <li>
+    <a href="{{ route('manual') }}" class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold text-gray-700 hover:text-primary-600 hover:bg-gray-50">
+        <i class="fas fa-book-open w-5 h-5 shrink-0 flex items-center justify-center text-center" aria-hidden="true"></i>
+        <span>User Guide</span>
+    </a>
+</li>
+<li>
     <a href="{{ route('dashboard') }}"
         class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('dashboard') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
         <i class="fas fa-tachometer-alt w-5 h-5 shrink-0 flex items-center justify-center text-center"></i>

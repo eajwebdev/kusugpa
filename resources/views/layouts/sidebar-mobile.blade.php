@@ -77,10 +77,13 @@
 
                 <div class="my-1 border-t" style="border-color: var(--kp-border)"></div>
 
-                <a href="{{ route('logout') }}" class="kp-danger" role="menuitem">
-                    <i class="fas fa-sign-out-alt w-5 text-center"></i>
-                    <span>Sign out</span>
-                </a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="kp-menu-item kp-danger" role="menuitem">
+                        <i class="fas fa-sign-out-alt w-5 text-center"></i>
+                        <span>Sign out</span>
+                    </button>
+                </form>
             </div>
         </div>
 

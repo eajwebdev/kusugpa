@@ -16,6 +16,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/quotation.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/manual-help.css') }}">
 </head>
 <body>
     <a class="skip-link" href="#quote">Skip to quotation</a>
@@ -24,6 +25,7 @@
             <a class="brand" href="#top" aria-label="EAJ Web Development Services, back to top"><span>EAJ<span class="brand-dot">.</span></span><small>WEB DEVELOPMENT SERVICES</small></a>
             <nav aria-label="Page navigation"><a href="#quote">Build quote</a><a href="#scope">Scope</a><a href="#terms">Terms</a></nav>
             <a class="header-download" href="{{ route('quotation.download') }}" id="headerDownload">Download PDF <span aria-hidden="true">↓</span></a>
+            @include('layouts.partials.manual-help-button', ['manualHelpClass' => 'kp-manual-help--on-dark'])
         </div>
     </header>
 

@@ -3,6 +3,7 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -45,6 +46,14 @@ class Handler extends ExceptionHandler
     {
         $this->reportable(function (Throwable $e) {
             //
+        });
+
+        // Signing out from a page left open past the session lifetime sends a stale CSRF token;
+        // that session is already gone, so go to the start page instead of "419 Page Expired"
+        $this->renderable(function (HttpException $e, $request) {
+            if ($e->getStatusCode() === 419 && $request->routeIs('logout')) {
+                return redirect('/');
+            }
         });
     }
 }

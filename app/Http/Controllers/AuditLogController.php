@@ -9,6 +9,8 @@ use Carbon\Carbon;
 
 class AuditLogController extends Controller
 {
+    public const MIN_RETENTION_DAYS = 90;
+
     public function index(Request $request)
 {
     // Server-side pagination - only load what's needed
@@ -139,11 +141,17 @@ public function loadMore(Request $request)
     {
         abort_unless($request->user()->role === 'Administrator', 403);
 
-        $days = $request->validate(['days' => ['sometimes', 'integer', 'min:1', 'max:3650']])['days'] ?? 30;
+        // The last 90 days are always kept, and clearing is itself recorded, so the trail cannot be wiped quietly
+        $days = $request->validate(['days' => ['sometimes', 'integer', 'min:' . self::MIN_RETENTION_DAYS, 'max:3650']])['days'] ?? self::MIN_RETENTION_DAYS;
         $date = Carbon::now()->subDays($days);
-        
+
         $count = AuditLog::where('created_at', '<', $date)->delete();
-        
+
+        AuditLog::log('delete', 'audit_logs', "Cleared {$count} audit logs older than {$days} days", [
+            'older_than' => $date->toDateTimeString(),
+            'deleted' => $count,
+        ]);
+
         return response()->json([
             'message' => "Cleared {$count} audit logs older than {$days} days."
         ]);
