@@ -43,7 +43,9 @@ class PlanterProceeds
             ->whereIn('week_no', $weekValues)
             ->pluck('week_end_date', 'week_no');
 
-        $quedanQuery = Quedan::where('quedans.crop_year', $cropYear)
+        // Pending quedans and molasses are not yet bought, so they are left off the voucher
+        $quedanQuery = Quedan::notPending()
+            ->where('quedans.crop_year', $cropYear)
             ->whereIn('quedans.week_no', $weekValues);
 
         if (!empty($planterNames)) {
@@ -59,7 +61,8 @@ class PlanterProceeds
             ->get()
             ->groupBy(fn ($p) => strtoupper(trim((string) $p->quedan_type)));
 
-        $molassesQuery = Molass::where('molasses.crop_year', $cropYear)
+        $molassesQuery = Molass::notPending()
+            ->where('molasses.crop_year', $cropYear)
             ->whereIn('molasses.week_no', $weekValues);
 
         if (!empty($planterNames)) {

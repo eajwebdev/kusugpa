@@ -518,11 +518,12 @@ class DashboardAnalytics
                     return ['fuel' => [], 'others' => []];
                 }
 
-                // Planter-weeks with proceeds, by code and by name (the voucher falls back to the name)
+                // Planter-weeks with proceeds, by code and by name (the voucher falls back to the name).
+                // Pending quedans and molasses are not on the voucher yet.
                 $producing = [];
                 $cropYears = $deductions->pluck('crop_year')->unique()->all();
-                foreach ([Quedan::class, Molass::class, ConsolidatedUpload::class] as $model) {
-                    foreach ($model::whereIn('crop_year', $cropYears)->select('crop_year', 'week_no', 'planter_code', 'planter_name')->distinct()->cursor() as $r) {
+                foreach ([Quedan::notPending(), Molass::notPending(), ConsolidatedUpload::query()] as $query) {
+                    foreach ($query->whereIn('crop_year', $cropYears)->select('crop_year', 'week_no', 'planter_code', 'planter_name')->distinct()->cursor() as $r) {
                         $week = $r->crop_year . '|' . (int) $r->week_no;
                         $producing[$week . '|' . self::codeKey($r->planter_code)] = true;
                         $producing[$week . '|N:' . self::codeKey($r->planter_name)] = true;

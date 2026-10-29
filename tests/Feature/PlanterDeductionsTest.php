@@ -94,6 +94,7 @@ class PlanterDeductionsTest extends TestCase
             $table->string('planter_name');
             $table->string('tin_no')->nullable();
             $table->decimal('mol_net', 12, 3)->default(0);
+            $table->string('status')->default('pending');
             $table->timestamps();
         });
         Schema::create('mol_price', function (Blueprint $table) {
@@ -145,7 +146,7 @@ class PlanterDeductionsTest extends TestCase
         foreach (['3', '4'] as $week) {
             DB::table('quedans')->insert([
                 'crop_year' => '20262027', 'week_no' => $week, 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN',
-                'sugar_lkg' => 10, 'labor_lkg' => 0,
+                'sugar_lkg' => 10, 'labor_lkg' => 0, 'status' => 'bought',
             ]);
         }
 
@@ -225,7 +226,7 @@ class PlanterDeductionsTest extends TestCase
             ['crop_year' => '20262027', 'week_no' => '4', 'mol_price' => 16000],
             ['crop_year' => '20262027', 'week_no' => '4', 'mol_price' => 17000],
         ]);
-        DB::table('molasses')->insert(['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'mol_net' => 1.3]);
+        DB::table('molasses')->insert(['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'mol_net' => 1.3, 'status' => 'bought']);
 
         $p = PlanterProceeds::compute(PlanterProceeds::summary('20262027', 4, 4)->first());
 
@@ -233,6 +234,41 @@ class PlanterDeductionsTest extends TestCase
         $this->assertEqualsWithDelta(26050, $p['quedan_b_gross'], 0.001);
         $this->assertEqualsWithDelta(1.3, $p['mol_net'], 0.0001);
         $this->assertEqualsWithDelta(22100, $p['molasses_gross'], 0.001);
+    }
+
+    public function test_pending_quedans_and_molasses_are_left_off_the_voucher(): void
+    {
+        // Week 4: 5 more LKg of sugar and 2 t of molasses, still pending in Buy Quedan / Buy Molasses
+        DB::table('mol_price')->insert(['crop_year' => '20262027', 'week_no' => '4', 'mol_price' => 10000]);
+        DB::table('quedans')->insert(['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'sugar_lkg' => 5, 'total_liens' => 99]);
+        DB::table('molasses')->insert(['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'mol_net' => 2]);
+        // A planter with nothing bought yet gets no voucher
+        DB::table('quedans')->insert(['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00456', 'planter_name' => 'SANTOS, MARIA', 'sugar_lkg' => 8]);
+        DB::table('molasses')->insert(['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00456', 'planter_name' => 'SANTOS, MARIA', 'mol_net' => 1]);
+
+        $summary = PlanterProceeds::summary('20262027', 4, 4);
+        $this->assertSame(['00123'], $summary->pluck('planter_code')->all());
+
+        $p = PlanterProceeds::compute($summary->first());
+        $this->assertEqualsWithDelta(10, $p['quedan_b_lkg'], 0.001);
+        $this->assertEqualsWithDelta(10000, $p['quedan_b_gross'], 0.001);
+        $this->assertEqualsWithDelta(0, $p['quedan_b_liens'], 0.001);
+        $this->assertEqualsWithDelta(0, $p['mol_net'], 0.001);
+        $this->assertEqualsWithDelta(0, $p['molasses_gross'], 0.001);
+
+        // The voucher's planter list skips them too
+        $this->getJson(route('get.planter.names', ['crop_year' => '20262027', 'week_from' => 4, 'week_to' => 4]))
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.planter_code', '00123');
+
+        // Once bought they count
+        DB::table('quedans')->update(['status' => 'bought']);
+        DB::table('molasses')->update(['status' => 'bought']);
+        $p = PlanterProceeds::compute(PlanterProceeds::summary('20262027', 4, 4)->firstWhere('planter_code', '00123'));
+        $this->assertEqualsWithDelta(15, $p['quedan_b_lkg'], 0.001);
+        $this->assertEqualsWithDelta(2, $p['mol_net'], 0.001);
+        $this->assertEqualsWithDelta(20000, $p['molasses_gross'], 0.001);
     }
 
     public function test_planter_accounts_applied_lists_each_account_with_totals(): void

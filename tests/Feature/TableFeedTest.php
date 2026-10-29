@@ -99,4 +99,22 @@ class TableFeedTest extends TestCase
         $search = $this->getJson(route('registry.data', ['type' => 'quedan', 'search' => 'PLANTER B', 'page' => 1]))->json();
         $this->assertSame(50, $search['total']);
     }
+
+    public function test_registry_can_select_every_filtered_id_beyond_the_loaded_batch(): void
+    {
+        $this->withoutMiddleware(\App\Http\Middleware\SystemLockMiddleware::class);
+        $this->withoutMiddleware(\App\Http\Middleware\EnsureSingleSession::class);
+        $this->actingAs(new User(['fname' => 'Admin', 'role' => 'Administrator']));
+
+        $response = $this->getJson(route('registry.data', [
+            'type' => 'quedan',
+            'crop_year' => '20262027',
+            'page' => 1,
+            'all_ids' => 1,
+        ]))->assertOk()->json();
+
+        $this->assertSame(200, $response['total']);
+        $this->assertCount(200, $response['ids']);
+        $this->assertSame(range(1, 200), $response['ids']);
+    }
 }

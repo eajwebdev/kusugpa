@@ -282,8 +282,8 @@ class MenuController extends Controller
         ->values()
         ->all();
     
-    // Get unique planter codes with names from quedans
-     $quedanPlanters = Quedan::where('crop_year', $cropYear)
+    // Get unique planter codes with names from quedans (bought only, as on the voucher)
+     $quedanPlanters = Quedan::notPending()->where('crop_year', $cropYear)
         ->whereIn('week_no', $weekValues)
         ->select('planter_code', 'planter_name')
         ->distinct()
@@ -291,8 +291,8 @@ class MenuController extends Controller
     
     Log::info('Quedan planters found: ' . $quedanPlanters->count());
     
-    // Get unique planter codes with names from molasses
-    $molassesPlanters = Molass::where('crop_year', $cropYear)
+    // Get unique planter codes with names from molasses (bought only, as on the voucher)
+    $molassesPlanters = Molass::notPending()->where('crop_year', $cropYear)
         ->whereIn('week_no', $weekValues)
         ->select('planter_code', 'planter_name')
         ->distinct()

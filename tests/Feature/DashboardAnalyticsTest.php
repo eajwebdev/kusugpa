@@ -163,8 +163,8 @@ class DashboardAnalyticsTest extends TestCase
             ['planter_code' => '00456', 'planter_name' => 'SANTOS, MARIA'],
         ]);
         // Juan: quedan and molasses in week 3, consolidated uploaded with a zero-padded week ("03")
-        DB::table('quedans')->insert(['crop_year' => self::CY, 'week_no' => '3', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'sugar_lkg' => 10]);
-        DB::table('molasses')->insert(['crop_year' => self::CY, 'week_no' => '3', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'mol_net' => 1]);
+        DB::table('quedans')->insert(['crop_year' => self::CY, 'week_no' => '3', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'sugar_lkg' => 10, 'status' => 'bought']);
+        DB::table('molasses')->insert(['crop_year' => self::CY, 'week_no' => '3', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'mol_net' => 1, 'status' => 'bought']);
         DB::table('consolidated_uploads')->insert(['crop_year' => self::CY, 'week_no' => '03', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'ta_wt' => 9]);
     }
 

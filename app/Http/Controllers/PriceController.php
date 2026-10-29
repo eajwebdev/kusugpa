@@ -236,6 +236,18 @@ private function registryFeed(Request $request, string $type, ?string $cropYear,
         $query->where('status', $status);
     }
 
+    // The registry header checkbox selects the complete filtered result, including
+    // batches that infinite scrolling has not loaded yet. Return only IDs so this
+    // stays small and does not defeat lazy row loading.
+    if ($request->boolean('all_ids')) {
+        $ids = $query->reorder()->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->values();
+
+        return response()->json([
+            'ids' => $ids,
+            'total' => $ids->count(),
+        ]);
+    }
+
     $sortable = [
         'crop_year' => 'crop_year',
         'week_no' => ['raw' => 'CAST(week_no AS UNSIGNED)'],

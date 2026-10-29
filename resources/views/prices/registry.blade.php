@@ -108,8 +108,10 @@
                         <thead>
                             <tr>
                                 <th class="w-10 text-center">
-                                    <input type="checkbox" @click="toggleSelectAllQuedan" :checked="isAllQuedanSelected"
-                                        class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A]">
+                                    <input type="checkbox" @change="toggleSelectAllQuedan" :checked="isAllQuedanSelected"
+                                        :disabled="quedanSelectingAll || !quedanFeed || !quedanFeed.total"
+                                        aria-label="Select all matching quedan records" title="Select all matching records, including rows not loaded yet"
+                                        class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A] disabled:opacity-50">
                                 </th>
                                 <template x-for="col in quedanColumns" :key="col.key">
                                     <th class="cursor-pointer select-none" :class="col.align" @click="sortQuedan(col.key)">
@@ -184,9 +186,11 @@
                         <thead>
                             <tr>
                                 <th class="w-10 text-center">
-                                    <input type="checkbox" @click="toggleSelectAllMolasses"
+                                    <input type="checkbox" @change="toggleSelectAllMolasses"
                                         :checked="isAllMolassesSelected"
-                                        class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A]">
+                                        :disabled="molassesSelectingAll || !molassesFeed || !molassesFeed.total"
+                                        aria-label="Select all matching molasses records" title="Select all matching records, including rows not loaded yet"
+                                        class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A] disabled:opacity-50">
                                 </th>
                                 <template x-for="col in molassesColumns" :key="col.key">
                                     <th class="cursor-pointer select-none" :class="col.align" @click="sortMolasses(col.key)">
@@ -413,12 +417,14 @@
                     quedanSortField: '',
                     quedanSortDir: 'asc',
                     quedanSelectedIds: [],
+                    quedanSelectingAll: false,
                     quedanFeed: null,
 
                     molassesSearch: '',
                     molassesSortField: '',
                     molassesSortDir: 'asc',
                     molassesSelectedIds: [],
+                    molassesSelectingAll: false,
                     molassesFeed: null,
                     cropYearOptions: @json($cropYears),
 
@@ -587,15 +593,17 @@
                     get filteredQuedans() {
                         return this.quedanFeed ? this.quedanFeed.rows : [];
                     },
-                    // The header box selects every loaded row
+                    // The header box represents every server-side match, not just
+                    // the batches that infinite scrolling has loaded so far.
                     get isAllQuedanSelected() {
-                        return this.filteredQuedans.length > 0 && this.filteredQuedans.every(r => this.quedanSelectedIds.includes(r.id));
+                        return !!this.quedanFeed?.total && this.quedanSelectedIds.length === this.quedanFeed.total;
                     },
-                    toggleSelectAllQuedan() {
-                        const ids = this.filteredQuedans.map(r => r.id);
-                        this.quedanSelectedIds = this.isAllQuedanSelected
-                            ? this.quedanSelectedIds.filter(id => !ids.includes(id))
-                            : [...new Set([...this.quedanSelectedIds, ...ids])];
+                    async toggleSelectAllQuedan() {
+                        if (this.isAllQuedanSelected) {
+                            this.quedanSelectedIds = [];
+                            return;
+                        }
+                        await this.selectAllMatching('quedan');
                     },
                     sortQuedan(field) {
                         this.quedanSortDir = this.quedanSortField === field && this.quedanSortDir === 'asc' ? 'desc' : 'asc';
@@ -608,18 +616,50 @@
                         return this.molassesFeed ? this.molassesFeed.rows : [];
                     },
                     get isAllMolassesSelected() {
-                        return this.filteredMolasses.length > 0 && this.filteredMolasses.every(r => this.molassesSelectedIds.includes(r.id));
+                        return !!this.molassesFeed?.total && this.molassesSelectedIds.length === this.molassesFeed.total;
                     },
-                    toggleSelectAllMolasses() {
-                        const ids = this.filteredMolasses.map(r => r.id);
-                        this.molassesSelectedIds = this.isAllMolassesSelected
-                            ? this.molassesSelectedIds.filter(id => !ids.includes(id))
-                            : [...new Set([...this.molassesSelectedIds, ...ids])];
+                    async toggleSelectAllMolasses() {
+                        if (this.isAllMolassesSelected) {
+                            this.molassesSelectedIds = [];
+                            return;
+                        }
+                        await this.selectAllMatching('molasses');
                     },
                     sortMolasses(field) {
                         this.molassesSortDir = this.molassesSortField === field && this.molassesSortDir === 'asc' ? 'desc' : 'asc';
                         this.molassesSortField = field;
                         this.molassesFeed.reset();
+                    },
+
+                    async selectAllMatching(type) {
+                        const isQuedan = type === 'quedan';
+                        if (isQuedan) this.quedanSelectingAll = true;
+                        else this.molassesSelectingAll = true;
+
+                        try {
+                            const params = new URLSearchParams({
+                                type,
+                                page: '1',
+                                all_ids: '1',
+                                search: isQuedan ? this.quedanSearch.trim() : this.molassesSearch.trim(),
+                            });
+                            if (this.period.cropYear) params.set('crop_year', this.period.cropYear);
+                            if (this.period.weekNo) params.set('week_no', this.period.weekNo);
+
+                            const response = await fetch('{{ route('registry.data') }}?' + params.toString(), {
+                                headers: { 'Accept': 'application/json' }
+                            });
+                            const data = await response.json();
+                            if (!response.ok) throw new Error(data.message || 'Failed to select matching records.');
+
+                            if (isQuedan) this.quedanSelectedIds = data.ids || [];
+                            else this.molassesSelectedIds = data.ids || [];
+                        } catch (error) {
+                            Swal.fire({ icon: 'error', title: 'Selection Failed', text: error.message });
+                        } finally {
+                            if (isQuedan) this.quedanSelectingAll = false;
+                            else this.molassesSelectingAll = false;
+                        }
                     },
 
                     async confirmDeleteAll() {

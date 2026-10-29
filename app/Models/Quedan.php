@@ -17,4 +17,12 @@ class Quedan extends Model
         'bought_at', 'bought_by',
 
     ];
+
+    /**
+     * Rows that count on the Check Voucher and its reports: a pending row is not yet bought
+     */
+    public function scopeNotPending($query)
+    {
+        return $query->where($query->qualifyColumn('status'), '!=', 'pending');
+    }
 }
