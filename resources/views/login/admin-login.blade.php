@@ -58,6 +58,8 @@
           securityKey: ''
       }">
 
+    @include('layouts.partials.manual-help-button', ['manualHelpClass' => 'kp-manual-help--fixed kp-manual-help--on-dark'])
+
     <div class="fixed inset-0 admin-grid-lines pointer-events-none"></div>
 
     <div class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-12 rounded-3xl overflow-hidden border border-[#203A2B] bg-[#0E1E15]/90 shadow-2xl relative z-10 backdrop-blur-xl">

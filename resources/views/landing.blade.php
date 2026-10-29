@@ -172,6 +172,7 @@
                 <a href="#about" class="kp-nav-link">About</a>
                 <a href="#services" class="kp-nav-link">Services</a>
                 <a href="#portal" class="kp-nav-link">Planter Portal</a>
+                <a href="{{ route('manual') }}" class="kp-nav-link">User Guide</a>
                 <a href="#membership" class="kp-nav-link">Membership</a>
                 <a href="#contact" class="kp-nav-link">Contact</a>
             </nav>
@@ -184,6 +185,7 @@
                 <a href="{{ $loginUrl }}" class="kp-header-signin inline-flex items-center gap-2 h-11 px-4 rounded-lg bg-primary-600 text-white text-sm font-semibold shadow-[0_1px_2px_rgba(0,63,32,.35)] hover:bg-primary-700 transition-colors" aria-label="Sign in to the planter portal">
                     <i class="fas fa-user text-xs" aria-hidden="true"></i> <span>Sign in</span>
                 </a>
+                @include('layouts.partials.manual-help-button', ['manualHelpClass' => 'kp-manual-help--on-dark'])
             </div>
         </div>
 
@@ -192,6 +194,7 @@
                 <a href="#about" class="py-2.5 border-b border-white/10">About</a>
                 <a href="#services" class="py-2.5 border-b border-white/10">Services</a>
                 <a href="#portal" class="py-2.5 border-b border-white/10">Planter Portal</a>
+                <a href="{{ route('manual') }}" class="py-2.5 border-b border-white/10">User Guide</a>
                 <a href="#membership" class="py-2.5 border-b border-white/10">Membership</a>
                 <a href="#contact" class="py-2.5">Contact</a>
             </div>

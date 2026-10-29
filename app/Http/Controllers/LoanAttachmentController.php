@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use App\Models\Loan;
 use App\Models\LoanAttachment;
 use App\Models\User;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class LoanAttachmentController extends Controller
@@ -40,14 +39,15 @@ class LoanAttachmentController extends Controller
     ]);
 
     $file = $request->file('document');
-    $extension = $file->getClientOriginalExtension();
+    // Extension from the file's content (what "mimes" checked), never the name the browser sent, e.g. "id.php"
+    $extension = $file->extension() ?: 'bin';
     $encryptedFilename = Str::uuid() . '_' . time() . '.' . $extension;
-    
-    // Store in public disk but inside a protected folder
+
+    // Private disk: served only through the token-checked view / download routes
     $path = $file->storeAs(
         'protected/loan-attachments/' . $loan->id,
         $encryptedFilename,
-        'public'
+        LoanAttachment::DISK
     );
 
     $attachment = LoanAttachment::create([
@@ -77,16 +77,13 @@ public function view(Request $request, LoanAttachment $attachment)
         abort(403, 'Invalid or expired link.');
     }
 
-    $filePath = storage_path('app/public/' . $attachment->file_path);
+    $filePath = $attachment->absolutePath();
 
-    if (!file_exists($filePath)) {
+    if (!$filePath) {
         abort(404, 'File not found.');
     }
 
-    return response()->file($filePath, [
-        'Content-Type' => $attachment->mime_type,
-        'Content-Disposition' => 'inline; filename="' . $attachment->original_filename . '"',
-    ]);
+    return $attachment->sendAs(response()->file($filePath, ['Content-Type' => $attachment->mime_type]), 'inline');
 }
 
     public function download(Request $request, LoanAttachment $attachment)
@@ -98,14 +95,13 @@ public function view(Request $request, LoanAttachment $attachment)
             abort(403, 'Invalid or expired link.');
         }
 
-        $filePath = $attachment->file_path;
-        $disk = Storage::disk('local');
+        $filePath = $attachment->absolutePath();
 
-        if (!$disk->exists($filePath)) {
+        if (!$filePath) {
             abort(404, 'File not found.');
         }
 
-        return response()->download(Storage::path($filePath), $attachment->original_filename);
+        return $attachment->sendAs(response()->download($filePath), 'attachment');
     }
 
     public function destroy(LoanAttachment $attachment)
@@ -120,7 +116,7 @@ public function view(Request $request, LoanAttachment $attachment)
             ], 403);
         }
 
-        Storage::disk('local')->delete($attachment->file_path);
+        $attachment->deleteFile();
         $attachment->delete();
 
         return response()->json(['message' => 'Attachment deleted successfully']);

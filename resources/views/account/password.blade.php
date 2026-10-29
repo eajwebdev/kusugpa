@@ -171,9 +171,9 @@
 
             <div class="kp-pw-actions">
                 @if($forced)
-                    <a href="{{ route('logout') }}" class="kp-btn kp-btn-secondary inline-flex items-center gap-2">
+                    <button type="submit" form="kp-logout-form" formnovalidate class="kp-btn kp-btn-secondary inline-flex items-center gap-2">
                         <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Sign out
-                    </a>
+                    </button>
                 @else
                     <a href="{{ route('dashboard') }}" class="kp-btn kp-btn-secondary inline-flex items-center">Cancel</a>
                 @endif
@@ -184,6 +184,10 @@
                 </button>
             </div>
         </form>
+        @if($forced)
+            {{-- Outside the password form: forms cannot nest --}}
+            <form id="kp-logout-form" method="POST" action="{{ route('logout') }}" hidden>@csrf</form>
+        @endif
     </section>
 </div>
 

@@ -21,7 +21,7 @@
             </div>
         </div>
 
-        {{-- The Crop Year & Week picker is part of the Dashboard page (layouts/partials/crop-week-filter) --}}
+        @include('layouts.partials.manual-help-button')
     </div>
 </header>
 

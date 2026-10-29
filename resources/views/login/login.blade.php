@@ -22,6 +22,7 @@
     @endif
 </head>
 <body class="h-full" x-data="{ showPassword: false, loading: false }">
+    @include('layouts.partials.manual-help-button', ['manualHelpClass' => 'kp-manual-help--fixed'])
     <div class="kp-auth kp-auth--login">
         <aside class="kp-auth-aside">
             <div>

@@ -46,8 +46,11 @@ Route::get('/', function () {
     return view('landing');
 });
 
-// Logout: open to any signed-in user (any role, or none) and to an expired session
-Route::match(['get', 'post'], '/logout', [LoginAuthController::class, 'logout'])->name('logout');
+Route::view('/manual', 'manual')->name('manual');
+
+// Logout: open to any signed-in user (any role, or none) and to an expired session.
+// POST only, so another site cannot sign users out with a link or image (stale tokens: see Exceptions\Handler)
+Route::post('/logout', [LoginAuthController::class, 'logout'])->name('logout');
 
 // Guest Routes
 Route::middleware(['guest'])->group(function () {

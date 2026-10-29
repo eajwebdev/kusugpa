@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Log; 
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Support\PasswordPolicy;
@@ -12,17 +14,68 @@ use App\Support\SingleSession;
 
 class LoginAuthController extends Controller
 {
+    // Failed sign-ins allowed per lockout window: per username from one address, and per address over all usernames
+    public const MAX_TRIES_PER_ACCOUNT = 5;
+    public const MAX_TRIES_PER_ADDRESS = 20;
+    public const LOCKOUT_SECONDS = 900;
+
+    private function throttleKeys(Request $request, string $portal): array
+    {
+        return [
+            [$portal . '|' . Str::lower(trim((string) $request->input('username'))) . '|' . $request->ip(), self::MAX_TRIES_PER_ACCOUNT],
+            [$portal . '-ip|' . $request->ip(), self::MAX_TRIES_PER_ADDRESS],
+        ];
+    }
+
+    /**
+     * "Try again in N minutes" while either limit is reached, otherwise null
+     */
+    private function lockoutMessage(Request $request, string $portal): ?string
+    {
+        foreach ($this->throttleKeys($request, $portal) as [$key, $max]) {
+            if (RateLimiter::tooManyAttempts($key, $max)) {
+                $minutes = max(1, (int) ceil(RateLimiter::availableIn($key) / 60));
+                return 'Too many failed sign-in attempts. Try again in ' . $minutes . ' minute' . ($minutes > 1 ? 's' : '') . '.';
+            }
+        }
+        return null;
+    }
+
+    private function recordFailedLogin(Request $request, string $portal): void
+    {
+        foreach ($this->throttleKeys($request, $portal) as [$key, $max]) {
+            RateLimiter::hit($key, self::LOCKOUT_SECONDS);
+            // Logged once, when the attempt that reaches the limit is made
+            if (RateLimiter::attempts($key) === $max) {
+                AuditLog::log('error', 'auth', 'Sign-in locked after ' . $max . ' failed attempts', [
+                    'portal' => $portal,
+                    'username' => Str::limit((string) $request->input('username'), 100),
+                    'scope' => str_contains($key, '-ip|') ? 'address' : 'account',
+                ]);
+            }
+        }
+    }
+
+    private function clearFailedLogins(Request $request, string $portal): void
+    {
+        RateLimiter::clear($this->throttleKeys($request, $portal)[0][0]);
+    }
+
     public function getLogin()
     {
         return view('login.login');
     }
-    
+
     public function postLogin(Request $request)
     {
         $request->validate([
             'username' => 'required',
             'password' => 'required',
         ]);
+
+        if ($locked = $this->lockoutMessage($request, 'login')) {
+            return redirect()->back()->with('error', $locked)->withInput($request->only('username'));
+        }
 
         // First, try to authenticate with just username and password
         $credentials = [
@@ -36,6 +89,7 @@ class LoginAuthController extends Controller
             
             // Check if user has a valid role
             if ($user->hasLoginRole()) {
+                $this->clearFailedLogins($request, 'login');
                 $request->session()->regenerate();
                 SingleSession::establish($user, $request);
                 PasswordPolicy::flagIfWeak($user, $request->password);
@@ -47,6 +101,8 @@ class LoginAuthController extends Controller
             auth()->logout();
             return redirect()->back()->with('error', 'Your account does not have a valid role.');
         }
+
+        $this->recordFailedLogin($request, 'login');
 
         return redirect()->back()->with('error', 'Invalid username or password. Please try again.')
             ->withInput($request->only('username'));
@@ -124,8 +180,16 @@ public function postAdminLogin(Request $request)
         'security_key' => 'required',
     ]);
 
-    // Verify security key first
-    if ($request->security_key !== config('app.admin_security_key')) {
+    if ($locked = $this->lockoutMessage($request, 'admin-login')) {
+        return redirect()->back()
+            ->with('admin_error', $locked)
+            ->withInput($request->except(['password', 'security_key']));
+    }
+
+    // Verify security key first (constant-time compare; an unset key never matches)
+    $securityKey = (string) config('app.admin_security_key');
+    if ($securityKey === '' || !hash_equals($securityKey, (string) $request->security_key)) {
+        $this->recordFailedLogin($request, 'admin-login');
         Log::warning('Invalid admin security key attempt from IP: ' . $request->ip());
         return redirect()->back()
             ->with('admin_error', 'Invalid security credentials. Access denied.')
@@ -143,12 +207,14 @@ public function postAdminLogin(Request $request)
         
         if ($user->role !== 'Administrator') {
             auth()->logout();
+            $this->recordFailedLogin($request, 'admin-login');
             return redirect()->back()
                 ->with('admin_error', 'Access denied. Administrator privileges required.')
                 ->withInput($request->except(['password', 'security_key']));
         }
         
         Log::info('Admin login successful: ' . $user->username . ' from IP: ' . $request->ip());
+        $this->clearFailedLogins($request, 'admin-login');
         $request->session()->regenerate();
         SingleSession::establish($user, $request);
         PasswordPolicy::flagIfWeak($user, $request->password);
@@ -158,8 +224,9 @@ public function postAdminLogin(Request $request)
             ->with('success', 'Welcome to the admin panel, ' . $user->fname . '.');
     }
 
+    $this->recordFailedLogin($request, 'admin-login');
     Log::warning('Failed admin login from IP: ' . $request->ip());
-    
+
     return redirect()->back()
         ->with('admin_error', 'Invalid administrator credentials.')
         ->withInput($request->except(['password', 'security_key']));

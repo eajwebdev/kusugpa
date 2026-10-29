@@ -195,13 +195,17 @@ class AuditLogVisibilityTest extends TestCase
         $this->assertSame(10, AuditLog::count());
         $this->actingAs($this->users['admin']);
         $this->postJson('/audit-logs/clear', ['days' => 0])->assertStatus(422);
+        // The last 90 days are always kept
+        $this->postJson('/audit-logs/clear', ['days' => 30])->assertStatus(422);
 
         DB::table('audit_logs')->where('id', $this->logs['system']->id)
-            ->update(['created_at' => now()->subDays(31)]);
-        $this->postJson('/audit-logs/clear', ['days' => 30])
+            ->update(['created_at' => now()->subDays(91)]);
+        $this->postJson('/audit-logs/clear', ['days' => 90])
             ->assertOk()
-            ->assertJsonPath('message', 'Cleared 1 audit logs older than 30 days.');
-        $this->assertSame(9, AuditLog::count());
+            ->assertJsonPath('message', 'Cleared 1 audit logs older than 90 days.');
+        // One removed, and the clear itself recorded
+        $this->assertSame(10, AuditLog::count());
+        $this->assertSame(1, AuditLog::where('module', 'audit_logs')->count());
     }
 
     public function test_historical_admin_log_is_not_exposed_after_actor_demoted(): void
