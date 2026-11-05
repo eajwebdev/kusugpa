@@ -553,6 +553,12 @@ class NavigationPermissionsTest extends TestCase
 
         $this->get('/quedan-molasses-registry')->assertOk()
             ->assertSee('Show totals in PDF')
+            ->assertSee('x-model="period.status"', false)
+            ->assertSee('All Statuses')
+            ->assertSee('<option value="">All Statuses</option>', false)
+            ->assertSee("period: { cropYear: '', weekNo: '', status: '' }", false) // opens on All Statuses
+            ->assertSee("{ key: 'status', label: 'Status', align: 'text-center' }", false)
+            ->assertSee("row.status === 'rejected' ? 'Rejected' : 'Pending'", false)
             ->assertSee('pdfShowTotals: false', false)
             ->assertSee("feedSum(quedanFeed, 'total_liens')", false)
             ->assertSee("feedSum(quedanFeed, 'sugar_lkg')", false)

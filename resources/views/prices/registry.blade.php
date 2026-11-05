@@ -50,7 +50,7 @@
             </button>
         </div>
 
-        <!-- Crop Year / Week Filter (applies to both tabs and their PDFs) -->
+        <!-- Crop Year / Week / Status Filter (applies to both tabs, their totals and their PDFs) -->
         <div class="kp-card p-4 flex flex-wrap items-end gap-3">
             <div class="w-44">
                 <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Crop Year</label>
@@ -71,9 +71,18 @@
                     </template>
                 </select>
             </div>
-            <button type="button" x-show="period.weekNo || period.cropYear !== @js($defaultCropYear)" x-cloak
-                @click="period = { cropYear: @js($defaultCropYear), weekNo: '' }; onPeriodChange()"
-                class="kp-btn kp-btn-secondary text-xs py-1.5" title="Back to the latest crop year, all weeks">
+            <div class="w-40">
+                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Status</label>
+                <select x-model="period.status" @change="onPeriodChange()" class="kp-input w-full py-1.5 text-xs">
+                    <option value="">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="bought">Bought</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </div>
+            <button type="button" x-show="period.weekNo || period.status || period.cropYear !== @js($defaultCropYear)" x-cloak
+                @click="period = { cropYear: @js($defaultCropYear), weekNo: '', status: '' }; onPeriodChange()"
+                class="kp-btn kp-btn-secondary text-xs py-1.5" title="Back to the latest crop year, all weeks and all statuses">
                 <i class="fas fa-times mr-1"></i> Clear
             </button>
             <span x-show="rowsLoading" x-cloak class="text-xs py-2" style="color: var(--kp-muted)">
@@ -148,10 +157,11 @@
                                     <td class="text-xs text-right kp-num font-medium text-[#172B20] dark:text-[#EAF5ED]" x-text="formatNum(row.total_liens, 3)"></td>
                                     <td class="text-xs text-right kp-num font-semibold text-[#005B2A] dark:text-[#52C97E]" x-text="formatNum(row.sugar_lkg, 3)"></td>
                                     <td class="text-xs text-right kp-num font-medium text-[#172B20] dark:text-[#EAF5ED]" x-text="formatNum(row.labor_lkg, 3)"></td>
+                                    <td class="text-center">@include('prices.partials.status-badge')</td>
                                 </tr>
                             </template>
                             <template x-if="quedanFeed">
-                                @include('layouts.partials.feed-footer', ['feed' => 'quedanFeed', 'colspan' => 10, 'empty' => 'No quedan registry records found matching the filter criteria.'])
+                                @include('layouts.partials.feed-footer', ['feed' => 'quedanFeed', 'colspan' => 11, 'empty' => 'No quedan registry records found matching the filter criteria.'])
                             </template>
                         </tbody>
                         <tfoot class="kp-table-total">
@@ -160,6 +170,7 @@
                                 <td class="text-xs text-right kp-num" x-text="feedSum(quedanFeed, 'total_liens')"></td>
                                 <td class="text-xs text-right kp-num" x-text="feedSum(quedanFeed, 'sugar_lkg')"></td>
                                 <td class="text-xs text-right kp-num" x-text="feedSum(quedanFeed, 'labor_lkg')"></td>
+                                <td></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -233,16 +244,18 @@
                                     </td>
                                     <td class="text-xs font-mono text-[#52705F] dark:text-[#8AA895]" x-text="row.mc_no || '—'"></td>
                                     <td class="text-xs text-right kp-num font-bold text-[#005B2A] dark:text-[#52C97E]" x-text="formatNum(row.mol_net, 3)"></td>
+                                    <td class="text-center">@include('prices.partials.status-badge')</td>
                                 </tr>
                             </template>
                             <template x-if="molassesFeed">
-                                @include('layouts.partials.feed-footer', ['feed' => 'molassesFeed', 'colspan' => 8, 'empty' => 'No molasses registry records found matching the filter criteria.'])
+                                @include('layouts.partials.feed-footer', ['feed' => 'molassesFeed', 'colspan' => 9, 'empty' => 'No molasses registry records found matching the filter criteria.'])
                             </template>
                         </tbody>
                         <tfoot class="kp-table-total">
                             <tr>
                                 <td colspan="7" class="text-xs" x-text="totalsLabel(molassesFeed)"></td>
                                 <td class="text-xs text-right kp-num" x-text="feedSum(molassesFeed, 'mol_net')"></td>
+                                <td></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -404,8 +417,8 @@
                     totalQuedanCount: 0,
                     totalMolassesCount: 0,
 
-                    // Crop year / week filter shared by both tabs
-                    period: { cropYear: '', weekNo: '' },
+                    // Crop year / week / status filter shared by both tabs
+                    period: { cropYear: '', weekNo: '', status: '' },
                     tinEdit: { type: null, id: null, value: '', saving: false },
                     pdfShowTotals: false,
 
@@ -419,6 +432,7 @@
                         { key: 'total_liens', label: 'Total Liens', align: 'text-right' },
                         { key: 'sugar_lkg', label: 'Sugar (Lkg)', align: 'text-right' },
                         { key: 'labor_lkg', label: 'Labor (Lkg)', align: 'text-right' },
+                        { key: 'status', label: 'Status', align: 'text-center' },
                     ],
                     molassesColumns: [
                         { key: 'crop_year', label: 'Crop Year' },
@@ -428,6 +442,7 @@
                         { key: 'tin_no', label: 'TIN No' },
                         { key: 'mc_no', label: 'MC No' },
                         { key: 'mol_net', label: 'Molasses Net (MT)', align: 'text-right' },
+                        { key: 'status', label: 'Status', align: 'text-center' },
                     ],
 
                     // Rows come from the server in batches of 100 (kpFeed); search, crop year / week and
@@ -454,7 +469,7 @@
                         this.period.cropYear = @json($defaultCropYear);
                         const feedParams = (type, search, sort, dir) => () => ({
                             type, search: search(), sort: sort(), dir: dir(),
-                            crop_year: this.period.cropYear, week_no: this.period.weekNo,
+                            crop_year: this.period.cropYear, week_no: this.period.weekNo, status: this.period.status,
                         });
                         this.quedanFeed = kpFeed('{{ route('registry.data') }}', feedParams('quedan',
                             () => this.quedanSearch.trim(), () => this.quedanSortField, () => this.quedanSortDir));
@@ -555,6 +570,7 @@
                         const params = new URLSearchParams();
                         if (this.period.cropYear) params.set('crop_year', this.period.cropYear);
                         if (this.period.weekNo) params.set('week_no', this.period.weekNo);
+                        if (this.period.status) params.set('status', this.period.status);
                         return params.toString();
                     },
                     pdfQuery() {
@@ -566,7 +582,8 @@
                         return sums ? this.formatNum(sums[column], 3) : '—';
                     },
                     totalsLabel(feed) {
-                        return feed && feed.total !== null ? 'Total of all ' + feed.total.toLocaleString() + ' matching' : 'Total';
+                        if (!feed || feed.total === null) return 'Total';
+                        return 'Total of all ' + feed.total.toLocaleString() + ' ' + (this.period.status || 'matching') + ' records';
                     },
                     sortIcon(field, dir, key) {
                         return field === key ? (dir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30';
@@ -675,6 +692,7 @@
                             });
                             if (this.period.cropYear) params.set('crop_year', this.period.cropYear);
                             if (this.period.weekNo) params.set('week_no', this.period.weekNo);
+                            if (this.period.status) params.set('status', this.period.status);
 
                             const response = await fetch('{{ route('registry.data') }}?' + params.toString(), {
                                 headers: { 'Accept': 'application/json' }

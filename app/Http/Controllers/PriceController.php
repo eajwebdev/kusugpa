@@ -376,9 +376,26 @@ private static function isBlankTin($tin): bool
     return $tin === '' || strtoupper($tin) === 'NULL';
 }
 
-/** Crop year / week filter of the registry page, applied to its PDF too */
+/** The registry page's status filter, when it holds a real status */
+private function registryStatus(Request $request): ?string
+{
+    return in_array($request->get('status'), ['pending', 'bought', 'rejected'], true) ? $request->get('status') : null;
+}
+
+/** "Quedan Registry - Pending": a filtered PDF says what its rows and totals cover */
+private function registryTitle(string $title, Request $request): string
+{
+    $status = $this->registryStatus($request);
+
+    return $status ? $title . ' - ' . ucfirst($status) : $title;
+}
+
+/** Crop year / week / status filter of the registry page, applied to its PDF too */
 private function registryPeriod($query, Request $request)
 {
+    if ($status = $this->registryStatus($request)) {
+        $query->where('status', $status);
+    }
     if ($request->filled('crop_year')) {
         $query->where('crop_year', $request->crop_year);
     }
@@ -392,7 +409,7 @@ private function registryPeriod($query, Request $request)
 public function exportQuedanPDF(Request $request)
 {
     $quedans = $this->registryPeriod(Quedan::orderBy('planter_name'), $request)->get();
-    return LedgerPdf::response($request, $quedans, 'Quedan Registry', [
+    return LedgerPdf::response($request, $quedans, $this->registryTitle('Quedan Registry', $request), [
             ['key' => 'crop_year', 'label' => 'Season'],
             ['key' => 'week_no', 'label' => 'Week'],
             ['key' => 'planter_code', 'label' => 'Planter Code'],
@@ -409,7 +426,7 @@ public function exportQuedanPDF(Request $request)
 public function exportMolassesPDF(Request $request)
 {
     $molassesList = $this->registryPeriod(Molass::orderBy('planter_name'), $request)->get();
-    return LedgerPdf::response($request, $molassesList, 'Molasses Registry', [
+    return LedgerPdf::response($request, $molassesList, $this->registryTitle('Molasses Registry', $request), [
             ['key' => 'crop_year', 'label' => 'Season'],
             ['key' => 'week_no', 'label' => 'Week'],
             ['key' => 'planter_code', 'label' => 'Planter Code'],
