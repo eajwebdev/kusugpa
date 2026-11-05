@@ -50,6 +50,19 @@ class NavigationPermissions
         ],
     ];
 
+    // Pages these roles open without an assignment in User Management
+    public const ROLE_ACCESS = [
+        'manage-crop-weeks' => ['manager'],
+        'manage-prices' => ['manager'],
+        'view-planter-profiles' => ['manager', 'loan_officer'],
+        'manage-planter-profiles' => ['manager'],
+    ];
+
+    public static function canOpen(User $user, string $slug): bool
+    {
+        return $user->hasPermission($slug) || in_array($user->role, self::ROLE_ACCESS[$slug] ?? [], true);
+    }
+
     public static function parentFor(string $slug): ?string
     {
         foreach (self::GROUPS as $group) {
@@ -93,6 +106,19 @@ class NavigationPermissions
             'registry.quedan.delete-by-week', 'registry.quedan.delete-selected', 'registry.molasses.delete-all',
             'registry.molasses.delete-by-week', 'registry.molasses.delete-selected', 'registry.tin.update'], true)) {
             return 'view-quedan-molasses-registry';
+        }
+        if (in_array($name, ['crop-weeks.index', 'crop-year.update', 'crop-year.destroy', 'crop-year.spoofed',
+            'week.update', 'week.destroy', 'week.spoofed'], true)) {
+            return 'manage-crop-weeks';
+        }
+        if (str_starts_with($name, 'prices.')) {
+            return 'manage-prices';
+        }
+        if (str_starts_with($name, 'planter-profiles.')) {
+            return in_array($name, ['planter-profiles.index', 'planter-profiles.load-more',
+                'planter-profiles.export', 'planter-profiles.show'], true)
+                ? 'view-planter-profiles'
+                : 'manage-planter-profiles';
         }
         if (str_starts_with($name, 'quedan-buy') || $name === 'quedans.bulk-update') {
             return 'buy-quedan';

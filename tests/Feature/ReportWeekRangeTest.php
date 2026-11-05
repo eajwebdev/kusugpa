@@ -64,6 +64,7 @@ class ReportWeekRangeTest extends TestCase
             $table->string('planter_name');
             $table->decimal('sugar_lkg', 12, 2)->default(0);
             $table->decimal('labor_lkg', 12, 2)->default(0);
+            $table->string('status')->default('bought');
             $table->timestamps();
         });
         Schema::create('molasses', function (Blueprint $table) {
@@ -73,6 +74,7 @@ class ReportWeekRangeTest extends TestCase
             $table->string('planter_code');
             $table->string('planter_name');
             $table->decimal('mol_net', 12, 3)->default(0);
+            $table->string('status')->default('bought');
             $table->timestamps();
         });
         Schema::create('trucking_allowance', function (Blueprint $table) {
@@ -110,6 +112,21 @@ class ReportWeekRangeTest extends TestCase
         $this->assertEqualsWithDelta(570, $rows[0]['net_lkg'], 0.001); // (200 - 10) + (400 - 20)
         $this->assertEqualsWithDelta(12, $rows[0]['net_mol'], 0.001);
         $this->assertArrayNotHasKey('gross_lkg', $rows[0]);
+    }
+
+    public function test_certification_leaves_out_pending_quedans_and_molasses(): void
+    {
+        $row = ['crop_year' => '20252026', 'week_no' => '2', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN'];
+        DB::table('quedans')->insert($row + ['sugar_lkg' => 1000, 'labor_lkg' => 0, 'status' => 'pending']);
+        DB::table('molasses')->insert($row + ['mol_net' => 1000, 'status' => 'pending']);
+
+        $period = ['crop_year' => '20252026', 'week_from' => '2', 'week_to' => '10'];
+        $rows = $this->getJson(route('certification-report.planters', $period))->assertOk()->json('data');
+
+        $this->assertEqualsWithDelta(570, $rows[0]['net_lkg'], 0.001);
+        $this->assertEqualsWithDelta(12, $rows[0]['net_mol'], 0.001);
+        $this->get(route('certification-report.pdf', $period + ['all' => 1]))->assertOk();
+        $this->assertSame(1, DB::table('quedans')->where('status', 'pending')->count());
     }
 
     public function test_certification_without_weeks_covers_the_whole_crop_year(): void

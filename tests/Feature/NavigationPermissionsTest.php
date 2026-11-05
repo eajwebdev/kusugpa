@@ -388,6 +388,180 @@ class NavigationPermissionsTest extends TestCase
         $this->getJson('/permission-hauler/manage')->assertOk();
     }
 
+    private function createPageTables(): void
+    {
+        foreach (['quedans' => 'qdn_no', 'molasses' => 'mc_no'] as $name => $number) {
+            Schema::create($name, function (Blueprint $table) use ($number) {
+                $table->id();
+                $table->string('crop_year');
+                $table->string('week_no');
+                $table->string('planter_code');
+                $table->string('planter_name');
+                $table->string($number)->nullable();
+                $table->string('tin_no')->nullable();
+                $table->decimal('total_liens', 12, 2)->default(0);
+                $table->decimal('sugar_lkg', 12, 3)->default(0);
+                $table->decimal('labor_lkg', 12, 3)->default(0);
+                $table->decimal('mol_net', 12, 3)->default(0);
+                $table->string('status')->default('pending');
+                $table->timestamps();
+            });
+        }
+        Schema::create('quedan_price', function (Blueprint $table) {
+            $table->id();
+            $table->timestamps();
+        });
+        Schema::create('mol_price', function (Blueprint $table) {
+            $table->id();
+            $table->timestamps();
+        });
+        Schema::create('week_no', function (Blueprint $table) {
+            $table->id();
+            $table->string('crop_year')->nullable();
+            $table->string('week_no')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('planter_profiles', function (Blueprint $table) {
+            $table->id();
+            $table->string('planter_code')->nullable();
+            $table->string('planter_name')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('summary', function (Blueprint $table) {
+            $table->id();
+            $table->string('planter_code')->nullable();
+            $table->string('net_cane')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * The pages the sidebar links to, opened through their real routes, for an account that
+     * was given only that page in User Management.
+     */
+    public function test_a_page_granted_in_user_management_opens_for_every_staff_role(): void
+    {
+        $this->createPageTables();
+        $pages = [
+            'buy-quedan' => '/buy-quedan',
+            'buy-molasses' => '/buy-molasses',
+            'view-quedan-molasses-registry' => '/quedan-molasses-registry',
+            'access-all-quedan-molasses' => '/buy-quedan',
+            'manage-prices' => '/prices',
+            'manage-crop-weeks' => '/crop-weeks',
+            'view-planter-profiles' => '/planter-profiles',
+            'manage-planter-profiles' => '/planter-profiles',
+        ];
+
+        foreach (['User', 'Viewer'] as $role) {
+            foreach ($pages as $slug => $url) {
+                $this->actingAs($this->userWith([$slug], $role));
+                $this->get($url)->assertOk();
+
+                $this->actingAs($this->userWith([], $role));
+                $this->get($url)->assertForbidden();
+            }
+        }
+    }
+
+    public function test_a_buy_page_can_load_its_rows_without_the_registry_permission(): void
+    {
+        $this->createPageTables();
+
+        $this->actingAs($this->userWith(['buy-quedan']));
+        $this->getJson('/quedan-molasses-registry/data?type=quedan')->assertOk();
+        $this->getJson('/quedan-molasses-registry/data?type=molasses')->assertForbidden();
+        $this->getJson('/quedan-molasses-registry/data')->assertOk(); // quedan is the default type
+
+        $this->actingAs($this->userWith(['buy-molasses']));
+        $this->getJson('/quedan-molasses-registry/data?type=molasses')->assertOk();
+        $this->getJson('/quedan-molasses-registry/data?type=quedan')->assertForbidden();
+
+        $this->actingAs($this->userWith(['view-quedan-molasses-registry']));
+        $this->getJson('/quedan-molasses-registry/data?type=quedan')->assertOk();
+        $this->getJson('/quedan-molasses-registry/data?type=molasses')->assertOk();
+    }
+
+    public function test_crop_week_permission_no_longer_opens_unrelated_pages(): void
+    {
+        $this->createPageTables();
+        $this->actingAs($this->userWith(['manage-crop-weeks']));
+
+        $this->get('/crop-weeks')->assertOk();
+        $this->get('/prices')->assertForbidden();
+        $this->get('/planter-profiles')->assertForbidden();
+    }
+
+    public function test_page_rights_separate_viewing_from_changing(): void
+    {
+        $this->createPageTables();
+        $this->actingAs($this->userWith(['view-planter-profiles']));
+        $this->getJson('/planter-profiles')->assertOk();
+        $this->postJson('/planter-profiles', [])->assertForbidden();
+        $this->postJson('/planter-profiles/sync')->assertForbidden();
+
+        $this->actingAs($this->userWith(['manage-planter-profiles']));
+        $this->postJson('/planter-profiles', [])->assertStatus(422); // past the permission check
+    }
+
+    public function test_roles_keep_the_pages_the_sidebar_already_gives_them(): void
+    {
+        $this->createPageTables();
+
+        $this->actingAs($this->userWith([], 'manager'));
+        foreach (['/prices', '/crop-weeks', '/planter-profiles'] as $url) {
+            $this->get($url)->assertOk();
+        }
+        $this->postJson('/planter-profiles', [])->assertStatus(422);
+
+        $this->actingAs($this->userWith([], 'loan_officer'));
+        $this->get('/planter-profiles')->assertOk();
+        $this->postJson('/planter-profiles', [])->assertForbidden();
+        $this->get('/prices')->assertForbidden();
+        $this->get('/crop-weeks')->assertForbidden();
+    }
+
+    public function test_sidebar_lists_crop_weeks_and_prices_for_accounts_granted_them(): void
+    {
+        $this->actingAs($this->userWith(['manage-crop-weeks']));
+        $html = view('layouts.sidebar-items')->render();
+        $this->assertStringContainsString('<span>Crop & Week Management</span>', $html);
+        $this->assertStringNotContainsString('<span>Price Management</span>', $html);
+
+        $this->actingAs($this->userWith(['manage-prices']));
+        $html = view('layouts.sidebar-items')->render();
+        $this->assertStringContainsString('<span>Price Management</span>', $html);
+        $this->assertStringNotContainsString('<span>Crop & Week Management</span>', $html);
+    }
+
+    public function test_pages_link_to_the_registry_only_for_accounts_that_can_open_it(): void
+    {
+        $this->createPageTables();
+
+        $this->actingAs($this->userWith(['buy-quedan', 'manage-prices']));
+        $this->get('/buy-quedan')->assertOk()->assertDontSee('Quedan Registry');
+        $this->get('/prices')->assertOk()->assertDontSee('Price Registry');
+
+        $this->actingAs($this->userWith(['buy-quedan', 'view-quedan-molasses-registry']));
+        $this->get('/buy-quedan')->assertOk()->assertSee('Quedan Registry');
+    }
+
+    public function test_every_page_route_has_a_permission_mapping(): void
+    {
+        $prefixes = ['prices.', 'crop-weeks.', 'crop-year.', 'week.', 'planter-profiles.', 'registry.'];
+        $checked = 0;
+        foreach (Route::getRoutes() as $route) {
+            $name = (string) $route->getName();
+            if (!Str::startsWith($name, $prefixes)) {
+                continue;
+            }
+            $this->assertNotNull(NavigationPermissions::requiredForRoute($name), "$name has no permission mapping");
+            $this->assertContains('navigation.access', $route->gatherMiddleware(), "$name bypasses access checks");
+            $checked++;
+        }
+        $this->assertGreaterThan(20, $checked);
+    }
+
     public function test_every_hauler_tls_liq_route_has_a_permission_mapping(): void
     {
         foreach (Route::getRoutes() as $route) {

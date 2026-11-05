@@ -304,8 +304,7 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::get('/audit-logs/load-more', [AuditLogController::class, 'loadMore'])->name('audit-logs.load-more');
     Route::get('/audit-logs/{log}', [AuditLogController::class, 'show'])->whereNumber('log')->name('audit-logs.show');
 
-    // routes/web.php - Update the crop-weeks route
-Route::middleware(['login_auth:manage-crop-weeks'])->group(function () {
+    // Each page below has its own permission: see NavigationPermissions::requiredForRoute
     Route::get('/crop-weeks', [CropWeekController::class, 'index'])->name('crop-weeks.index');
     Route::put('/crop-year/{cropYear}', [CropWeekController::class, 'updateCropYear'])->name('crop-year.update');
     Route::delete('/crop-year/{cropYear}', [CropWeekController::class, 'destroyCropYear'])->name('crop-year.destroy');
@@ -382,8 +381,5 @@ Route::middleware(['login_auth:manage-crop-weeks'])->group(function () {
     Route::put('/planter-profiles/{planter}', [PlanterProfileController::class, 'update'])->name('planter-profiles.update');
     Route::delete('/planter-profiles/{planter}', [PlanterProfileController::class, 'destroy'])->name('planter-profiles.destroy');
     Route::post('/planter-profiles/{planter}/toggle-status', [PlanterProfileController::class, 'toggleStatus'])->name('planter-profiles.toggle');
-
-});
-
 
 });

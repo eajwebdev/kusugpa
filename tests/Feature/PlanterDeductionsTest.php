@@ -173,6 +173,34 @@ class PlanterDeductionsTest extends TestCase
         return $captured;
     }
 
+    /**
+     * Pending quedans leave the planter's record to be started by the molasses row, and the
+     * consolidated row is then added to it.
+     */
+    public function test_report_pdfs_generate_and_leave_out_pending_rows(): void
+    {
+        $row = ['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00777', 'planter_name' => 'SANTOS, ANA'];
+        DB::table('quedans')->insert($row + ['sugar_lkg' => 99, 'labor_lkg' => 0, 'status' => 'pending']);
+        DB::table('molasses')->insert($row + ['mol_net' => 5, 'status' => 'bought']);
+        DB::table('molasses')->insert($row + ['mol_net' => 50, 'status' => 'pending']);
+        DB::table('consolidated_uploads')->insert($row + ['ta_wt' => 7, 'ta_amount' => 70, 'fuel_issuance_amt' => 1, 'total_summary' => 70]);
+
+        $period = ['crop_year' => '20262027', 'week_from' => 4, 'week_to' => 4, 'week_no' => 4];
+        foreach (['voucher.pdf', 'proceeds-sheet-report.pdf', 'planter-accounts-report.pdf', 'proceeds-deductions-report.pdf'] as $report) {
+            $this->get(route($report, $period))->assertOk();
+        }
+
+        $record = PlanterProceeds::summary('20262027', 4, 4)->firstWhere('planter_code', '00777');
+        $this->assertEqualsWithDelta(0, $record['sugar_lkg'], 0.001);
+        $this->assertEqualsWithDelta(0, $record['quedan_b_lkg'], 0.001);
+        $this->assertEqualsWithDelta(5, $record['mol_net'], 0.001);
+        $this->assertEqualsWithDelta(70, $record['consolidated_ta_amount'], 0.001);
+
+        // Excluded from the reports only: the rows stay pending for the Buy pages
+        $this->assertSame(1, DB::table('quedans')->where('planter_code', '00777')->where('status', 'pending')->count());
+        $this->assertSame(1, DB::table('molasses')->where('planter_code', '00777')->where('status', 'pending')->count());
+    }
+
     public function test_deduction_schedule_must_equal_the_amount_and_needs_no_approval(): void
     {
         $this->createDeduction('fuel', 300, [3 => 100, 4 => 100])

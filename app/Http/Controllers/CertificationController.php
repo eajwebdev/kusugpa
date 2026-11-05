@@ -197,13 +197,14 @@ class CertificationController extends Controller
             ->groupBy('crop_year', 'planter_code')
             ->get();
 
-        $sugar = $scope(Quedan::query())
+        // Pending quedans and molasses are not yet bought, so they are not certified
+        $sugar = $scope(Quedan::notPending())
             ->select('crop_year', 'planter_code', DB::raw('MAX(planter_name) as planter_name'),
                 DB::raw('SUM(sugar_lkg - labor_lkg) as net_lkg'))
             ->groupBy('crop_year', 'planter_code')
             ->get();
 
-        $molasses = $scope(Molass::query())
+        $molasses = $scope(Molass::notPending())
             ->select('crop_year', 'planter_code', DB::raw('MAX(planter_name) as planter_name'),
                 DB::raw('SUM(mol_net) as net_mol'))
             ->groupBy('crop_year', 'planter_code')
