@@ -134,6 +134,66 @@ class TableFeedTest extends TestCase
         $this->assertSame([], $second['extra']);
     }
 
+    public function test_registry_totals_separate_pending_from_the_other_statuses(): void
+    {
+        $this->signInToRegistry();
+        DB::table('quedans')->where('id', 1)->update(['status' => 'rejected']); // was pending
+        $feed = fn (array $params) => $this->getJson(route('registry.data', ['type' => 'quedan', 'crop_year' => '20262027', 'page' => 1] + $params))
+            ->assertOk()->json();
+
+        // 200 rows in the crop year at 2 LKg each: 66 bought, 133 pending, 1 rejected
+        $this->assertEquals(400, $feed([])['extra']['sums']['sugar_lkg']);
+        $this->assertEquals(266, $feed(['status' => 'pending'])['extra']['sums']['sugar_lkg']);
+        $this->assertEquals(132, $feed(['status' => 'bought'])['extra']['sums']['sugar_lkg']);
+        $this->assertEquals(2, $feed(['status' => 'rejected'])['extra']['sums']['sugar_lkg']);
+
+        $pending = $feed(['status' => 'pending']);
+        $this->assertSame(133, $pending['total']);
+        $this->assertTrue(collect($pending['data'])->every(fn ($r) => $r['status'] === 'pending'));
+    }
+
+    public function test_registry_rows_carry_their_status_and_sort_by_it(): void
+    {
+        $this->signInToRegistry();
+        $feed = fn (string $dir) => $this->getJson(route('registry.data', [
+            'type' => 'quedan', 'crop_year' => '20262027', 'page' => 1, 'sort' => 'status', 'dir' => $dir,
+        ]))->assertOk()->json('data');
+
+        $this->assertSame('bought', $feed('asc')[0]['status']);
+        $this->assertSame('pending', $feed('desc')[0]['status']);
+    }
+
+    public function test_selecting_all_stays_inside_the_chosen_status(): void
+    {
+        $this->signInToRegistry();
+
+        $ids = $this->getJson(route('registry.data', [
+            'type' => 'quedan', 'crop_year' => '20262027', 'status' => 'pending', 'page' => 1, 'all_ids' => 1,
+        ]))->assertOk()->json('ids');
+
+        $this->assertCount(134, $ids);
+        $this->assertSame(0, DB::table('quedans')->whereIn('id', $ids)->where('status', '!=', 'pending')->count());
+    }
+
+    public function test_registry_pdf_follows_the_chosen_status_and_names_it(): void
+    {
+        $this->signInToRegistry();
+        $period = ['crop_year' => '20252026', 'show_totals' => 1];
+        $bought = DB::table('quedans')->where('crop_year', '20252026')->where('status', 'bought')->count();
+
+        $data = $this->ledgerData($period + ['status' => 'bought']);
+        $this->assertSame('Quedan Registry - Bought', $data['title']);
+        $this->assertCount($bought, $data['rows']);
+        $this->assertEqualsWithDelta($bought * 2, $data['totals']['sugar_lkg'], 0.001);
+
+        $all = $this->ledgerData($period);
+        $this->assertSame('Quedan Registry', $all['title']);
+        $this->assertCount(50, $all['rows']);
+
+        // Anything that is not a status is ignored rather than reaching the title or the query
+        $this->assertSame('Quedan Registry', $this->ledgerData($period + ['status' => '<b>x</b>'])['title']);
+    }
+
     public function test_molasses_registry_totals_its_net(): void
     {
         $this->signInToRegistry();
