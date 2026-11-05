@@ -14,9 +14,11 @@
                     <p class="kp-page-sub">Configure weekly market prices for sugar quedan classes and molasses production.</p>
                 </div>
                 <div class="flex items-center gap-2">
+                    @if (auth()->user()->hasPermission('view-quedan-molasses-registry'))
                     <a href="{{ route('prices.registry') }}" class="kp-btn kp-btn-secondary">
                         <i class="fas fa-history mr-1.5" aria-hidden="true"></i> Price Registry
                     </a>
+                    @endif
                 </div>
             </div>
             <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>

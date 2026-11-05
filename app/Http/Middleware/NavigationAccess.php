@@ -15,7 +15,14 @@ class NavigationAccess
             $request->route('type')
         );
         $user = $request->user();
-        $allowed = !$required || $user->hasPermission($required);
+        $allowed = !$required || NavigationPermissions::canOpen($user, $required);
+        if (!$allowed && $required === 'view-planter-profiles') {
+            $allowed = NavigationPermissions::canOpen($user, 'manage-planter-profiles');
+        }
+        // The Buy pages list their rows through the registry feed, one type each
+        if (!$allowed && $request->routeIs('registry.data')) {
+            $allowed = $user->hasPermission($request->get('type', 'quedan') === 'quedan' ? 'buy-quedan' : 'buy-molasses');
+        }
         if (!$allowed && $required === 'view-loans') {
             $allowed = $user->hasAnyPermission(['create-loans', 'approve-loans', 'process-loan-payments']);
         }

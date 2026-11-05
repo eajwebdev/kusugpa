@@ -264,7 +264,7 @@
 @endif
 
 <!-- Crop & Week Management -->
-@if (in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager']))
+@if (\App\Support\NavigationPermissions::canOpen($navUser, 'manage-crop-weeks'))
     <li>
         <a href="{{ route('crop-weeks.index') }}"
             class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('crop-weeks.*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">
@@ -275,8 +275,7 @@
 @endif
 
 <!-- Price Management -->
-@if (in_array(auth()->user()->role, ['Administrator', 'super_admin', 'manager']) ||
-        auth()->user()->hasPermission('manage-prices'))
+@if (\App\Support\NavigationPermissions::canOpen($navUser, 'manage-prices'))
     <li>
         <a href="{{ route('prices.index') }}"
             class="group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold {{ request()->routeIs('prices.*') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50' }}">

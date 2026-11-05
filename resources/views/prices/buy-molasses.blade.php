@@ -14,9 +14,11 @@
                 <p class="kp-page-sub">Select and flag planter molasses certificates as purchased for settlement.</p>
             </div>
             <div class="flex items-center gap-2">
+                @if (auth()->user()->hasPermission('view-quedan-molasses-registry'))
                 <a href="{{ route('prices.registry') }}" class="kp-btn kp-btn-secondary text-xs">
                     <i class="fas fa-list-ul mr-1.5" aria-hidden="true"></i> Molasses Registry
                 </a>
+                @endif
             </div>
         </div>
         <div class="kp-nodes kp-nodes--light" aria-hidden="true"></div>

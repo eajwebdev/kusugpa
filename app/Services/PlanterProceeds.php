@@ -194,6 +194,9 @@ class PlanterProceeds
                     'consolidated_total' => 0, 'consolidated_ta_wt' => 0,
                     'trucking_net_cane' => 0, 'trucking_ta_amount' => 0,
                     'trucking_additional_charge' => 0, 'trucking_trans_codes' => [],
+                    'consolidated_ta_amount' => 0,
+                    'consolidated_fuel_amount' => 0,
+                    'sugar_lkg' => 0,
                 ];
             }
 
