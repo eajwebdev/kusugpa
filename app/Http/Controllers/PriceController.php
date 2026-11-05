@@ -261,9 +261,15 @@ private function registryFeed(Request $request, string $type, ?string $cropYear,
 
     return TableFeed::respond($request, $query, $sortable, [
         ['crop_year', 'desc'], [['raw' => 'CAST(week_no AS UNSIGNED)'], 'desc'], ['planter_name', 'asc'],
-    ], null, function () use ($filtered, $model, $cropYear) {
+    ], null, function ($matching) use ($filtered, $model, $cropYear, $isQuedan) {
         $byStatus = $filtered()->selectRaw('status, COUNT(*) AS n')->groupBy('status')->pluck('n', 'status');
+        // Over every matching row, not only the batch loaded so far
+        $sumColumns = $isQuedan ? ['total_liens', 'sugar_lkg', 'labor_lkg'] : ['mol_net'];
+        $sums = $matching->reorder()
+            ->select(array_map(fn ($column) => DB::raw("SUM({$column}) AS {$column}"), $sumColumns))
+            ->toBase()->first();
         return [
+            'sums' => collect($sumColumns)->mapWithKeys(fn ($column) => [$column => round((float) $sums->{$column}, 3)]),
             'stats' => [
                 'total' => (int) $byStatus->sum(),
                 'bought' => (int) ($byStatus['bought'] ?? 0),
@@ -393,9 +399,9 @@ public function exportQuedanPDF(Request $request)
             ['key' => 'planter_name', 'label' => 'Planter Name'],
             ['key' => 'qdn_no', 'label' => 'Quedan No.'],
             ['key' => 'tin_no', 'label' => 'TIN'],
-            ['key' => 'total_liens', 'label' => 'Total Liens (PHP)', 'decimals' => 2],
-            ['key' => 'sugar_lkg', 'label' => 'Sugar Lkg', 'decimals' => 3],
-            ['key' => 'labor_lkg', 'label' => 'Labor Lkg', 'decimals' => 3],
+            ['key' => 'total_liens', 'label' => 'Total Liens (PHP)', 'decimals' => 2, 'total' => true],
+            ['key' => 'sugar_lkg', 'label' => 'Sugar Lkg', 'decimals' => 3, 'total' => true],
+            ['key' => 'labor_lkg', 'label' => 'Labor Lkg', 'decimals' => 3, 'total' => true],
             ['key' => 'status', 'label' => 'Status'],
     ], 'quedan-registry');
 }
@@ -410,7 +416,7 @@ public function exportMolassesPDF(Request $request)
             ['key' => 'planter_name', 'label' => 'Planter Name'],
             ['key' => 'mc_no', 'label' => 'Molasses Certificate'],
             ['key' => 'tin_no', 'label' => 'TIN'],
-            ['key' => 'mol_net', 'label' => 'Molasses Net', 'decimals' => 3],
+            ['key' => 'mol_net', 'label' => 'Molasses Net', 'decimals' => 3, 'total' => true],
             ['key' => 'status', 'label' => 'Status'],
     ], 'molasses-registry');
 }

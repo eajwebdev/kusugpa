@@ -416,6 +416,8 @@ html.kp-collapsed { --kp-sidebar-w: 76px; }
 .kp-content table tbody tr:hover { background-color: var(--kp-hover); }
 /* long lists that scroll inside their card keep the column titles in view */
 .kp-content table.kp-table-sticky thead th { position: sticky; top: 0; z-index: 2; }
+/* and the totals row stays in view at the bottom */
+.kp-content table tfoot.kp-table-total td { position: sticky; bottom: 0; z-index: 2; background-color: var(--kp-surface-2); border-top: 2px solid var(--kp-border-strong); color: var(--kp-text); font-weight: 700; }
 .kp-content table tbody tr.divide-none:hover, .kp-content table tbody tr[data-no-hover]:hover { background-color: transparent; }
 .kp-content .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: var(--kp-border); }
 

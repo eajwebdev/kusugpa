@@ -6,6 +6,10 @@
     $rowsPerPage = 30;
     $pages = $rows->values()->chunk($rowsPerPage);
     $partLabel = $partLabel ?? '';
+    $totals = $totals ?? null;
+    // Columns before the first total share the row's label
+    $labelColumns = collect($columns)->takeUntil(fn ($column) => !empty($column['total']))->count();
+    $recordCount = $totalRows ?? $rows->count();
 @endphp
 <head>
     <meta charset="utf-8">
@@ -24,6 +28,7 @@
         td { padding: 6px; border: 1px solid #d8e4db; vertical-align: top; overflow-wrap: break-word; }
         tr.even { background: #f6faf7; }
         .number { text-align: right; }
+        tr.total-row td { background: #e7f2e9; border-top: 2px solid #006b38; color: #183b28; font-weight: bold; }
         .empty { text-align: center; padding: 26px; color: #64776b; }
         .page-break { page-break-after: always; }
         .footer { margin-top: 12px; color: #64776b; font-size: 7px; }
@@ -59,6 +64,14 @@
                             @endforeach
                         </tr>
                     @endforeach
+                    @if ($loop->last && $totals)
+                        <tr class="total-row">
+                            <td colspan="{{ $labelColumns }}">Total of all {{ number_format($recordCount) }} {{ $recordCount === 1 ? 'record' : 'records' }}</td>
+                            @foreach (array_slice($columns, $labelColumns) as $column)
+                                <td class="number">{{ isset($totals[$column['key']]) ? number_format($totals[$column['key']], $column['decimals'] ?? 2) : '' }}</td>
+                            @endforeach
+                        </tr>
+                    @endif
                 </tbody>
             </table>
         </div>

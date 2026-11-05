@@ -18,7 +18,11 @@
                         class="kp-btn kp-btn-danger text-xs">
                         <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Batch Delete
                     </button>
-                    <a :href="(activeTab === 'quedan' ? '{{ route('quedan-registry.export') }}' : '{{ route('molasses-registry.export') }}') + '?' + periodQuery()"
+                    <label class="flex items-center gap-1.5 text-xs font-medium text-[#52705F] dark:text-[#8AA895] cursor-pointer select-none px-1">
+                        <input type="checkbox" x-model="pdfShowTotals" class="rounded border-[#CFDCD3] text-[#005B2A] focus:ring-[#005B2A]">
+                        Show totals in PDF
+                    </label>
+                    <a :href="(activeTab === 'quedan' ? '{{ route('quedan-registry.export') }}' : '{{ route('molasses-registry.export') }}') + '?' + pdfQuery()"
                         :data-pdf-preview="activeTab === 'quedan' ? 'Quedan Registry' : 'Molasses Registry'"
                         class="kp-btn kp-btn-secondary text-xs">
                         <i class="fas fa-file-pdf mr-1.5 text-rose-600 dark:text-rose-400" aria-hidden="true"></i> Preview <span x-text="activeTab === 'quedan' ? 'Quedan PDF' : 'Molasses PDF'"></span>
@@ -150,6 +154,14 @@
                                 @include('layouts.partials.feed-footer', ['feed' => 'quedanFeed', 'colspan' => 10, 'empty' => 'No quedan registry records found matching the filter criteria.'])
                             </template>
                         </tbody>
+                        <tfoot class="kp-table-total">
+                            <tr>
+                                <td colspan="7" class="text-xs" x-text="totalsLabel(quedanFeed)"></td>
+                                <td class="text-xs text-right kp-num" x-text="feedSum(quedanFeed, 'total_liens')"></td>
+                                <td class="text-xs text-right kp-num" x-text="feedSum(quedanFeed, 'sugar_lkg')"></td>
+                                <td class="text-xs text-right kp-num" x-text="feedSum(quedanFeed, 'labor_lkg')"></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -227,6 +239,12 @@
                                 @include('layouts.partials.feed-footer', ['feed' => 'molassesFeed', 'colspan' => 8, 'empty' => 'No molasses registry records found matching the filter criteria.'])
                             </template>
                         </tbody>
+                        <tfoot class="kp-table-total">
+                            <tr>
+                                <td colspan="7" class="text-xs" x-text="totalsLabel(molassesFeed)"></td>
+                                <td class="text-xs text-right kp-num" x-text="feedSum(molassesFeed, 'mol_net')"></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -389,6 +407,7 @@
                     // Crop year / week filter shared by both tabs
                     period: { cropYear: '', weekNo: '' },
                     tinEdit: { type: null, id: null, value: '', saving: false },
+                    pdfShowTotals: false,
 
                     quedanColumns: [
                         { key: 'crop_year', label: 'Crop Year' },
@@ -537,6 +556,17 @@
                         if (this.period.cropYear) params.set('crop_year', this.period.cropYear);
                         if (this.period.weekNo) params.set('week_no', this.period.weekNo);
                         return params.toString();
+                    },
+                    pdfQuery() {
+                        return this.periodQuery() + (this.pdfShowTotals ? '&show_totals=1' : '');
+                    },
+                    // Totals of every matching row, sent by the server with the first batch
+                    feedSum(feed, column) {
+                        const sums = feed && feed.extra.sums;
+                        return sums ? this.formatNum(sums[column], 3) : '—';
+                    },
+                    totalsLabel(feed) {
+                        return feed && feed.total !== null ? 'Total of all ' + feed.total.toLocaleString() + ' matching' : 'Total';
                     },
                     sortIcon(field, dir, key) {
                         return field === key ? (dir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort opacity-30';

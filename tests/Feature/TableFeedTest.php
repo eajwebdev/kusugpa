@@ -100,6 +100,116 @@ class TableFeedTest extends TestCase
         $this->assertSame(50, $search['total']);
     }
 
+    private function signInToRegistry(): void
+    {
+        $this->withoutMiddleware(\App\Http\Middleware\SystemLockMiddleware::class);
+        $this->withoutMiddleware(\App\Http\Middleware\EnsureSingleSession::class);
+        $this->actingAs(new User(['fname' => 'Admin', 'role' => 'Administrator']));
+        DB::table('quedans')->update(['total_liens' => 1.5, 'sugar_lkg' => 2, 'labor_lkg' => 0.25]);
+    }
+
+    private function ledgerData(array $params): array
+    {
+        $captured = null;
+        view()->composer('pdf.ledger', function ($view) use (&$captured) {
+            $captured = $view->getData();
+        });
+        $this->get(route('quedan-registry.export', $params))->assertOk();
+
+        return $captured;
+    }
+
+    public function test_registry_totals_cover_every_filtered_row_not_just_the_loaded_batch(): void
+    {
+        $this->signInToRegistry();
+
+        $first = $this->getJson(route('registry.data', ['type' => 'quedan', 'crop_year' => '20262027', 'page' => 1]))->assertOk()->json();
+        $this->assertCount(100, $first['data']);
+        $this->assertEquals(['total_liens' => 300, 'sugar_lkg' => 400, 'labor_lkg' => 50], $first['extra']['sums']);
+
+        $search = $this->getJson(route('registry.data', ['type' => 'quedan', 'search' => 'PLANTER B', 'page' => 1]))->json();
+        $this->assertEquals(100, $search['extra']['sums']['sugar_lkg']); // 50 rows
+
+        $second = $this->getJson(route('registry.data', ['type' => 'quedan', 'crop_year' => '20262027', 'page' => 2]))->json();
+        $this->assertSame([], $second['extra']);
+    }
+
+    public function test_molasses_registry_totals_its_net(): void
+    {
+        $this->signInToRegistry();
+        Schema::create('molasses', function (Blueprint $table) {
+            $table->id();
+            $table->string('crop_year');
+            $table->string('week_no');
+            $table->string('planter_code');
+            $table->string('planter_name');
+            $table->string('tin_no')->nullable();
+            $table->string('mc_no')->nullable();
+            $table->decimal('mol_net', 12, 3)->default(0);
+            $table->string('status')->default('pending');
+            $table->timestamps();
+        });
+        $row = ['crop_year' => '20262027', 'week_no' => '1', 'planter_code' => '1', 'planter_name' => 'A'];
+        DB::table('molasses')->insert([$row + ['mol_net' => 1.25], $row + ['mol_net' => 2.5]]);
+
+        $response = $this->getJson(route('registry.data', ['type' => 'molasses', 'crop_year' => '20262027', 'page' => 1]))->assertOk()->json();
+        $this->assertEquals(['mol_net' => 3.75], $response['extra']['sums']);
+    }
+
+    public function test_registry_pdf_prints_totals_only_when_asked(): void
+    {
+        $this->signInToRegistry();
+        $period = ['crop_year' => '20252026', 'week_no' => '1'];
+
+        $plain = $this->ledgerData($period);
+        $this->assertNull($plain['totals']);
+        $this->assertStringNotContainsString('Total of all', view('pdf.ledger', $plain)->render());
+
+        $rows = DB::table('quedans')->where($period)->count();
+        $withTotals = $this->ledgerData($period + ['show_totals' => 1]);
+        $html = view('pdf.ledger', $withTotals)->render();
+        $this->assertEqualsWithDelta($rows * 2, $withTotals['totals']['sugar_lkg'], 0.001);
+        $this->assertStringContainsString('Total of all ' . $rows . ' records', $html);
+        $this->assertStringContainsString(number_format($rows * 1.5, 2), $html);
+        $this->assertStringContainsString(number_format($rows * 2, 3), $html);
+    }
+
+    public function test_a_split_registry_pdf_prints_the_grand_total_on_its_last_part(): void
+    {
+        $this->signInToRegistry();
+        DB::table('quedans')->insert(array_map(fn ($i) => [
+            'crop_year' => '20262027', 'week_no' => '20', 'planter_code' => (string) $i, 'planter_name' => 'PLANTER',
+            'total_liens' => 1.5, 'sugar_lkg' => 2, 'labor_lkg' => 0.25,
+        ], range(1, 600)));
+
+        $last = $this->ledgerData(['show_totals' => 1, 'part' => 2]); // 850 rows, 800 per part
+        $this->assertCount(50, $last['rows']);
+        $this->assertEqualsWithDelta(1700, $last['totals']['sugar_lkg'], 0.001);
+        $this->assertStringContainsString('Total of all 850 records', view('pdf.ledger', $last)->render());
+    }
+
+    public function test_totals_row_adds_no_pdf_page(): void
+    {
+        $columns = [
+            ['key' => 'name', 'label' => 'Planter Name'],
+            ['key' => 'sugar_lkg', 'label' => 'Sugar Lkg', 'decimals' => 3, 'total' => true],
+        ];
+        $pages = function (int $count, ?array $totals) use ($columns) {
+            $rows = collect(range(1, $count))->map(fn ($i) => (object) ['name' => 'PLANTER ' . $i, 'sugar_lkg' => 1]);
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.ledger', [
+                'title' => 'Quedan Registry', 'rows' => $rows, 'totalRows' => $count, 'columns' => $columns,
+                'generatedDate' => 'today', 'totals' => $totals,
+            ])->setPaper('a4', 'landscape');
+            $pdf->output();
+
+            return $pdf->getDomPDF()->getCanvas()->get_page_count();
+        };
+
+        foreach ([1, 30, 60] as $count) {
+            $this->assertSame($pages($count, null), $pages($count, ['sugar_lkg' => $count]), "$count rows");
+        }
+    }
+
     public function test_registry_can_select_every_filtered_id_beyond_the_loaded_batch(): void
     {
         $this->withoutMiddleware(\App\Http\Middleware\SystemLockMiddleware::class);

@@ -546,6 +546,20 @@ class NavigationPermissionsTest extends TestCase
         $this->get('/buy-quedan')->assertOk()->assertSee('Quedan Registry');
     }
 
+    public function test_registry_page_shows_totals_and_leaves_them_optional_in_the_pdf(): void
+    {
+        $this->createPageTables();
+        $this->actingAs($this->userWith(['view-quedan-molasses-registry']));
+
+        $this->get('/quedan-molasses-registry')->assertOk()
+            ->assertSee('Show totals in PDF')
+            ->assertSee('pdfShowTotals: false', false)
+            ->assertSee("feedSum(quedanFeed, 'total_liens')", false)
+            ->assertSee("feedSum(quedanFeed, 'sugar_lkg')", false)
+            ->assertSee("feedSum(quedanFeed, 'labor_lkg')", false)
+            ->assertSee("feedSum(molassesFeed, 'mol_net')", false);
+    }
+
     public function test_every_page_route_has_a_permission_mapping(): void
     {
         $prefixes = ['prices.', 'crop-weeks.', 'crop-year.', 'week.', 'planter-profiles.', 'registry.'];
