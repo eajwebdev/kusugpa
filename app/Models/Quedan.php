@@ -14,7 +14,7 @@ class Quedan extends Model
     protected $fillable = [
         'crop_year', 'week_no', 'planter_code', 'planter_name',
         'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg', 'user_id','status', 
-        'bought_at', 'bought_by',
+        'bought_at', 'bought_by', 'sold_price', 'sold_price_type', 'quedan_price_id',
 
     ];
 

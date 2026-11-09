@@ -1031,7 +1031,8 @@ class DashboardAnalytics
 
     private function checkPricesMissing(): array
     {
-        $quedanWeeks = $this->scoped(Quedan::query())->distinct()->pluck('week_no')->map(fn ($w) => (int) $w)->unique();
+        // Quedans bought at a picked sold price do not need the week's price
+        $quedanWeeks = $this->scoped(Quedan::query())->whereNull('sold_price')->distinct()->pluck('week_no')->map(fn ($w) => (int) $w)->unique();
         $molWeeks = $this->scoped(Molass::query())->distinct()->pluck('week_no')->map(fn ($w) => (int) $w)->unique();
         $qPriced = QuedanPrice::where('crop_year', $this->cropYear)->where('quedan_price', '>', 0)->pluck('week_no')->map(fn ($w) => (int) $w)->flip();
         $mPriced = MolassesPrice::where('crop_year', $this->cropYear)->where('mol_price', '>', 0)->pluck('week_no')->map(fn ($w) => (int) $w)->flip();

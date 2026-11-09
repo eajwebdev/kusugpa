@@ -10,6 +10,8 @@ use App\Models\RentalAllowance;
 use App\Models\UnderloadAllowance;
 use App\Models\TransloadingAllowance;
 use App\Models\AuditLog;
+use App\Models\PlanterDeduction;
+use App\Models\WeekNo;
 use App\Services\TlsHaulingLiquidationGenerator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -21,7 +23,7 @@ class UploadController extends Controller
         'summary' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'net_cane', 'net_amount'],
         'trucking' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'net_cane', 'ta_amount', 'trans_code'],
         'fci' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'fci_amount'],
-        'fuel' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'fuel_amount'],
+        'fuel' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'liters', 'fuel_amount'],
         'rentals' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'rental_amount'],
         'underload' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'underload_amount'],
         'transloading' => ['crop_year', 'week_no', 'planter_code', 'planter_name', 'transloading_amount'],
@@ -40,15 +42,51 @@ class UploadController extends Controller
         ],
     ];
 
-    public function downloadTemplate(string $type)
+    /**
+     * The CSV header of an upload type. With ?crop_year=&week_no= (picked in the upload form) and a
+     * template that has those columns, a starter row carries them so the file shows which crop year
+     * and week it is for; the upload refuses rows that do not match the selection.
+     */
+    public function downloadTemplate(Request $request, string $type)
     {
         abort_unless(isset(self::TEMPLATE_COLUMNS[$type]), 404);
 
-        return response()->streamDownload(function () use ($type) {
+        $columns = self::TEMPLATE_COLUMNS[$type];
+        $cropYear = trim((string) $request->query('crop_year', ''));
+        $weekNo = trim((string) $request->query('week_no', ''));
+        $prefill = $cropYear !== '' && $weekNo !== '' && in_array('crop_year', $columns, true) && in_array('week_no', $columns, true);
+
+        $row = null;
+        $fileName = "kusugpa-{$type}-template.csv";
+        if ($prefill) {
+            $row = array_map(fn ($column) => match ($column) {
+                'crop_year' => $cropYear,
+                'week_no' => $weekNo,
+                default => '',
+            }, $columns);
+            $fileName = 'kusugpa-' . $type . '-template-' . preg_replace('/[^0-9A-Za-z-]/', '', $cropYear) . '-wk' . preg_replace('/[^0-9A-Za-z]/', '', $weekNo) . '.csv';
+        }
+
+        return response()->streamDownload(function () use ($columns, $row) {
             $output = fopen('php://output', 'w');
-            fputcsv($output, self::TEMPLATE_COLUMNS[$type]);
+            fputcsv($output, $columns);
+            if ($row) {
+                fputcsv($output, $row);
+            }
             fclose($output);
-        }, "kusugpa-{$type}-template.csv", ['Content-Type' => 'text/csv; charset=UTF-8']);
+        }, $fileName, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /** A row with only crop_year / week_no filled in (the template's starter row left unused) */
+    private function isStarterRow(array $line, string $type): bool
+    {
+        $columns = self::TEMPLATE_COLUMNS[$type] ?? [];
+        foreach ($line as $i => $cell) {
+            if (trim((string) $cell) !== '' && !in_array($columns[$i] ?? null, ['crop_year', 'week_no'], true)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public function uploadCSV(Request $request, $type)
@@ -91,6 +129,25 @@ class UploadController extends Controller
         $request->validate([
             'file' => 'required|mimes:csv,txt|max:5120',
         ]);
+
+        // Fuel rows become Fuel deductions for that crop year + week, so the week must exist
+        if ($type === 'fuel') {
+            $message = null;
+            if (!$cropYear || !$weekNo) {
+                $message = 'Select the Crop Year and Week No for the fuel upload.';
+            } elseif (!WeekNo::where('crop_year', $cropYear)->where('week_no', $weekNo)->exists()) {
+                $message = "Week {$weekNo} is not set up for crop year {$cropYear} in Crop & Week Management.";
+            } elseif (PlanterDeduction::where('type', 'fuel')->where('source', 'upload')->where('crop_year', $cropYear)
+                ->whereHas('weeks', fn ($q) => $q->where('week_no', (string) $weekNo))->exists()) {
+                $message = "Uploaded fuel deductions for Crop Year {$cropYear} Week {$weekNo} already exist. Upload cancelled.";
+            }
+            if ($message) {
+                if ($request->ajax() || $request->expectsJson()) {
+                    return response()->json(['error' => $message], 422);
+                }
+                return redirect()->back()->with('error', $message);
+            }
+        }
 
         try {
             // CHECK IF DATA ALREADY EXISTS FOR THIS WEEK/CROP YEAR
@@ -138,7 +195,10 @@ class UploadController extends Controller
             $lines = [];
             foreach ($rows as $row) {
                 if (empty(trim($row))) continue;
-                $lines[] = str_getcsv($row, $delimiter);
+                $line = str_getcsv($row, $delimiter);
+                // Skip the template's starter row when nothing but crop year / week was filled in
+                if ($this->isStarterRow($line, $type)) continue;
+                $lines[] = $line;
             }
             
             // Files may come with or without the template's heading row: skip the first
@@ -160,6 +220,20 @@ class UploadController extends Controller
             $batchData = [];
             $errors = [];
             $userId = auth()->id();
+
+            // The file's own crop year / week columns must match the selected ones
+            if ($type === 'fuel') {
+                $conflicts = $this->cropWeekConflicts($lines, (string) $cropYear, (string) $weekNo, $hasHeader ? 2 : 1);
+                if (!empty($conflicts)) {
+                    $message = "The file has rows for a different crop year / week than Crop Year {$cropYear} Week {$weekNo}: "
+                        . implode('; ', array_slice($conflicts, 0, 5)) . (count($conflicts) > 5 ? '; ...' : '')
+                        . '. Fix the file or select the matching crop year and week.';
+                    if ($request->ajax() || $request->expectsJson()) {
+                        return response()->json(['error' => $message], 422);
+                    }
+                    return redirect()->back()->with('error', $message);
+                }
+            }
             
             foreach ($lines as $index => $line) {
                 if (empty(array_filter($line))) continue;
@@ -189,8 +263,12 @@ class UploadController extends Controller
             
             $importedCount = 0;
             $liquidation = null;
-            DB::transaction(function () use ($batchData, $model, $type, $cropYear, $weekNo, $userId, &$importedCount, &$errors, &$liquidation) {
-                if (!empty($batchData)) {
+            $fuelDeductions = 0;
+            DB::transaction(function () use ($batchData, $model, $type, $cropYear, $weekNo, $userId, &$importedCount, &$errors, &$liquidation, &$fuelDeductions) {
+                if ($type === 'fuel') {
+                    // Row by row so each deduction links to its fuel_allowance row
+                    $fuelDeductions = $this->importFuel($batchData, (string) $cropYear, (string) $weekNo, $userId, $importedCount);
+                } elseif (!empty($batchData)) {
                     Log::info('Inserting into model', ['model' => $model, 'first_record' => $batchData[0]]);
 
                     foreach (array_chunk($batchData, 100) as $chunk) {
@@ -235,6 +313,10 @@ class UploadController extends Controller
                 $message .= " " . count($errors) . " records skipped.";
             }
 
+            if ($fuelDeductions > 0) {
+                $message .= " Created {$fuelDeductions} Fuel deductions (Fuel & Others Deduction) for Week {$weekNo}.";
+            }
+
             if ($liquidation) {
                 AuditLog::log('create', 'hauling_liquidity', 'Generated ' . $liquidation['entries'] . ' hauling liquidation entries from TLS upload', [
                     'crop_year' => $cropYear,
@@ -260,6 +342,7 @@ class UploadController extends Controller
                     'imported' => $importedCount,
                     'errors' => count($errors),
                     'liquidations' => $liquidation['entries'] ?? null,
+                    'fuel_deductions' => $type === 'fuel' ? $fuelDeductions : null,
                 ]);
             }
             
@@ -406,25 +489,125 @@ class UploadController extends Controller
         ];
     }
     
+    /**
+     * crop_year, week_no, planter_code, planter_name, liters, fuel_amount.
+     * Older 5-column files (no liters) are still read: the 5th column is then the amount.
+     */
     private function processFuelLine($line, $index, $userId)
     {
         if (count($line) < 5) {
             return ['success' => false, 'error' => "Line {$index}: Insufficient columns"];
         }
-        
+
+        $number = fn ($value) => str_replace(',', '', trim((string) $value));
+        $hasLiters = count($line) >= 6 && trim((string) $line[5]) !== '';
+        $liters = $hasLiters ? $number($line[4]) : '';
+        $amount = $number($hasLiters ? $line[5] : $line[4]);
+        // Numeric codes are stored without leading zeros (00733 → 733), like the quedan, molasses and
+        // planter profile codes, so the deduction reaches the planter's voucher
+        $planterCode = trim((string) $line[2]);
+        if (ctype_digit($planterCode)) {
+            $planterCode = ltrim($planterCode, '0') ?: '0';
+        }
+
+        if ($planterCode === '') {
+            return ['success' => false, 'error' => "Line {$index}: Missing planter_code"];
+        }
+        if (!is_numeric($amount)) {
+            return ['success' => false, 'error' => "Line {$index}: fuel_amount is not a number"];
+        }
+        if ($liters !== '' && !is_numeric($liters)) {
+            return ['success' => false, 'error' => "Line {$index}: liters is not a number"];
+        }
+
         return [
             'success' => true,
             'data' => [
-                'crop_year' => (int) preg_replace('/[^0-9]/', '', trim($line[0])),
-                'week_no' => (int) $line[1],
-                'planter_code' => (int) $line[2],
-                'planter_name' => trim($line[3]),
-                'fuel_amount' => (float) str_replace(',', '', $line[4]),
+                'crop_year' => trim($line[0]),
+                'week_no' => trim($line[1]),
+                'planter_code' => $planterCode,
+                'planter_name' => trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', (string) $line[3])),
+                'liters' => $liters === '' ? null : round((float) $liters, 3),
+                'fuel_amount' => round((float) $amount, 2),
                 'user_id' => $userId,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]
         ];
+    }
+
+    /**
+     * Rows whose crop_year / week_no cells are filled in but differ from the selected crop year
+     * and week (blank cells take the selected ones). Crop years compare by digits, so 2026-2027 = 20262027.
+     */
+    private function cropWeekConflicts(array $lines, string $cropYear, string $weekNo, int $firstRow): array
+    {
+        $digits = fn ($v) => preg_replace('/[^0-9]/', '', (string) $v);
+        $conflicts = [];
+        foreach ($lines as $i => $line) {
+            if (empty(array_filter($line))) {
+                continue;
+            }
+            $rowCrop = trim((string) ($line[0] ?? ''));
+            $rowWeek = trim((string) ($line[1] ?? ''));
+            $badCrop = $rowCrop !== '' && $digits($rowCrop) !== $digits($cropYear);
+            $badWeek = $rowWeek !== '' && (!is_numeric($rowWeek) || (int) $rowWeek !== (int) $weekNo);
+            if ($badCrop || $badWeek) {
+                $conflicts[] = 'line ' . ($i + $firstRow) . ' (' . $rowCrop . ' / Wk ' . $rowWeek . ')';
+            }
+        }
+        return $conflicts;
+    }
+
+    /**
+     * Insert the fuel rows and create one Fuel deduction per row with an amount, each with its own
+     * reference no., deducted in the uploaded week (Fuel & Others Deduction → Check Voucher FUEL
+     * PAYMENT). Call inside a transaction.
+     */
+    private function importFuel(array $rows, string $cropYear, string $weekNo, $userId, int &$importedCount): int
+    {
+        if (empty($rows)) {
+            return 0;
+        }
+
+        $dueDate = WeekNo::where('crop_year', $cropYear)->where('week_no', $weekNo)->value('week_end_date');
+        $dueDate = $dueDate ? substr((string) $dueDate, 0, 10) : null;
+        $withAmount = count(array_filter($rows, fn ($r) => $r['fuel_amount'] > 0));
+        $references = $withAmount ? PlanterDeduction::generateReferenceNos('fuel', $withAmount) : [];
+        $created = 0;
+
+        foreach ($rows as $row) {
+            $fuel = FuelAllowance::create($row);
+            $importedCount++;
+
+            if ($row['fuel_amount'] <= 0) {
+                continue;
+            }
+
+            $liters = $row['liters'] !== null ? rtrim(rtrim(number_format($row['liters'], 3), '0'), '.') . ' L' : null;
+            $deduction = PlanterDeduction::create([
+                'reference_no' => $references[$created],
+                'type' => 'fuel',
+                'source' => 'upload',
+                'fuel_allowance_id' => $fuel->id,
+                'planter_code' => $row['planter_code'],
+                'planter_name' => $row['planter_name'],
+                'crop_year' => $cropYear,
+                'amount' => $row['fuel_amount'],
+                'liters' => $row['liters'],
+                'description' => 'Fuel upload Wk ' . $weekNo . ($liters ? ' · ' . $liters : ''),
+                'created_by' => $userId,
+            ]);
+            $deduction->weeks()->create([
+                'crop_year' => $cropYear,
+                'week_no' => $weekNo,
+                'due_date' => $dueDate,
+                'amount' => $row['fuel_amount'],
+            ]);
+            $created++;
+        }
+
+        return $created;
     }
 
     private function processFciLine($line, $index, $userId)

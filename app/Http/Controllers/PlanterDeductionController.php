@@ -95,10 +95,12 @@ class PlanterDeductionController extends Controller
             'reference_no' => 'reference_no',
             'planter_name' => 'planter_name',
             'amount' => 'amount',
+            'liters' => 'liters',
             'created_at' => 'created_at',
         ], [['created_at', 'desc']], null, fn () => [
             'counts' => $filtered()->selectRaw('type, COUNT(*) AS n')->groupBy('type')->pluck('n', 'type'),
             'amount' => (float) $filtered()->where('type', $type)->sum('amount'),
+            'liters' => (float) $filtered()->where('type', $type)->sum('liters'),
             'planters' => $filtered()->where('type', $type)->distinct()->count('planter_code'),
         ]);
     }
@@ -160,6 +162,7 @@ class PlanterDeductionController extends Controller
             'planter_name' => 'required|string|max:255',
             'crop_year' => 'required|string',
             'amount' => 'required|numeric|min:0.01',
+            'liters' => 'nullable|numeric|min:0',
             'description' => 'nullable|string|max:500',
             'schedule' => 'required|array|min:1',
             'schedule.*.week_no' => 'required|string|distinct',
@@ -200,6 +203,8 @@ class PlanterDeductionController extends Controller
             'planter_name' => trim($data['planter_name']),
             'crop_year' => $data['crop_year'],
             'amount' => round((float) $data['amount'], 2),
+            // Liters only apply to fuel
+            'liters' => $data['type'] === 'fuel' && isset($data['liters']) && $data['liters'] !== '' ? round((float) $data['liters'], 3) : null,
             'description' => $data['description'] ?? null,
         ]);
         $deduction->save();

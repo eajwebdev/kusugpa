@@ -18,8 +18,8 @@ class PlanterDeduction extends Model
     protected $table = 'planter_deductions';
 
     protected $fillable = [
-        'reference_no', 'type', 'planter_code', 'planter_name', 'crop_year',
-        'amount', 'description', 'created_by',
+        'reference_no', 'type', 'source', 'fuel_allowance_id', 'planter_code', 'planter_name', 'crop_year',
+        'amount', 'liters', 'description', 'created_by',
     ];
 
     public function weeks()
@@ -35,10 +35,24 @@ class PlanterDeduction extends Model
     /** FD20260001 for fuel, OD20260001 for others */
     public static function generateReferenceNo(string $type): string
     {
-        $prefix = ($type === 'fuel' ? 'FD' : 'OD') . date('Y');
-        $last = self::where('reference_no', 'like', $prefix . '%')->orderByDesc('reference_no')->value('reference_no');
-        $sequence = $last ? (int) substr($last, -4) + 1 : 1;
+        return self::generateReferenceNos($type, 1)[0];
+    }
 
-        return $prefix . str_pad($sequence, 4, '0', STR_PAD_LEFT);
+    /**
+     * $count consecutive reference numbers (bulk fuel upload). The sequence is read from the
+     * highest number so far, ordered numerically so FD20260001 → FD202610000 keeps counting.
+     */
+    public static function generateReferenceNos(string $type, int $count): array
+    {
+        $prefix = ($type === 'fuel' ? 'FD' : 'OD') . date('Y');
+        $last = self::where('reference_no', 'like', $prefix . '%')
+            ->pluck('reference_no')
+            ->map(fn ($ref) => (int) substr($ref, strlen($prefix)))
+            ->max() ?? 0;
+
+        return array_map(
+            fn ($i) => $prefix . str_pad((string) ($last + $i), 4, '0', STR_PAD_LEFT),
+            range(1, max(1, $count))
+        );
     }
 }

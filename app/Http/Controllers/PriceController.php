@@ -153,7 +153,7 @@ public function registryData(Request $request)
 
     // Only the columns the registry and buy pages show, to keep the response small
     if ($type === 'quedan') {
-        $query = Quedan::select('id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg', 'status')
+        $query = Quedan::select('id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg', 'status', 'sold_price', 'sold_price_type')
             ->orderBy('crop_year', 'desc')
             ->orderByRaw('CAST(week_no AS UNSIGNED) DESC')
             ->orderBy('planter_name', 'asc');
@@ -230,7 +230,7 @@ private function registryFeed(Request $request, string $type, ?string $cropYear,
     };
 
     $query = $filtered()->select($isQuedan
-        ? ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg', 'status']
+        ? ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg', 'status', 'sold_price', 'sold_price_type']
         : ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'tin_no', 'mc_no', 'mol_net', 'status']);
     if ($status = $request->get('status')) {
         $query->where('status', $status);
@@ -288,17 +288,44 @@ public function bulkUpdateQuedan(Request $request)
     $request->validate([
         'ids' => 'required|array',
         'status' => 'required|in:bought,rejected,pending',
+        // A quedan is bought at a price picked from Price Management
+        'quedan_price_id' => 'required_if:status,bought|nullable|integer|exists:quedan_price,id',
+    ], [
+        'quedan_price_id.required_if' => 'Select the price the quedans are sold at.',
     ]);
+
+    $price = null;
+    if ($request->status === 'bought') {
+        $price = QuedanPrice::findOrFail($request->quedan_price_id);
+        if ((float) $price->quedan_price <= 0) {
+            return response()->json(['message' => 'The selected price is ₱0.00. Pick a price above zero.'], 422);
+        }
+        $otherYears = Quedan::whereIn('id', $request->ids)->where('crop_year', '!=', $price->crop_year)->count();
+        if ($otherYears > 0) {
+            return response()->json(['message' => "The price is for crop year {$price->crop_year}, but {$otherYears} selected quedan(s) belong to another crop year."], 422);
+        }
+    }
 
     Quedan::whereIn('id', $request->ids)->update([
         'status' => $request->status,
         'bought_at' => $request->status === 'bought' ? now() : null,
         'bought_by' => auth()->id(),
+        // Pending / rejected quedans are not sold, so they keep no price
+        'sold_price' => $price ? round((float) $price->quedan_price, 2) : null,
+        'sold_price_type' => $price ? strtoupper(trim((string) $price->quedan_type)) : null,
+        'quedan_price_id' => $price?->id,
     ]);
 
-    AuditLog::log('update', 'quedan', 'Bulk updated ' . count($request->ids) . ' quedans to ' . $request->status);
+    $priceText = $price ? ' at ₱' . number_format((float) $price->quedan_price, 2) . ' (Type ' . strtoupper(trim((string) $price->quedan_type)) . ', Wk ' . $price->week_no . ')' : '';
+    AuditLog::log('update', 'quedan', 'Bulk updated ' . count($request->ids) . ' quedans to ' . $request->status . $priceText, $price ? [
+        'quedan_price_id' => $price->id,
+        'price' => $price->quedan_price,
+        'type' => $price->quedan_type,
+        'crop_year' => $price->crop_year,
+        'week_no' => $price->week_no,
+    ] : []);
 
-    return response()->json(['message' => count($request->ids) . ' quedans updated successfully']);
+    return response()->json(['message' => count($request->ids) . ' quedans updated successfully' . $priceText . '.']);
 }
 
 public function bulkUpdateMolasses(Request $request)
@@ -322,7 +349,63 @@ public function bulkUpdateMolasses(Request $request)
 public function buyQuedan()
 {
     $cropYears = CropYear::orderBy('crop_year')->pluck('crop_year');
+
     return view('prices.buy-quedan', compact('cropYears'));
+}
+
+/**
+ * Sold Price picker of Buy Quedan, loaded as the user picks:
+ *  - ?crop_year=          → the crop year's weeks (with how many prices each has)
+ *  - ?crop_year=&week_no= → that week's quedan prices, narrowed by ?search= (type or amount)
+ */
+public function quedanPriceOptions(Request $request)
+{
+    $data = $request->validate([
+        'crop_year' => 'required|string|max:20',
+        'week_no' => 'nullable|string|max:10',
+        'search' => 'nullable|string|max:50',
+    ]);
+
+    if (empty($data['week_no'])) {
+        $priced = QuedanPrice::where('crop_year', $data['crop_year'])->where('quedan_price', '>', 0)
+            ->selectRaw('week_no, COUNT(*) AS n')->groupBy('week_no')->pluck('n', 'week_no')
+            ->mapWithKeys(fn ($n, $w) => [(string) (int) $w => (int) $n]);
+        $weeks = WeekNo::where('crop_year', $data['crop_year'])->pluck('week_no')
+            ->map(fn ($w) => (string) $w)
+            ->merge($priced->keys())
+            ->unique(fn ($w) => (int) $w)
+            ->sortBy(fn ($w) => (int) $w)
+            ->values()
+            ->map(fn ($w) => ['week_no' => $w, 'prices' => $priced[(string) (int) $w] ?? 0]);
+
+        return response()->json(['weeks' => $weeks]);
+    }
+
+    $query = QuedanPrice::where('crop_year', $data['crop_year'])
+        ->where('week_no', $data['week_no'])
+        ->where('quedan_price', '>', 0);
+    if ($search = trim((string) ($data['search'] ?? ''))) {
+        $amount = str_replace([',', '₱', ' '], '', $search);
+        $query->where(function ($q) use ($search, $amount) {
+            $q->where('quedan_type', 'like', '%' . $search . '%')
+                ->orWhere('quedan_type', 'like', '%' . preg_replace('/^type\s*/i', '', $search) . '%');
+            if ($amount !== '' && is_numeric($amount)) {
+                $q->orWhere('quedan_price', 'like', $amount . '%');
+            }
+        });
+    }
+
+    $prices = $query->orderBy('quedan_type')->orderByDesc('id')->limit(50)
+        ->get(['id', 'crop_year', 'week_no', 'quedan_type', 'quedan_price'])
+        ->map(fn ($p) => [
+            'id' => $p->id,
+            'crop_year' => (string) $p->crop_year,
+            'week_no' => (string) $p->week_no,
+            'type' => strtoupper(trim((string) $p->quedan_type)),
+            'price' => (float) $p->quedan_price,
+        ]);
+
+    return response()->json(['prices' => $prices]);
 }
 
 public function buyMolasses()

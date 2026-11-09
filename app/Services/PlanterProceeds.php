@@ -143,34 +143,22 @@ class PlanterProceeds
                 ];
             }
 
-            $netLkg = $quedan->sugar_lkg - $quedan->labor_lkg;
-
-            if (isset($quedanPrices['A'])) {
-                $priceA = $quedanPrices['A']->first()->quedan_price ?? 0;
-                $summaryData[$key]['quedan_a_lkg'] += $netLkg;
-                $summaryData[$key]['quedan_a_price'] = $priceA;
+            if ($quedan->sold_price !== null) {
+                // Bought at the price picked on Buy Quedan: that price and type only
+                self::addQuedan($summaryData[$key], self::quedanType($quedan->sold_price_type), $quedan, (float) $quedan->sold_price);
+                continue;
             }
 
-            if (isset($quedanPrices['B'])) {
-                $priceB = $quedanPrices['B']->first()->quedan_price ?? 0;
-                $summaryData[$key]['quedan_b_lkg'] += $netLkg;
-                $summaryData[$key]['quedan_b_price'] = $priceB;
-                $summaryData[$key]['quedan_b_liens'] += $quedan->total_liens;
-                $summaryData[$key]['sugar_lkg'] += $quedan->sugar_lkg;
+            // Bought before a sold price was recorded: the week's prices from Price Management
+            $typed = false;
+            foreach (['A', 'B', 'D'] as $type) {
+                if (isset($quedanPrices[$type])) {
+                    self::addQuedan($summaryData[$key], $type, $quedan, (float) ($quedanPrices[$type]->first()->quedan_price ?? 0));
+                    $typed = true;
+                }
             }
-
-            if (isset($quedanPrices['D'])) {
-                $priceD = $quedanPrices['D']->first()->quedan_price ?? 0;
-                $summaryData[$key]['quedan_d_lkg'] += $netLkg;
-                $summaryData[$key]['quedan_d_price'] = $priceD;
-                $summaryData[$key]['quedan_d_liens'] += $quedan->total_liens;
-            }
-
-            if (!isset($quedanPrices['A']) && !isset($quedanPrices['B']) && !isset($quedanPrices['D'])) {
-                $summaryData[$key]['quedan_b_lkg'] += $netLkg;
-                $summaryData[$key]['quedan_b_price'] = 0;
-                $summaryData[$key]['quedan_b_liens'] += $quedan->total_liens;
-                $summaryData[$key]['sugar_lkg'] += $quedan->sugar_lkg;
+            if (!$typed) {
+                self::addQuedan($summaryData[$key], 'B', $quedan, 0.0);
             }
         }
 
@@ -300,7 +288,12 @@ class PlanterProceeds
 
         // Each cash advance goes to the voucher planter with its code; codes from the uploads can differ from
         // the planter profile codes in spacing / case, so they are compared loosely and the name is the fallback
-        $match = fn ($value) => strtoupper(preg_replace('/\s+/', ' ', trim((string) $value)));
+        // Numeric codes also match without leading zeros (00733 = 733)
+        $match = function ($value) {
+            $value = strtoupper(preg_replace('/\s+/', ' ', trim((string) $value)));
+
+            return ctype_digit($value) ? (ltrim($value, '0') ?: '0') : $value;
+        };
         $voucherCodes = $summaryData->map(fn ($data) => $match($data['planter_code']))->flip();
         $assign = function (Collection $rows, string $field) use (&$summaryData, $voucherCodes, $match) {
             $byCode = collect();
@@ -365,6 +358,39 @@ class PlanterProceeds
         return $summaryData;
     }
 
+    /** Sold price types are A, B or D; anything else is computed as B */
+    private static function quedanType($type): string
+    {
+        $type = strtoupper(trim((string) $type));
+
+        return in_array($type, ['A', 'B', 'D'], true) ? $type : 'B';
+    }
+
+    /**
+     * Add one quedan to a planter record at a price. Each quedan's amount is kept, so quedans sold
+     * at different prices add up exactly; the price shown is the average per LKg.
+     * A: LKg only. B: LKg, liens, sugar LKg (service, insurance, tax). D: LKg and liens.
+     */
+    private static function addQuedan(array &$record, string $type, $quedan, float $price): void
+    {
+        $t = strtolower($type);
+        $netLkg = (float) $quedan->sugar_lkg - (float) $quedan->labor_lkg;
+
+        $record["quedan_{$t}_lkg"] += $netLkg;
+        $record["quedan_{$t}_amount"] = ($record["quedan_{$t}_amount"] ?? 0) + $netLkg * $price;
+        $record["quedan_{$t}_price"] = abs($record["quedan_{$t}_lkg"]) > 1e-9
+            ? $record["quedan_{$t}_amount"] / $record["quedan_{$t}_lkg"]
+            : $price;
+
+        if ($type === 'B') {
+            $record['quedan_b_liens'] += $quedan->total_liens;
+            $record['sugar_lkg'] += $quedan->sugar_lkg;
+            $record['quedan_b_tax_base'] = ($record['quedan_b_tax_base'] ?? 0) + (float) $quedan->sugar_lkg * $price;
+        } elseif ($type === 'D') {
+            $record['quedan_d_liens'] += $quedan->total_liens;
+        }
+    }
+
     /**
      * Amounts of one planter record, as printed on the voucher
      */
@@ -372,29 +398,30 @@ class PlanterProceeds
     {
         $sugar_lkg = $record['sugar_lkg'] ?? 0;
 
+        // Gross is the sum of each quedan's LKg x its price (quedans can be sold at different prices)
         $quedan_a_lkg = $record['quedan_a_lkg'] ?? 0;
         $quedan_a_price = $record['quedan_a_price'] ?? 0;
-        $quedan_a_gross = $quedan_a_lkg * $quedan_a_price;
+        $quedan_a_gross = $record['quedan_a_amount'] ?? $quedan_a_lkg * $quedan_a_price;
 
         $quedan_b_lkg = $record['quedan_b_lkg'] ?? 0;
         $quedan_b_price = $record['quedan_b_price'] ?? 0;
-        $quedan_b_gross = $quedan_b_lkg * $quedan_b_price;
+        $quedan_b_gross = $record['quedan_b_amount'] ?? $quedan_b_lkg * $quedan_b_price;
         $quedan_b_liens = $record['quedan_b_liens'] ?? 0;
         $trucking_additional_charge = $record['trucking_additional_charge'] ?? 0;
 
         $quedan_b_service = $sugar_lkg * 8.0 + $trucking_additional_charge;
         $quedan_b_insurance = $sugar_lkg * 3.0;
-        $quedan_b_tax = $sugar_lkg * $quedan_b_price * 0.01;
+        $quedan_b_tax = ($record['quedan_b_tax_base'] ?? $sugar_lkg * $quedan_b_price) * 0.01;
         $quedan_b_total_deductions = $quedan_b_liens + $quedan_b_service + $quedan_b_insurance + $quedan_b_tax;
         $quedan_b_net = $quedan_b_gross - $quedan_b_total_deductions;
 
         $quedan_d_lkg = $record['quedan_d_lkg'] ?? 0;
         $quedan_d_price = $record['quedan_d_price'] ?? 0;
-        $quedan_d_gross = $quedan_d_lkg * $quedan_d_price;
+        $quedan_d_gross = $record['quedan_d_amount'] ?? $quedan_d_lkg * $quedan_d_price;
         $quedan_d_liens = $record['quedan_d_liens'] ?? 0;
         $quedan_d_service = $quedan_d_lkg * 8.0;
         $quedan_d_insurance = $quedan_d_lkg * 3.0;
-        $quedan_d_tax = $quedan_d_lkg * $quedan_d_price * 0.01;
+        $quedan_d_tax = $quedan_d_gross * 0.01;
         $quedan_d_total_deductions = $quedan_d_liens + $quedan_d_service + $quedan_d_insurance + $quedan_d_tax;
         $quedan_d_net = $quedan_d_gross - $quedan_d_total_deductions;
 
