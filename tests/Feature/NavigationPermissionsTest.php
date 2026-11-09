@@ -127,13 +127,16 @@ class NavigationPermissionsTest extends TestCase
 
     public function test_sidebar_shows_only_the_granted_report_and_upload_items(): void
     {
-        $this->actingAs($this->userWith(['view-tls-report', 'upload-summary']));
+        $this->actingAs($this->userWith(['view-tls-report', 'upload-trucking', 'upload-summary']));
         $html = view('layouts.sidebar-items')->render();
 
         $this->assertStringContainsString('TLS Reports', $html);
         $this->assertStringNotContainsString('Summary Reports', $html);
         $this->assertStringNotContainsString('Consolidated Report', $html);
-        $this->assertStringContainsString('openUploadModal(\'summary\')', $html);
+        $this->assertStringContainsString('openUploadModal(\'trucking\')', $html);
+        $this->assertStringContainsString('Trucking Summary', $html);
+        // The Summary upload is no longer in the sidebar
+        $this->assertStringNotContainsString('openUploadModal(\'summary\')', $html);
         $this->assertStringNotContainsString('openUploadModal(\'tls\')', $html);
     }
 
@@ -404,11 +407,18 @@ class NavigationPermissionsTest extends TestCase
                 $table->decimal('labor_lkg', 12, 3)->default(0);
                 $table->decimal('mol_net', 12, 3)->default(0);
                 $table->string('status')->default('pending');
+                $table->decimal('sold_price', 12, 2)->nullable();
+                $table->string('sold_price_type', 10)->nullable();
+                $table->unsignedBigInteger('quedan_price_id')->nullable();
                 $table->timestamps();
             });
         }
         Schema::create('quedan_price', function (Blueprint $table) {
             $table->id();
+            $table->string('crop_year')->nullable();
+            $table->string('week_no')->nullable();
+            $table->string('quedan_type')->nullable();
+            $table->decimal('quedan_price', 12, 2)->default(0);
             $table->timestamps();
         });
         Schema::create('mol_price', function (Blueprint $table) {

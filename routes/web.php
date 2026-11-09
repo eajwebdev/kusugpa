@@ -338,6 +338,7 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     })->name('quedan-molasses-registry');
     // Buy Quedan
     Route::get('/buy-quedan', [PriceController::class, 'buyQuedan'])->name('quedan-buy.index');
+    Route::get('/buy-quedan/prices', [PriceController::class, 'quedanPriceOptions'])->name('quedan-buy.prices');
     Route::post('/quedans/bulk-update', [PriceController::class, 'bulkUpdateQuedan'])->name('quedans.bulk-update');
     // routes/web.php
     Route::get('/quedan-molasses-registry/data', [PriceController::class, 'registryData'])->name('registry.data');

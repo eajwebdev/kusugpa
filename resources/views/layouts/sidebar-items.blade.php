@@ -118,17 +118,8 @@
             <li>
                 <button onclick="openUploadModal('consolidated')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
-                    <i class="fas fa-file-import w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
-                    <span>Consolidated Summary</span>
-                </button>
-            </li>
-            @endif
-            @if ($navUser->hasPermission('upload-summary'))
-            <li>
-                <button onclick="openUploadModal('summary')"
-                    class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
-                    <i class="fas fa-file-csv w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
-                    <span>Summary</span>
+                    <i class="fas fa-truck w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
+                    <span>Trucking Allowance</span>
                 </button>
             </li>
             @endif
@@ -136,8 +127,8 @@
             <li>
                 <button onclick="openUploadModal('trucking')"
                     class="group flex w-full items-center gap-x-2 rounded-md py-1.5 px-2 text-sm text-gray-600 hover:text-primary-600 hover:bg-gray-50">
-                    <i class="fas fa-truck w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
-                    <span>Trucking Allowance</span>
+                    <i class="fas fa-file-import w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
+                    <span>Trucking Summary</span>
                 </button>
             </li>
             @endif

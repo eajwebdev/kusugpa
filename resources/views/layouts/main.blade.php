@@ -458,14 +458,14 @@
             currentUploadType = type;
             const titles = {
                 'summary': 'Upload Summary',
-                'trucking': 'Upload Trucking Allowance',
+                'trucking': 'Upload Trucking Summary',
                 'fci': 'Upload Fresh Cane Incentive',
                 'fuel': 'Upload Fuel',
                 'rentals': 'Upload Rentals',
                 'underload': 'Upload Underload',
                 'transloading': 'Upload Transloading',
                 'mudpress': 'Upload Mudpress',
-                'consolidated': 'Upload Consolidated Summary',
+                'consolidated': 'Upload Trucking Allowance',
                 'quedan': 'Upload Quedan',
                 'molasses': 'Upload Molasses',
                 'tls': 'Upload TLS Hauling',
@@ -481,7 +481,7 @@
                 html: `
                     <div class="kp-upload-toolbar">
                         <p>${type === 'tls' ? 'Each plate no. per planter becomes a Hauler TLS LIQ entry. ' : ''}Use the CSV template columns; the header row is optional.</p>
-                        <a href="${templateUrl}" download><i class="fas fa-download" aria-hidden="true"></i> Download template</a>
+                        <a id="uploadTemplateLink" href="${templateUrl}" data-base="${templateUrl}" download><i class="fas fa-download" aria-hidden="true"></i> Download template</a>
                     </div>
                     ${needsCropWeek.includes(type) ? `
                         <div class="kp-upload-fields">
@@ -724,6 +724,18 @@
             const weekNo = document.getElementById('uploadWeekNo')?.value;
             const fileInput = document.getElementById('csvFileInput');
             const hasFile = fileInput && fileInput.files.length > 0;
+
+            // The template carries the picked crop year and week so the file can be checked against them
+            const templateLink = document.getElementById('uploadTemplateLink');
+            if (templateLink) {
+                const base = templateLink.dataset.base;
+                templateLink.href = cropYear && weekNo
+                    ? base + '?crop_year=' + encodeURIComponent(cropYear) + '&week_no=' + encodeURIComponent(weekNo)
+                    : base;
+                templateLink.title = cropYear && weekNo
+                    ? 'Template for Crop Year ' + cropYear + ' Week ' + weekNo
+                    : 'Pick the Crop Year and Week first to have them filled in the template';
+            }
 
             // Check if current modal type needs crop/week (explicit variable set by
             // openUploadModal — do NOT sniff the title text, it breaks for some types)

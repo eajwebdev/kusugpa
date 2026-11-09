@@ -52,7 +52,9 @@ class TlsHaulingLiquidationGenerator
                 ->whereIn('status', ['approved', 'active']))
             ->get();
 
-        $fuel = FuelAllowance::where('planter_code', $planterCode)
+        // Fuel uploads store numeric codes without leading zeros; TLS files may carry them (042878)
+        $codes = array_unique([$planterCode, ctype_digit($planterCode) ? (ltrim($planterCode, '0') ?: '0') : $planterCode]);
+        $fuel = FuelAllowance::whereIn('planter_code', $codes)
             ->where('crop_year', $cropYear)
             ->where('week_no', $weekNo);
 

@@ -50,6 +50,11 @@
                 <p class="kp-kpi-value kp-num" style="color: var(--kp-forest)" x-text="'₱' + formatNumber(feed ? feed.extra.amount : 0)"></p>
                 <p class="kp-kpi-sub">Scheduled for deduction</p>
             </div>
+            <div class="kp-kpi" x-show="tab === 'fuel'">
+                <p class="kp-kpi-label"><i class="fas fa-gas-pump" aria-hidden="true"></i> Total Liters</p>
+                <p class="kp-kpi-value kp-num" x-text="formatLiters(feed ? feed.extra.liters : 0)"></p>
+                <p class="kp-kpi-sub">Fuel issued</p>
+            </div>
             <div class="kp-kpi">
                 <p class="kp-kpi-label"><i class="fas fa-users" aria-hidden="true"></i> Planters</p>
                 <p class="kp-kpi-value kp-num" x-text="feed ? num(feed.extra.planters) : 0"></p>
@@ -100,6 +105,7 @@
                             <th>Reference</th>
                             <th>Planter</th>
                             <th>Crop Year</th>
+                            <th class="text-right" x-show="tab === 'fuel'">Liters</th>
                             <th class="text-right">Amount</th>
                             <th>Deduction Weeks</th>
                             <th>Description</th>
@@ -123,12 +129,16 @@
                                         </div>
                                     </td>
                                 @endif
-                                <td class="font-mono text-xs font-semibold" style="color: var(--kp-text)" x-text="d.reference_no"></td>
+                                <td class="font-mono text-xs font-semibold" style="color: var(--kp-text)">
+                                    <span x-text="d.reference_no"></span>
+                                    <span x-show="d.source === 'upload'" class="ml-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase" style="background: var(--kp-surface-2); color: var(--kp-muted)" title="Created from the Fuel upload">Upload</span>
+                                </td>
                                 <td>
                                     <p class="text-sm font-medium" style="color: var(--kp-text)" x-text="d.planter_name"></p>
                                     <p class="text-xs font-mono" style="color: var(--kp-muted)" x-text="d.planter_code"></p>
                                 </td>
                                 <td class="font-mono text-xs" style="color: var(--kp-muted)" x-text="d.crop_year"></td>
+                                <td class="text-right font-mono tabular" style="color: var(--kp-text)" x-show="tab === 'fuel'" x-text="d.liters !== null && d.liters !== undefined ? formatLiters(d.liters) : '—'"></td>
                                 <td class="text-right font-mono font-semibold tabular" style="color: var(--kp-emerald)" x-text="formatNumber(d.amount)"></td>
                                 <td class="text-xs" style="color: var(--kp-muted)">
                                     <template x-for="w in d.weeks" :key="w.id">
@@ -143,7 +153,7 @@
                             </tr>
                         </template>
                         <template x-if="feed">
-                            @include('layouts.partials.feed-footer', ['feed' => 'feed', 'colspan' => 8, 'empty' => 'No deductions match the filters.'])
+                            @include('layouts.partials.feed-footer', ['feed' => 'feed', 'colspan' => 9, 'empty' => 'No deductions match the filters.'])
                         </template>
                     </tbody>
                 </table>
@@ -189,7 +199,11 @@
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-1 gap-4" :class="form.type === 'fuel' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'">
+                                <div x-show="form.type === 'fuel'">
+                                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Liters</label>
+                                    <input type="number" x-model="form.liters" step="any" min="0" class="kp-input w-full" placeholder="0">
+                                </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Amount (₱) <span class="text-rose-600">*</span></label>
                                     <input type="number" x-model="form.amount" @input="if (!manualSplit) autoSplit()" step="any" min="0" required class="kp-input w-full" placeholder="0.00">
@@ -336,6 +350,9 @@
                     formatNumber(n) {
                         return parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     },
+                    formatLiters(n) {
+                        return parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 }) + ' L';
+                    },
                     formatDate(d) {
                         if (!d) return '—';
                         const [y, m, day] = String(d).slice(0, 10).split('-').map(Number);
@@ -365,7 +382,7 @@
                         return withWeeks[withWeeks.length - 1] || this.cropYears[0] || '';
                     },
                     blankForm() {
-                        return { type: this.tab, planter_code: '', planter_name: '', crop_year: this.defaultCropYear(), amount: '', description: '' };
+                        return { type: this.tab, planter_code: '', planter_name: '', crop_year: this.defaultCropYear(), amount: '', liters: '', description: '' };
                     },
                     cropYearWeeks() {
                         return this.allWeeks.filter(w => w.crop_year === this.form.crop_year);
@@ -436,7 +453,7 @@
                         this.editing = d;
                         this.form = {
                             type: d.type, planter_code: d.planter_code, planter_name: d.planter_name,
-                            crop_year: String(d.crop_year), amount: d.amount, description: d.description || '',
+                            crop_year: String(d.crop_year), amount: d.amount, liters: d.liters ?? '', description: d.description || '',
                         };
                         // Keep a planter that is no longer active selectable
                         if (!this.planters.some(p => p.planter_code === d.planter_code)) {
@@ -475,6 +492,7 @@
                             const payload = {
                                 ...this.form,
                                 amount: Math.round(this.num(this.form.amount) * 100) / 100,
+                                liters: this.form.type === 'fuel' && this.form.liters !== '' && this.form.liters !== null ? this.num(this.form.liters) : null,
                                 schedule: this.schedule.map(r => ({ week_no: r.week_no, due_date: r.week_end || null, amount: Math.round(this.num(r.amount) * 100) / 100 })),
                             };
                             const url = this.editing

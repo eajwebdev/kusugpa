@@ -89,6 +89,8 @@ class DashboardAnalyticsTest extends TestCase
                 $table->decimal($qty, 12, 3)->default(0);
                 $table->decimal('labor_lkg', 12, 3)->default(0);
                 $table->string('status')->default('pending');
+                $table->decimal('sold_price', 12, 2)->nullable();
+                $table->string('sold_price_type', 10)->nullable();
                 $table->timestamps();
             });
         }
@@ -151,6 +153,7 @@ class DashboardAnalyticsTest extends TestCase
             '2026_10_22_000003_create_loan_payments_table.php',
             '2026_10_24_000001_add_interest_amount_to_cash_advances.php',
             '2026_10_24_000002_create_planter_deductions_tables.php',
+            '2026_11_09_000000_add_liters_to_fuel_deductions.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }

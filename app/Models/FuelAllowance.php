@@ -16,6 +16,7 @@ class FuelAllowance extends Model
         'week_no',
         'planter_code',
         'planter_name',
+        'liters',
         'fuel_amount',
         'user_id',
     ];

@@ -26,13 +26,37 @@ class UploadTemplateTest extends TestCase
         $this->assertSame($columns, str_getcsv(trim($csv)));
     }
 
+    public function test_template_carries_the_picked_crop_year_and_week(): void
+    {
+        $this->withoutMiddleware(\App\Http\Middleware\EnsureSingleSession::class);
+        $this->actingAs(new User(['role' => 'Administrator']));
+
+        $response = $this->get(route('upload.template', ['type' => 'fuel', 'crop_year' => '20262027', 'week_no' => '3']));
+
+        $response->assertOk();
+        $this->assertStringContainsString('kusugpa-fuel-template-20262027-wk3.csv', $response->headers->get('content-disposition'));
+
+        ob_start();
+        $response->baseResponse->sendContent();
+        $lines = array_map('str_getcsv', explode("\n", trim(ob_get_clean())));
+
+        $this->assertSame(['crop_year', 'week_no', 'planter_code', 'planter_name', 'liters', 'fuel_amount'], $lines[0]);
+        $this->assertSame(['20262027', '3', '', '', '', ''], $lines[1]);
+
+        // A template without crop year / week columns stays header-only
+        $response = $this->get(route('upload.template', ['type' => 'tls', 'crop_year' => '20262027', 'week_no' => '3']));
+        ob_start();
+        $response->baseResponse->sendContent();
+        $this->assertCount(1, explode("\n", trim(ob_get_clean())));
+    }
+
     public function templateColumns(): array
     {
         return [
             'summary' => ['summary', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'net_cane', 'net_amount']],
             'trucking' => ['trucking', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'net_cane', 'ta_amount', 'trans_code']],
             'fci' => ['fci', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'fci_amount']],
-            'fuel' => ['fuel', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'fuel_amount']],
+            'fuel' => ['fuel', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'liters', 'fuel_amount']],
             'rentals' => ['rentals', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'rental_amount']],
             'underload' => ['underload', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'underload_amount']],
             'transloading' => ['transloading', ['crop_year', 'week_no', 'planter_code', 'planter_name', 'transloading_amount']],

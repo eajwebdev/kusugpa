@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\PlanterDeduction;
 use App\Models\User;
 use App\Services\PlanterProceeds;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -76,6 +78,8 @@ class PlanterDeductionsTest extends TestCase
             $table->decimal('sugar_lkg', 12, 3)->default(0);
             $table->decimal('labor_lkg', 12, 3)->default(0);
             $table->string('status')->default('pending');
+            $table->timestamp('bought_at')->nullable();
+            $table->unsignedBigInteger('bought_by')->nullable();
             $table->timestamps();
         });
         Schema::create('quedan_price', function (Blueprint $table) {
@@ -134,6 +138,8 @@ class PlanterDeductionsTest extends TestCase
             '2026_10_20_000003_add_receipt_fields_and_deductions_to_cash_advances.php',
             '2026_10_22_000000_add_weekly_schedule_to_cash_advances.php',
             '2026_10_24_000002_create_planter_deductions_tables.php',
+            '2026_11_09_000000_add_liters_to_fuel_deductions.php',
+            '2026_11_09_000001_add_sold_price_to_quedans.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }
@@ -334,5 +340,186 @@ class PlanterDeductionsTest extends TestCase
             $line = $planter[$period];
             $this->assertEqualsWithDelta($line['net'] - $line['loan'] - $line['ca'] - $line['others'] - $line['fuel'], $line['net_paid'], 0.01);
         }
+    }
+
+    private function uploadFuel(string $csv, string $week = '3')
+    {
+        if (!Schema::hasTable('fuel_allowance')) {
+            Schema::create('fuel_allowance', function (Blueprint $table) {
+                $table->id();
+                $table->string('crop_year');
+                $table->string('week_no');
+                $table->string('planter_code');
+                $table->string('planter_name');
+                $table->decimal('liters', 12, 3)->nullable();
+                $table->decimal('fuel_amount', 10, 2)->default(0);
+                $table->string('user_id');
+                $table->timestamps();
+            });
+        }
+
+        return $this->postJson(route('upload.csv', ['type' => 'fuel']), [
+            'crop_year' => '20262027',
+            'week_no' => $week,
+            'file' => UploadedFile::fake()->createWithContent('fuel.csv', $csv),
+        ]);
+    }
+
+    public function test_fuel_upload_creates_fuel_deductions_with_liters_and_reference_numbers(): void
+    {
+        $this->createDeduction('fuel', 50, [4 => 50])->assertCreated(); // FD...0001 made by hand
+
+        $this->uploadFuel("crop_year,week_no,planter_code,planter_name,liters,fuel_amount\n"
+            . "20262027,3,00123,\"DELA CRUZ, JUAN\",20.5,\"1,230.00\"\n"
+            . ",,00456,SANTOS MARIA,10,600\n")
+            ->assertOk()
+            ->assertJsonPath('imported', 2)
+            ->assertJsonPath('fuel_deductions', 2);
+
+        // Stored like the other uploads' codes, without leading zeros
+        $this->assertSame('123', DB::table('fuel_allowance')->orderBy('id')->value('planter_code'));
+        $this->assertEquals(20.5, (float) DB::table('fuel_allowance')->orderBy('id')->value('liters'));
+
+        $uploaded = PlanterDeduction::where('source', 'upload')->with('weeks')->orderBy('id')->get();
+        $this->assertCount(2, $uploaded);
+        $year = date('Y');
+        $this->assertSame(["FD{$year}0002", "FD{$year}0003"], $uploaded->pluck('reference_no')->all());
+        $this->assertSame('123', $uploaded[0]->planter_code);
+        $this->assertSame('DELA CRUZ, JUAN', $uploaded[0]->planter_name);
+
+        // Still comes off the voucher of the planter whose quedan code is 00123
+        $p = PlanterProceeds::compute(PlanterProceeds::summary('20262027', 3, 3)->firstWhere('planter_code', '00123'));
+        $this->assertEqualsWithDelta(1230, $p['fuelPayment'], 0.001);
+        $this->assertEquals(1230, (float) $uploaded[0]->amount);
+        $this->assertEquals(20.5, (float) $uploaded[0]->liters);
+        $this->assertSame('3', (string) $uploaded[0]->weeks->first()->week_no);
+        $this->assertEquals(1230, (float) $uploaded[0]->weeks->first()->amount);
+
+        // Shows on the Fuel & Others Deduction page for that week
+        $this->getJson(route('planter-deductions.index', ['type' => 'fuel', 'crop_year' => '20262027', 'week_no' => 3]))
+            ->assertOk()
+            ->assertJsonPath('extra.amount', 1830)
+            ->assertJsonPath('extra.liters', 30.5);
+
+        // Same week again is refused
+        $this->uploadFuel("20262027,3,00789,REYES ANA,5,300\n")->assertStatus(422);
+        $this->assertSame(2, PlanterDeduction::where('source', 'upload')->count());
+    }
+
+    public function test_fuel_upload_refuses_rows_of_another_crop_year_or_week(): void
+    {
+        $this->uploadFuel("20262027,4,00123,DELA CRUZ JUAN,20,1000\n")
+            ->assertStatus(422)
+            ->assertJsonFragment(['error' => 'The file has rows for a different crop year / week than Crop Year 20262027 Week 3: line 1 (20262027 / Wk 4). Fix the file or select the matching crop year and week.']);
+
+        $this->uploadFuel("20252026,3,00123,DELA CRUZ JUAN,20,1000\n")->assertStatus(422);
+        $this->uploadFuel("20262027,99,00123,DELA CRUZ JUAN,20,1000\n", '99')->assertStatus(422); // week not set up
+
+        $this->assertSame(0, DB::table('fuel_allowance')->count());
+        $this->assertSame(0, PlanterDeduction::count());
+    }
+
+    public function test_unused_template_starter_row_is_ignored(): void
+    {
+        // Downloaded template row with only crop year / week, then the planter rows typed below it
+        $this->uploadFuel("crop_year,week_no,planter_code,planter_name,liters,fuel_amount\n"
+            . "20262027,3,,,,\n"
+            . "20262027,3,00123,DELA CRUZ JUAN,20,1000\n")
+            ->assertOk()
+            ->assertJsonPath('imported', 1)
+            ->assertJsonPath('errors', 0);
+
+        // Only the starter row: nothing to import
+        PlanterDeduction::query()->delete();
+        DB::table('fuel_allowance')->delete();
+        $this->uploadFuel("crop_year,week_no,planter_code,planter_name,liters,fuel_amount\n20262027,3,,,,\n")->assertStatus(422);
+    }
+
+    public function test_quedans_are_bought_at_the_picked_price_and_the_voucher_uses_it(): void
+    {
+        $priceB = DB::table('quedan_price')->insertGetId(['crop_year' => '20262027', 'week_no' => '4', 'quedan_type' => 'B', 'quedan_price' => 1500]);
+        $priceA = DB::table('quedan_price')->insertGetId(['crop_year' => '20262027', 'week_no' => '4', 'quedan_type' => 'a', 'quedan_price' => 3000]);
+        $week3 = DB::table('quedans')->where('week_no', '3')->value('id');
+        $week4 = DB::table('quedans')->where('week_no', '4')->value('id');
+
+        // A price must be picked, and it must be of the quedans' crop year
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [$week3], 'status' => 'bought'])->assertStatus(422);
+        $otherYear = DB::table('quedan_price')->insertGetId(['crop_year' => '20252026', 'week_no' => '4', 'quedan_type' => 'B', 'quedan_price' => 900]);
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [$week3], 'status' => 'bought', 'quedan_price_id' => $otherYear])->assertStatus(422);
+
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [$week3], 'status' => 'bought', 'quedan_price_id' => $priceB])->assertOk();
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [$week4], 'status' => 'bought', 'quedan_price_id' => $priceA])->assertOk();
+
+        $q3 = DB::table('quedans')->find($week3);
+        $this->assertEquals(1500, (float) $q3->sold_price);
+        $this->assertSame('B', $q3->sold_price_type);
+        $this->assertSame('A', DB::table('quedans')->find($week4)->sold_price_type);
+
+        // Week 3 quedan at B ₱1,500 and week 4 quedan at A ₱3,000; not the weeks' ₱1,000 prices
+        $p = PlanterProceeds::compute(PlanterProceeds::summary('20262027', 3, 4)->first());
+        $this->assertEqualsWithDelta(10, $p['quedan_b_lkg'], 0.001);
+        $this->assertEqualsWithDelta(1500, $p['quedan_b_price'], 0.001);
+        $this->assertEqualsWithDelta(15000, $p['quedan_b_gross'], 0.001);
+        $this->assertEqualsWithDelta(150, $p['quedan_b_tax'], 0.001);
+        $this->assertEqualsWithDelta(10, $p['quedan_a_lkg'], 0.001);
+        $this->assertEqualsWithDelta(30000, $p['quedan_a_gross'], 0.001);
+        $this->assertEqualsWithDelta(0, $p['quedan_d_lkg'], 0.001);
+        $this->assertEqualsWithDelta(45000, $p['quedanGrossProceeds'], 0.001);
+
+        // Back to pending: no sold price and off the voucher
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [$week4], 'status' => 'pending'])->assertOk();
+        $this->assertNull(DB::table('quedans')->find($week4)->sold_price);
+        $p = PlanterProceeds::compute(PlanterProceeds::summary('20262027', 3, 4)->first());
+        $this->assertEqualsWithDelta(15000, $p['quedanGrossProceeds'], 0.001);
+    }
+
+    public function test_sold_price_picker_loads_weeks_then_searchable_prices(): void
+    {
+        DB::table('quedan_price')->insert(['crop_year' => '20262027', 'week_no' => '4', 'quedan_type' => 'd', 'quedan_price' => 2750]);
+        DB::table('quedan_price')->insert(['crop_year' => '20262027', 'week_no' => '4', 'quedan_type' => 'A', 'quedan_price' => 0]); // no ₱0 choice
+        DB::table('quedan_price')->insert(['crop_year' => '20252026', 'week_no' => '4', 'quedan_type' => 'B', 'quedan_price' => 900]);
+
+        // 1. Crop year → its weeks with the number of prices each
+        $weeks = $this->getJson(route('quedan-buy.prices', ['crop_year' => '20262027']))->assertOk()->json('weeks');
+        $this->assertSame([['week_no' => '3', 'prices' => 1], ['week_no' => '4', 'prices' => 2], ['week_no' => '10', 'prices' => 1]], $weeks);
+
+        // 2. Week → that week's prices only
+        $prices = $this->getJson(route('quedan-buy.prices', ['crop_year' => '20262027', 'week_no' => '4']))->assertOk()->json('prices');
+        $this->assertSame(['B', 'D'], array_column($prices, 'type'));
+        $this->assertEquals([1000, 2750], array_column($prices, 'price'));
+        $this->assertSame(['4', '4'], array_column($prices, 'week_no'));
+
+        // 3. Search by type or amount
+        $search = fn ($s) => array_column($this->getJson(route('quedan-buy.prices', ['crop_year' => '20262027', 'week_no' => '4', 'search' => $s]))->assertOk()->json('prices'), 'type');
+        $this->assertSame(['D'], $search('d'));
+        $this->assertSame(['D'], $search('Type D'));
+        $this->assertSame(['D'], $search('2,750'));
+        $this->assertSame(['B'], $search('₱1000'));
+        $this->assertSame([], $search('zzz'));
+
+        $this->getJson(route('quedan-buy.prices'))->assertStatus(422); // crop year required
+    }
+
+    public function test_quedans_sold_at_different_prices_add_up_exactly(): void
+    {
+        $low = DB::table('quedan_price')->insertGetId(['crop_year' => '20262027', 'week_no' => '3', 'quedan_type' => 'B', 'quedan_price' => 1200]);
+        $high = DB::table('quedan_price')->insertGetId(['crop_year' => '20262027', 'week_no' => '4', 'quedan_type' => 'B', 'quedan_price' => 1800]);
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [DB::table('quedans')->where('week_no', '3')->value('id')], 'status' => 'bought', 'quedan_price_id' => $low])->assertOk();
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [DB::table('quedans')->where('week_no', '4')->value('id')], 'status' => 'bought', 'quedan_price_id' => $high])->assertOk();
+
+        $p = PlanterProceeds::compute(PlanterProceeds::summary('20262027', 3, 4)->first());
+        $this->assertEqualsWithDelta(20, $p['quedan_b_lkg'], 0.001);
+        $this->assertEqualsWithDelta(30000, $p['quedan_b_gross'], 0.001); // 10 x 1,200 + 10 x 1,800
+        $this->assertEqualsWithDelta(1500, $p['quedan_b_price'], 0.001); // average shown on the voucher
+        $this->assertEqualsWithDelta(300, $p['quedan_b_tax'], 0.001);
+    }
+
+    public function test_old_five_column_fuel_file_still_uploads(): void
+    {
+        $this->uploadFuel("20262027,3,00123,DELA CRUZ JUAN,750\n")->assertOk()->assertJsonPath('fuel_deductions', 1);
+
+        $deduction = PlanterDeduction::where('source', 'upload')->first();
+        $this->assertEquals(750, (float) $deduction->amount);
+        $this->assertNull($deduction->liters);
     }
 }
