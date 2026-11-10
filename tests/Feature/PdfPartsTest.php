@@ -113,5 +113,9 @@ class PdfPartsTest extends TestCase
         // Every row printed exactly once across the parts
         $this->assertSame(1700, $seen->count());
         $this->assertSame(1700, $seen->unique()->count());
+
+        // The registry prints on A4 portrait (595 wide x 842 tall), not landscape
+        $pdf = $this->get(route('quedan-registry.export', ['crop_year' => '20262027', 'part' => 1, 'preview' => 1]))->getContent();
+        $this->assertMatchesRegularExpression('/MediaBox \[0(?:\.0+)? 0(?:\.0+)? 595\.\d+ 841\.\d+\]/', $pdf);
     }
 }
