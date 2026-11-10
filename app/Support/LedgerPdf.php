@@ -15,9 +15,11 @@ class LedgerPdf
 
     /**
      * @param  array  $columns  [['key' => 'planter_name', 'label' => 'Planter Name', 'decimals' => 2 (optional), 'total' => true (optional: summed under ?show_totals=1)], ...]
+     *                         'width' => '20%' (optional) sets the column's share of the page width
      * @param  callable|null  $beforeRender  called with the PdfParts of the requested part (e.g. to write the audit log)
+     * @param  string  $orientation  'landscape' or 'portrait' (A4)
      */
-    public static function response(Request $request, Collection $rows, string $title, array $columns, string $filenameBase, ?callable $beforeRender = null)
+    public static function response(Request $request, Collection $rows, string $title, array $columns, string $filenameBase, ?callable $beforeRender = null, string $orientation = 'landscape')
     {
         $parts = PdfParts::make($request, $rows, self::ROWS_PER_PART, 'rows');
         if ($parts->wantsInfo($request)) {
@@ -36,7 +38,7 @@ class LedgerPdf
             'generatedDate' => now()->format('F d, Y H:i:s'),
             // A grand total of every part, so it closes the last part
             'totals' => $request->boolean('show_totals') && $parts->isLast() ? self::totals($rows, $columns) : null,
-        ])->setPaper('a4', 'landscape');
+        ])->setPaper('a4', $orientation);
 
         $filename = $parts->filename($filenameBase . '-' . now()->format('Y-m-d'));
 
