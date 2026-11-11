@@ -514,6 +514,36 @@ class PlanterDeductionsTest extends TestCase
         $this->assertEqualsWithDelta(300, $p['quedan_b_tax'], 0.001);
     }
 
+    public function test_week_bought_is_the_week_of_the_sold_price(): void
+    {
+        DB::table('week_no')->where('week_no', '4')->update(['week_start_date' => '2026-10-19']);
+        $week3 = DB::table('quedans')->where('week_no', '3')->value('id');
+        $week4 = DB::table('quedans')->where('week_no', '4')->value('id');
+
+        // Week 3 quedan sold at a week 10 price, marked bought today
+        $week10Price = DB::table('quedan_price')->where('week_no', '10')->value('id');
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [$week3], 'status' => 'bought', 'quedan_price_id' => $week10Price])->assertOk();
+        // Week 4 quedan bought before sold prices were recorded: no price, so its bought_at date counts
+        DB::table('quedans')->where('id', $week4)->update(['bought_at' => '2026-10-20 10:00:00']);
+
+        $boughtIn = fn ($week) => array_column($this->getJson(route('registry.data', [
+            'type' => 'quedan', 'crop_year' => '20262027', 'bought_week' => $week, 'page' => 1,
+        ]))->assertOk()->json('data'), 'id');
+
+        $this->assertSame([$week3], $boughtIn('10'));
+        $this->assertSame([], $boughtIn('3'));
+        $this->assertSame([$week4], $boughtIn('4'));
+
+        // Week 10 has a price, so it is offered even before it starts
+        $options = $this->getJson(route('registry.data', ['type' => 'quedan', 'crop_year' => '20262027', 'page' => 1]))
+            ->assertOk()->json('extra.bought_weeks');
+        $this->assertContains('10', array_column($options, 'week_no'));
+
+        // Back to pending: no longer bought in week 10
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [$week3], 'status' => 'pending'])->assertOk();
+        $this->assertSame([], $boughtIn('10'));
+    }
+
     public function test_old_five_column_fuel_file_still_uploads(): void
     {
         $this->uploadFuel("20262027,3,00123,DELA CRUZ JUAN,750\n")->assertOk()->assertJsonPath('fuel_deductions', 1);

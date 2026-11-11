@@ -306,7 +306,7 @@
             // Counts of the crop year / week / search, whatever the status filter
             get stats() { return (this.feed && this.feed.extra.stats) || { total: 0, bought: 0, pending: 0 }; },
             get availableWeeks() { return (this.feed && this.feed.extra.weeks) || []; },
-            // Crop year weeks with dates, for the "Week Bought" filter (matches bought_at)
+            // Crop year weeks with dates, for the "Week Bought" filter (the week of the sold price picked)
             get availableBoughtWeeks() { return (this.feed && this.feed.extra.bought_weeks) || []; },
             get isAllSelected() {
                 return this.filteredData.length > 0 && this.filteredData.every(r => this.selectedIds.includes(r.id));
