@@ -298,10 +298,11 @@
                 <a href="{{ route('consolidated-report') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('consolidated-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
                     <i class="fas fa-file-invoice w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
-                    <span>Consolidated Report</span>
+                    <span>Trucking Allowance</span>
                 </a>
             </li>
             @endif
+            {{-- Summary Reports is hidden from the menu (the page and its route still exist).
             @if ($navUser->hasPermission('view-summary-report'))
             <li>
                 <a href="{{ route('summaryReport') }}"
@@ -311,12 +312,13 @@
                 </a>
             </li>
             @endif
+            --}}
             @if ($navUser->hasPermission('view-trucking-allowance-report'))
             <li>
                 <a href="{{ route('trucking-allowance-report') }}"
                     class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('trucking-allowance-report*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
                     <i class="fas fa-truck w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
-                    <span>Trucking Allowance</span>
+                    <span>Trucking Summary</span>
                 </a>
             </li>
             @endif

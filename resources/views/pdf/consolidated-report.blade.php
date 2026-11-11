@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>KUSUG-PA Consolidated Report</title>
+    <title>KUSUG-PA Trucking Allowance Report</title>
     <style>
         @include('pdf.partials.formal-font')
 
@@ -39,7 +39,7 @@
     @endphp
     <div class="header">
         <div class="eyebrow">KUSUG-PA / Production Accounting</div>
-        <h1>Consolidated Report</h1>
+        <h1>Trucking Allowance Report</h1>
         <div class="meta">
             Generated {{ $generatedDate }} &nbsp; | &nbsp; Amounts in PHP; weights in metric tons
             <span class="count">

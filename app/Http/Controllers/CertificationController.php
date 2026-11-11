@@ -20,7 +20,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
  * Production Certification — certifies a planter's crop-year production.
  *
  * Figures come from the weekly mill uploads, optionally limited to a week range of the crop year:
- *   Net Tons        = SUM(consolidated_uploads.ta_wt)   (TA Wt on the Consolidated Report)
+ *   Net Tons        = SUM(consolidated_uploads.ta_wt)   (TA Wt on the Trucking Allowance Report)
  *   Net Sugar LKG   = SUM(quedans.sugar_lkg - quedans.labor_lkg)   (same net LKG the voucher uses)
  *   Net Molasses MT = SUM(molasses.mol_net)
  */

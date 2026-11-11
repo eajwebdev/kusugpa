@@ -229,6 +229,8 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     // Consolidated Report - ADD THESE
     Route::get('/consolidated-report', [ConsolidatedReportController::class, 'index'])->name('consolidated-report');
     Route::get('/consolidated-report/export', [ConsolidatedReportController::class, 'exportPDF'])->name('consolidated-report.export');
+    Route::get('/consolidated-report/slips', [ConsolidatedReportController::class, 'slips'])->name('consolidated-report.slips');
+    Route::get('/consolidated-report/{upload}/slip', [ConsolidatedReportController::class, 'slip'])->whereNumber('upload')->name('consolidated-report.slip');
 
     Route::delete('/consolidated-report/delete-all', [ConsolidatedReportController::class, 'deleteAll'])->name('consolidated-report.delete-all');
     Route::delete('/consolidated-report/delete-by-week', [ConsolidatedReportController::class, 'deleteByWeek'])->name('consolidated-report.delete-by-week');

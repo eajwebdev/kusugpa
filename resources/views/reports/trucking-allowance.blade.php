@@ -1,7 +1,7 @@
 <!-- resources/views/reports/trucking-allowance.blade.php -->
 @extends('layouts.main')
 
-@section('title', 'Trucking Allowance Report')
+@section('title', 'Trucking Summary Report')
 
 @section('content')
     <div x-data="truckingAllowanceData()" class="space-y-6 kp-fade-in">
@@ -10,14 +10,14 @@
             <div class="kp-page-header">
                 <div>
                     <p class="kp-eyebrow">Logistics & Transport</p>
-                    <h1 class="kp-page-title mt-1">Trucking Allowance Report</h1>
+                    <h1 class="kp-page-title mt-1">Trucking Summary Report</h1>
                     <p class="kp-page-sub">Certified records of cane delivery hauling subsidies and transport assistance per planter.</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <button @click="showDeleteModal = true" class="kp-btn kp-btn-danger">
                         <i class="fas fa-trash mr-1.5" aria-hidden="true"></i> Manage / Delete Records
                     </button>
-                    <a :href="'{{ route('trucking-allowance-report.export') }}?' + filterParams()" data-pdf-preview="Trucking Allowance Report" class="kp-btn kp-btn-secondary">
+                    <a :href="'{{ route('trucking-allowance-report.export') }}?' + filterParams()" data-pdf-preview="Trucking Summary Report" class="kp-btn kp-btn-secondary">
                         <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Preview PDF
                     </a>
                 </div>
@@ -198,7 +198,7 @@
                 <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--kp-border)">
                     <h3 class="font-display text-lg font-semibold flex items-center gap-2" style="color: #A32F2F">
                         <i class="fas fa-trash text-base"></i>
-                        <span>Delete Trucking Allowance Records</span>
+                        <span>Delete Trucking Summary Records</span>
                     </h3>
                     <button @click="showDeleteModal = false" class="p-1 rounded text-xs hover:bg-[var(--kp-surface-2)]" style="color: var(--kp-muted)">
                         <i class="fas fa-times text-sm"></i>

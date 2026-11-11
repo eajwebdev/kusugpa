@@ -1,7 +1,7 @@
 <!-- resources/views/reports/consolidated.blade.php -->
 @extends('layouts.main')
 
-@section('title', 'Consolidated Report')
+@section('title', 'Trucking Allowance Report')
 
 @section('content')
     <div x-data="consolidatedData()" class="space-y-6 kp-fade-in">
@@ -10,7 +10,7 @@
             <div class="kp-page-header">
                 <div>
                     <p class="kp-eyebrow">Production Accounting</p>
-                    <h1 class="kp-page-title mt-1">Consolidated Report</h1>
+                    <h1 class="kp-page-title mt-1">Trucking Allowance Report</h1>
                     <p class="kp-page-sub">Comprehensive ledger statement of weekly cane production, hauling allowances, and deduction charges.</p>
                 </div>
                 <div class="flex items-center gap-2">
@@ -110,6 +110,10 @@
                 <div class="flex items-center gap-3">
                     <span class="text-xs font-mono" style="color: var(--kp-muted)"
                         x-text="'Showing ' + allData.length + ' of ' + totalRecords + ' records'"></span>
+                    <button x-show="selectedIds.length > 0" @click="openSlips()" type="button"
+                        class="kp-btn kp-btn-secondary" title="One Trucking Allowance slip per page for each checked row">
+                        <i class="fas fa-file-pdf mr-1.5" style="color: #A32F2F" aria-hidden="true"></i> Print Slips (<span x-text="selectedIds.length"></span>)
+                    </button>
                     <button x-show="selectedIds.length > 0" @click="deleteSelected()"
                         class="kp-btn kp-btn-danger">
                         <i class="fas fa-trash mr-1.5"></i> Delete Selected (<span x-text="selectedIds.length"></span>)
@@ -128,6 +132,7 @@
                                 <input type="checkbox" @click="toggleSelectAll" :checked="isAllSelected"
                                     class="rounded accent-emerald-700">
                             </th>
+                            <th class="text-center">Slip</th>
                             <th class="cursor-pointer select-none text-center" @click="sortBy('crop_year')">Season</th>
                             <th class="cursor-pointer select-none text-center" @click="sortBy('week_no')">Wk</th>
                             <th class="cursor-pointer select-none" @click="sortBy('planter_code')">Code</th>
@@ -158,6 +163,13 @@
                                     <input type="checkbox" :value="row.id" x-model="selectedIds"
                                         class="rounded accent-emerald-700">
                                 </td>
+                                <td class="text-center">
+                                    <button type="button" @click="openSlip(row)" class="kp-btn kp-btn-secondary py-1 px-2 text-xs"
+                                        :title="'Trucking Allowance slip of ' + row.planter_name + ', Week ' + row.week_no"
+                                        :aria-label="'Trucking Allowance slip of ' + row.planter_name">
+                                        <i class="fas fa-file-pdf" style="color: #A32F2F" aria-hidden="true"></i>
+                                    </button>
+                                </td>
                                 <td class="text-center font-mono" style="color: var(--kp-muted)" x-text="row.crop_year || '—'"></td>
                                 <td class="text-center font-mono font-semibold" style="color: var(--kp-text)" x-text="row.week_no || '—'"></td>
                                 <td class="font-mono font-semibold" style="color: var(--kp-text)" x-text="row.planter_code"></td>
@@ -185,13 +197,13 @@
                             </tr>
                         </template>
                         <tr x-show="loading">
-                            <td colspan="21" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                            <td colspan="22" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
                                 <i class="fas fa-circle-notch fa-spin text-2xl mb-2 block" style="color: var(--kp-forest)"></i>
                                 Fetching consolidated records...
                             </td>
                         </tr>
                         <tr x-show="!loading && allData.length === 0">
-                            <td colspan="21" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
+                            <td colspan="22" class="px-4 py-12 text-center" style="color: var(--kp-muted)">
                                 <i class="fas fa-folder-open text-3xl mb-2 block opacity-30"></i>
                                 No consolidated ledger records found.
                             </td>
@@ -352,7 +364,21 @@
                         if (this.filters.cropYear) url.searchParams.set('crop_year', this.filters.cropYear);
                         if (this.filters.weekFrom) url.searchParams.set('week_from', this.filters.weekFrom);
                         if (this.filters.weekTo) url.searchParams.set('week_to', this.filters.weekTo);
-                        window.KusugpaPdfPreview.open(url.toString(), 'Consolidated Report');
+                        window.KusugpaPdfPreview.open(url.toString(), 'Trucking Allowance Report');
+                    },
+
+                    // One planter's Trucking Allowance slip for the row's week
+                    openSlip(row) {
+                        const url = @json(route('consolidated-report.slip', ['upload' => '__ID__'])).replace('__ID__', row.id);
+                        window.KusugpaPdfPreview.open(url, 'Trucking Allowance - ' + row.planter_name + ' - Week ' + row.week_no);
+                    },
+
+                    // Slips of every checked row in one PDF, one slip per page (in planter name order)
+                    openSlips() {
+                        if (!this.selectedIds.length) return;
+                        const url = new URL(@json(route('consolidated-report.slips')), window.location.origin);
+                        url.searchParams.set('ids', this.selectedIds.join(','));
+                        window.KusugpaPdfPreview.open(url.toString(), 'Trucking Allowance Slips (' + this.selectedIds.length + ')');
                     },
 
                     onCropYearChange() {
