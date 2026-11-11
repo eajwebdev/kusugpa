@@ -1067,7 +1067,7 @@ class DashboardAnalytics
         return $this->result('quedan_vs_consolidated', 'Quedan registry ↔ Consolidated summary', ['Quedan Registry', 'Consolidated', 'Uploads'],
             $status, $summary,
             'Each planter delivering in a week should appear in both uploads. A planter missing on one side gets a voucher without its sugar proceeds or without its allowances.',
-            ['count' => $count, 'columns' => ['Week', 'Planter', 'Missing in'], 'rows' => array_slice($rows, 0, 12)] + $this->link('consolidated-report', 'Open Consolidated Report'));
+            ['count' => $count, 'columns' => ['Week', 'Planter', 'Missing in'], 'rows' => array_slice($rows, 0, 12)] + $this->link('consolidated-report', 'Open Trucking Allowance Report'));
     }
 
     private function checkMolassesVsQuedan(): array
@@ -1119,9 +1119,9 @@ class DashboardAnalytics
         return $this->result('trucking_vs_consolidated', 'Trucking allowance ↔ Consolidated cane weight', ['Consolidated', 'Uploads'],
             $count ? 'warning' : 'ok',
             $count ? $count . ' planter-week(s) differ by ' . number_format($tons, 3) . ' t' : (empty($t) ? 'No trucking allowance uploaded for this period' : 'Trucking net cane matches consolidated TA weight'),
-            'The net cane in the Trucking Allowance upload should equal the TA weight of the same planter and week in the Consolidated summary.',
+            'The net cane in the Trucking Summary upload should equal the TA weight of the same planter and week in the Trucking Allowance upload.',
             ['count' => $count, 'amount' => round($tons, 3), 'columns' => ['Week', 'Planter', 'Trucking (t)', 'Consolidated (t)', 'Difference'], 'rows' => array_slice($diffs, 0, 10)]
-                + $this->link('trucking-allowance-report', 'Open Trucking Allowance'));
+                + $this->link('trucking-allowance-report', 'Open Trucking Summary'));
     }
 
     private function checkRegistryUnbought(): array

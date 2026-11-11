@@ -114,7 +114,7 @@ class TruckingAllowanceController extends Controller
         $uploads = $query->get();
         $preview = $request->boolean('preview');
 
-        return LedgerPdf::response($request, $uploads, 'Trucking Allowance Report', [
+        return LedgerPdf::response($request, $uploads, 'Trucking Summary Report', [
             ['key' => 'crop_year', 'label' => 'Season'],
             ['key' => 'week_no', 'label' => 'Week'],
             ['key' => 'planter_code', 'label' => 'Planter Code'],

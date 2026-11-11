@@ -124,6 +124,145 @@ class ConsolidatedReportController extends Controller
 
 
     /**
+     * One planter's Trucking Allowance slip for the week, laid out like the printed dot-matrix slip:
+     * TA weight x rate, Fresh Cane (CCI FA + FB + FC) and Mudpress incentives, less Gasoline, Truck Rental
+     * and Under Load charges, and the net in words. The net is the upload's total.
+     */
+    public function slip(Request $request, ConsolidatedUpload $upload)
+    {
+        $data = $this->slipData($upload);
+
+        $preview = $request->boolean('preview', true);
+        AuditLog::log($preview ? 'preview' : 'export', 'reports', 'Trucking Allowance slip of ' . $upload->planter_name . ' (' . $upload->crop_year . ' Week ' . $upload->week_no . ')', [
+            'consolidated_upload_id' => $upload->id,
+            'net' => $data['net'],
+        ]);
+
+        $filename = 'trucking-allowance-' . $upload->planter_code . '-wk' . $upload->week_no . '.pdf';
+
+        return $this->slipPdf([$data], $filename, $preview);
+    }
+
+    /**
+     * Slips of the checked rows (?ids=1,2,3) in one PDF, one slip per page, in planter name order.
+     */
+    public function slips(Request $request)
+    {
+        $ids = collect(explode(',', (string) $request->get('ids')))
+            ->map(fn ($id) => (int) trim($id))->filter(fn ($id) => $id > 0)->unique()->values();
+        if ($ids->isEmpty()) {
+            abort(422, 'Check the rows to print first.');
+        }
+
+        $uploads = ConsolidatedUpload::whereIn('id', $ids)
+            ->orderBy('planter_name')->orderByRaw('CAST(week_no AS UNSIGNED)')->orderBy('id')->get();
+        if ($uploads->isEmpty()) {
+            abort(404);
+        }
+
+        $slips = $uploads->map(fn ($upload) => $this->slipData($upload))->all();
+
+        $preview = $request->boolean('preview', true);
+        AuditLog::log($preview ? 'preview' : 'export', 'reports', 'Trucking Allowance slips of ' . $uploads->count() . ' planter row(s)', [
+            'consolidated_upload_ids' => $uploads->pluck('id')->all(),
+            'net' => round(array_sum(array_column($slips, 'net')), 2),
+        ]);
+
+        return $this->slipPdf($slips, 'trucking-allowance-slips-' . now()->format('Y-m-d') . '.pdf', $preview);
+    }
+
+    private function slipPdf(array $slips, string $filename, bool $preview)
+    {
+        $pdf = Pdf::loadView('pdf.trucking-allowance-slip', ['slips' => $slips])
+            ->setPaper([0, 0, 612, 396]); // 8.5" x 5.5" slip
+
+        return $preview ? $pdf->stream($filename) : $pdf->download($filename);
+    }
+
+    /** Figures of one slip */
+    private function slipData(ConsolidatedUpload $upload): array
+    {
+        $amount = fn ($v) => round((float) $v, 2);
+        $taWt = (float) $upload->ta_wt;
+        $ta = $amount($upload->ta_amount);
+        $freshCane = $amount($upload->cci_fa_amt) + $amount($upload->cci_fb_amt) + $amount($upload->cci_fc_amt);
+        $mudpress = $amount($upload->mudpress_amt);
+        $gasoline = $amount($upload->fuel_issuance_amt);
+        $rental = $amount($upload->rental_amt);
+        $underload = $amount($upload->underload_amt);
+
+        $gross = round($ta + $freshCane + $mudpress, 2);
+        $less = round($gasoline + $rental + $underload, 2);
+        $net = round($gross - $less, 2);
+
+        return [
+            'upload' => $upload,
+            'weekNo' => str_pad((string) $upload->week_no, 2, '0', STR_PAD_LEFT),
+            'cropYear' => self::cropYearLabel($upload->crop_year),
+            'date' => now()->format('m-d-Y'),
+            'taWt' => $taWt,
+            'taRate' => $taWt > 0 ? round($ta / $taWt, 2) : 0,
+            'ta' => $ta,
+            'freshCane' => $freshCane,
+            'mudpress' => $mudpress,
+            'gross' => $gross,
+            'gasoline' => $gasoline,
+            'rental' => $rental,
+            'underload' => $underload,
+            'less' => $less,
+            'net' => $net,
+            'words' => self::slipWords($net),
+        ];
+    }
+
+    /** "20262027" -> "2026-2027" */
+    private static function cropYearLabel($cropYear): string
+    {
+        $cropYear = trim((string) $cropYear);
+
+        return preg_match('/^(\d{4})-?(\d{4})$/', $cropYear, $m) ? $m[1] . '-' . $m[2] : $cropYear;
+    }
+
+    /** 2903.55 -> "TWO THOUSANDS NINE HUNDRED THREE & 55 CENTAVOS", worded like the printed slip */
+    public static function slipWords($amount): string
+    {
+        $amount = round(abs((float) $amount), 2);
+        $pesos = (int) floor($amount);
+        $centavos = (int) round(($amount - $pesos) * 100);
+
+        $words = $pesos === 0 ? 'ZERO' : self::slipNumber($pesos);
+
+        return $words . ' & ' . str_pad((string) $centavos, 2, '0', STR_PAD_LEFT) . ' CENTAVOS';
+    }
+
+    private static function slipNumber(int $n): string
+    {
+        $ones = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN',
+            'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
+        $tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+
+        if ($n < 20) {
+            return $ones[$n];
+        }
+        if ($n < 100) {
+            return $tens[intdiv($n, 10)] . ($n % 10 ? ' ' . $ones[$n % 10] : '');
+        }
+        if ($n < 1000) {
+            return $ones[intdiv($n, 100)] . ' HUNDRED' . ($n % 100 ? ' ' . self::slipNumber($n % 100) : '');
+        }
+        foreach ([1000000000 => 'BILLION', 1000000 => 'MILLION', 1000 => 'THOUSAND'] as $unit => $name) {
+            if ($n >= $unit) {
+                $count = intdiv($n, $unit);
+                // The printed slip says "TWO THOUSANDS": plural past one
+                return self::slipNumber($count) . ' ' . $name . ($count > 1 ? 'S' : '')
+                    . ($n % $unit ? ' ' . self::slipNumber($n % $unit) : '');
+            }
+        }
+
+        return '';
+    }
+
+    /**
  * Delete all consolidated records
  */
 public function deleteAll(Request $request)

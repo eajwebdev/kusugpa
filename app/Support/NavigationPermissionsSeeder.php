@@ -21,7 +21,7 @@ class NavigationPermissionsSeeder
             ],
             'Reports' => [
                 ['Summary Reports', 'view-summary-report'],
-                ['Trucking Allowance Report', 'view-trucking-allowance-report'],
+                ['Trucking Summary Report', 'view-trucking-allowance-report'],
                 ['Production Certification', 'view-certification-report'],
                 ['TLS Reports', 'view-tls-report'],
                 ['Proceeds Sheet', 'view-proceeds-sheet-report'],

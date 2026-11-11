@@ -217,7 +217,7 @@
 
             <div class="px-5 py-3 border-t border-[#E3EBE5] dark:border-[#203A2B] bg-[#F7FAF8] dark:bg-[#1A3324] text-[11px] text-[#52705F] dark:text-[#8AA895] leading-relaxed">
                 <i class="fas fa-info-circle mr-1 text-[#087A3D]" aria-hidden="true"></i>
-                Net Tons = Consolidated Report TA Wt · Net Sugar = Quedan sugar LKG − labor LKG · Net Mol = Molasses net, for the selected weeks.
+                Net Tons = Trucking Allowance Report TA Wt · Net Sugar = Quedan sugar LKG − labor LKG · Net Mol = Molasses net, for the selected weeks.
                 "Data Check" flags planters missing one of those uploads, so the certificate would show 0 for it.
             </div>
         </div>

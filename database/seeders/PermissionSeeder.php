@@ -136,7 +136,7 @@ class PermissionSeeder extends Seeder
                 'description' => 'Can upload consolidated summary CSV files',
             ],
             [
-                'name' => 'View Consolidated Report',
+                'name' => 'View Trucking Allowance Report',
                 'slug' => 'view-consolidated-report',
                 'description' => 'Can view consolidated upload summary report',
             ],
