@@ -34,6 +34,27 @@ class TableFeedTest extends TestCase
             $table->decimal('sugar_lkg', 12, 3)->default(0);
             $table->decimal('labor_lkg', 12, 3)->default(0);
             $table->string('status')->default('pending');
+            $table->timestamp('bought_at')->nullable();
+            $table->decimal('sold_price', 12, 2)->nullable();
+            $table->string('sold_price_type', 10)->nullable();
+            $table->unsignedBigInteger('quedan_price_id')->nullable();
+            $table->timestamps();
+        });
+        // Quedan rows carry their bought week, read from the sold price or the crop year weeks
+        Schema::create('quedan_price', function (Blueprint $table) {
+            $table->id();
+            $table->string('crop_year');
+            $table->string('week_no');
+            $table->string('quedan_type');
+            $table->decimal('quedan_price', 12, 2);
+            $table->timestamps();
+        });
+        Schema::create('week_no', function (Blueprint $table) {
+            $table->id();
+            $table->string('crop_year');
+            $table->string('week_no');
+            $table->dateTime('week_start_date')->nullable();
+            $table->dateTime('week_end_date')->nullable();
             $table->timestamps();
         });
         // 250 rows; many share a planter name, so the id tie-breaker decides their order

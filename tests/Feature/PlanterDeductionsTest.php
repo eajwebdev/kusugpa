@@ -539,6 +539,13 @@ class PlanterDeductionsTest extends TestCase
             ->assertOk()->json('extra.bought_weeks');
         $this->assertContains('10', array_column($options, 'week_no'));
 
+        // The table shows each quedan's bought week: the price's week, or the bought_at week for an old quedan
+        $rows = collect($this->getJson(route('registry.data', ['type' => 'quedan', 'crop_year' => '20262027', 'page' => 1]))
+            ->assertOk()->json('data'))->keyBy('id');
+        $this->assertSame('10', (string) $rows[$week3]['bought_week']);
+        $this->assertSame('4', (string) $rows[$week4]['bought_week']);
+        $this->assertEquals(1000, $rows[$week3]['sold_price']);
+
         // Back to pending: no longer bought in week 10
         $this->postJson(route('quedans.bulk-update'), ['ids' => [$week3], 'status' => 'pending'])->assertOk();
         $this->assertSame([], $boughtIn('10'));
