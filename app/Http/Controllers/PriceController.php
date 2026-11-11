@@ -538,32 +538,32 @@ public function exportQuedanPDF(Request $request)
 {
     $quedans = $this->registryPeriod(Quedan::orderBy('planter_name'), $request)->get();
     return LedgerPdf::response($request, $quedans, $this->registryTitle('Quedan Registry', $request), [
-            ['key' => 'crop_year', 'label' => 'Season'],
-            ['key' => 'week_no', 'label' => 'Week'],
-            ['key' => 'planter_code', 'label' => 'Planter Code'],
-            ['key' => 'planter_name', 'label' => 'Planter Name'],
-            ['key' => 'qdn_no', 'label' => 'Quedan No.'],
-            ['key' => 'tin_no', 'label' => 'TIN'],
-            ['key' => 'total_liens', 'label' => 'Total Liens (PHP)', 'decimals' => 2, 'total' => true],
-            ['key' => 'sugar_lkg', 'label' => 'Sugar Lkg', 'decimals' => 3, 'total' => true],
-            ['key' => 'labor_lkg', 'label' => 'Labor Lkg', 'decimals' => 3, 'total' => true],
-            ['key' => 'status', 'label' => 'Status'],
-    ], 'quedan-registry');
+            ['key' => 'crop_year', 'label' => 'Season', 'width' => '9%'],
+            ['key' => 'week_no', 'label' => 'Week', 'width' => '5%'],
+            ['key' => 'planter_code', 'label' => 'Planter Code', 'width' => '8%'],
+            ['key' => 'planter_name', 'label' => 'Planter Name', 'width' => '21%'],
+            ['key' => 'qdn_no', 'label' => 'Quedan No.', 'width' => '8%'],
+            ['key' => 'tin_no', 'label' => 'TIN', 'width' => '10%'],
+            ['key' => 'total_liens', 'label' => 'Total Liens (PHP)', 'decimals' => 2, 'total' => true, 'width' => '11%'],
+            ['key' => 'sugar_lkg', 'label' => 'Sugar Lkg', 'decimals' => 3, 'total' => true, 'width' => '9%'],
+            ['key' => 'labor_lkg', 'label' => 'Labor Lkg', 'decimals' => 3, 'total' => true, 'width' => '9%'],
+            ['key' => 'status', 'label' => 'Status', 'width' => '10%'],
+    ], 'quedan-registry', null, 'portrait');
 }
 
 public function exportMolassesPDF(Request $request)
 {
     $molassesList = $this->registryPeriod(Molass::orderBy('planter_name'), $request)->get();
     return LedgerPdf::response($request, $molassesList, $this->registryTitle('Molasses Registry', $request), [
-            ['key' => 'crop_year', 'label' => 'Season'],
-            ['key' => 'week_no', 'label' => 'Week'],
-            ['key' => 'planter_code', 'label' => 'Planter Code'],
-            ['key' => 'planter_name', 'label' => 'Planter Name'],
-            ['key' => 'mc_no', 'label' => 'Molasses Certificate'],
-            ['key' => 'tin_no', 'label' => 'TIN'],
-            ['key' => 'mol_net', 'label' => 'Molasses Net', 'decimals' => 3, 'total' => true],
-            ['key' => 'status', 'label' => 'Status'],
-    ], 'molasses-registry');
+            ['key' => 'crop_year', 'label' => 'Season', 'width' => '10%'],
+            ['key' => 'week_no', 'label' => 'Week', 'width' => '6%'],
+            ['key' => 'planter_code', 'label' => 'Planter Code', 'width' => '10%'],
+            ['key' => 'planter_name', 'label' => 'Planter Name', 'width' => '28%'],
+            ['key' => 'mc_no', 'label' => 'Molasses Certificate', 'width' => '14%'],
+            ['key' => 'tin_no', 'label' => 'TIN', 'width' => '12%'],
+            ['key' => 'mol_net', 'label' => 'Molasses Net', 'decimals' => 3, 'total' => true, 'width' => '11%'],
+            ['key' => 'status', 'label' => 'Status', 'width' => '9%'],
+    ], 'molasses-registry', null, 'portrait');
 }
 
 

@@ -50,7 +50,7 @@
             <table>
                 <thead><tr>
                     @foreach($columns as $column)
-                        <th class="{{ isset($column['decimals']) ? 'number' : '' }}">{{ $column['label'] }}</th>
+                        <th class="{{ isset($column['decimals']) ? 'number' : '' }}" @if (!empty($column['width'])) style="width: {{ $column['width'] }}" @endif>{{ $column['label'] }}</th>
                     @endforeach
                 </tr></thead>
                 <tbody>
