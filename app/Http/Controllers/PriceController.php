@@ -281,14 +281,16 @@ private function registryFeed(Request $request, string $type, ?string $cropYear,
                 ? $model::where('crop_year', $cropYear)->select('week_no')->distinct()->pluck('week_no')
                     ->sortByDesc(fn ($w) => (int) $w)->values()
                 : [],
-            'bought_weeks' => $this->boughtWeekOptions($cropYear),
+            'bought_weeks' => $this->boughtWeekOptions($cropYear, $isQuedan),
         ];
     });
 }
 
 /**
- * "Week bought" filter: rows whose bought_at falls inside the crop year's week
- * (week_no.week_start_date .. week_end_date). Needs a crop year to know which week.
+ * "Week bought" filter. Needs a crop year to know which week.
+ *  - Quedans: the week of the sold price picked when they were marked bought (quedan_price.week_no).
+ *    Quedans bought before sold prices were recorded have no price, so they fall back to bought_at.
+ *  - Molasses: rows whose bought_at falls inside the week (week_start_date .. week_end_date).
  */
 private function applyBoughtWeek($query, ?string $cropYear, $boughtWeek)
 {
@@ -296,31 +298,56 @@ private function applyBoughtWeek($query, ?string $cropYear, $boughtWeek)
         return $query;
     }
 
-    $week = WeekNo::where('crop_year', $cropYear)->where('week_no', (string) $boughtWeek)->first();
-    if (!$week || !$week->week_start_date || !$week->week_end_date) {
-        return $query->whereRaw('1 = 0');
+    $boughtWeek = (string) $boughtWeek;
+    $week = WeekNo::where('crop_year', $cropYear)->where('week_no', $boughtWeek)->first();
+    $range = $week && $week->week_start_date && $week->week_end_date
+        ? [$week->week_start_date, $week->week_end_date]
+        : null;
+
+    if ($query->getModel() instanceof Quedan) {
+        $priceIds = QuedanPrice::select('id')->where('crop_year', $cropYear)->where('week_no', $boughtWeek);
+
+        return $query->where(function ($q) use ($priceIds, $range) {
+            $q->whereIn($q->qualifyColumn('quedan_price_id'), $priceIds);
+            if ($range) {
+                $q->orWhere(fn ($old) => $old->whereNull($old->qualifyColumn('quedan_price_id'))
+                    ->whereBetween($old->qualifyColumn('bought_at'), $range));
+            }
+        });
     }
 
-    return $query->whereBetween('bought_at', [$week->week_start_date, $week->week_end_date]);
+    return $range ? $query->whereBetween('bought_at', $range) : $query->whereRaw('1 = 0');
 }
 
-/** Weeks of the crop year that have started, newest first, for the "Week bought" dropdown */
-private function boughtWeekOptions(?string $cropYear)
+/**
+ * Weeks for the "Week bought" dropdown, newest first: the crop year's weeks that have started,
+ * plus, for quedans, any week with a quedan price (a quedan's bought week is its price's week).
+ */
+private function boughtWeekOptions(?string $cropYear, bool $withPriceWeeks = false)
 {
     if (!$cropYear) {
         return [];
     }
 
-    return WeekNo::where('crop_year', $cropYear)
-        ->where('week_start_date', '<=', now())
+    $weeks = WeekNo::where('crop_year', $cropYear)
         ->get(['week_no', 'week_start_date', 'week_end_date'])
-        ->unique('week_no')
-        ->sortByDesc(fn ($w) => (int) $w->week_no)
-        ->map(fn ($w) => [
-            'week_no' => (string) $w->week_no,
-            'label' => 'Week ' . $w->week_no . ' (' . \Carbon\Carbon::parse($w->week_start_date)->format('M j')
-                . ' – ' . \Carbon\Carbon::parse($w->week_end_date)->format('M j') . ')',
-        ])
+        ->keyBy(fn ($w) => (string) $w->week_no);
+
+    $weekNos = $weeks->filter(fn ($w) => $w->week_start_date && \Carbon\Carbon::parse($w->week_start_date)->lte(now()))->keys();
+    if ($withPriceWeeks) {
+        $weekNos = $weekNos->merge(QuedanPrice::where('crop_year', $cropYear)->distinct()->pluck('week_no')->map(fn ($w) => (string) $w));
+    }
+
+    return $weekNos->unique()
+        ->sortByDesc(fn ($w) => (int) $w)
+        ->map(function ($weekNo) use ($weeks) {
+            $w = $weeks->get($weekNo);
+            $dates = $w && $w->week_start_date && $w->week_end_date
+                ? ' (' . \Carbon\Carbon::parse($w->week_start_date)->format('M j') . ' – ' . \Carbon\Carbon::parse($w->week_end_date)->format('M j') . ')'
+                : '';
+
+            return ['week_no' => $weekNo, 'label' => 'Week ' . $weekNo . $dates];
+        })
         ->values();
 }
 
