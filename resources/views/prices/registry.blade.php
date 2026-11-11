@@ -54,7 +54,7 @@
         <div class="kp-card p-4 flex flex-wrap items-end gap-3">
             <div class="w-44">
                 <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Crop Year</label>
-                <select x-model="period.cropYear" @change="period.weekNo = ''; onPeriodChange()" class="kp-input w-full py-1.5 text-xs">
+                <select x-model="period.cropYear" @change="period.weekNo = ''; period.boughtWeek = ''; onPeriodChange()" class="kp-input w-full py-1.5 text-xs">
                     <option value="">All Crop Years (slower)</option>
                     <template x-for="cy in periodCropYears" :key="cy">
                         <option :value="cy" x-text="cy" :selected="cy === period.cropYear"></option>
@@ -71,6 +71,16 @@
                     </template>
                 </select>
             </div>
+            <div class="w-52">
+                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Week Bought</label>
+                <select x-model="period.boughtWeek" @change="onPeriodChange()" :disabled="!period.cropYear"
+                    class="kp-input w-full py-1.5 text-xs disabled:opacity-50">
+                    <option value="" x-text="period.cropYear ? 'All Week Bought' : 'Select crop year first'"></option>
+                    <template x-for="wk in periodBoughtWeeks" :key="wk.week_no">
+                        <option :value="wk.week_no" x-text="wk.label" :selected="wk.week_no === period.boughtWeek"></option>
+                    </template>
+                </select>
+            </div>
             <div class="w-40">
                 <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Status</label>
                 <select x-model="period.status" @change="onPeriodChange()" class="kp-input w-full py-1.5 text-xs">
@@ -80,9 +90,9 @@
                     <option value="rejected">Rejected</option>
                 </select>
             </div>
-            <button type="button" x-show="period.weekNo || period.status || period.cropYear !== @js($defaultCropYear)" x-cloak
-                @click="period = { cropYear: @js($defaultCropYear), weekNo: '', status: '' }; onPeriodChange()"
-                class="kp-btn kp-btn-secondary text-xs py-1.5" title="Back to the latest crop year, all weeks and all statuses">
+            <button type="button" x-show="period.weekNo || period.boughtWeek || period.status || period.cropYear !== @js($defaultCropYear)" x-cloak
+                @click="period = { cropYear: @js($defaultCropYear), weekNo: '', boughtWeek: '', status: '' }; onPeriodChange()"
+                class="kp-btn kp-btn-secondary text-xs py-1.5" title="Back to the latest crop year, all weeks, all weeks bought and all statuses">
                 <i class="fas fa-times mr-1"></i> Clear
             </button>
             <span x-show="rowsLoading" x-cloak class="text-xs py-2" style="color: var(--kp-muted)">
@@ -418,7 +428,7 @@
                     totalMolassesCount: 0,
 
                     // Crop year / week / status filter shared by both tabs
-                    period: { cropYear: '', weekNo: '', status: '' },
+                    period: { cropYear: '', weekNo: '', boughtWeek: '', status: '' },
                     tinEdit: { type: null, id: null, value: '', saving: false },
                     pdfShowTotals: false,
 
@@ -469,7 +479,8 @@
                         this.period.cropYear = @json($defaultCropYear);
                         const feedParams = (type, search, sort, dir) => () => ({
                             type, search: search(), sort: sort(), dir: dir(),
-                            crop_year: this.period.cropYear, week_no: this.period.weekNo, status: this.period.status,
+                            crop_year: this.period.cropYear, week_no: this.period.weekNo,
+                            bought_week: this.period.boughtWeek, status: this.period.status,
                         });
                         this.quedanFeed = kpFeed('{{ route('registry.data') }}', feedParams('quedan',
                             () => this.quedanSearch.trim(), () => this.quedanSortField, () => this.quedanSortDir));
@@ -554,6 +565,12 @@
                                 .map(w => String(w.week_no)))]
                             .sort((a, b) => parseInt(a) - parseInt(b));
                     },
+                    // Weeks of the crop year (with dates) for the "Week Bought" filter, sent with the first batch
+                    get periodBoughtWeeks() {
+                        const feed = this.quedanFeed || this.molassesFeed;
+                        return (feed && feed.extra && feed.extra.bought_weeks)
+                            || (this.molassesFeed && this.molassesFeed.extra && this.molassesFeed.extra.bought_weeks) || [];
+                    },
                     get rowsLoading() {
                         return (this.quedanFeed && this.quedanFeed.loading) || (this.molassesFeed && this.molassesFeed.loading);
                     },
@@ -570,6 +587,7 @@
                         const params = new URLSearchParams();
                         if (this.period.cropYear) params.set('crop_year', this.period.cropYear);
                         if (this.period.weekNo) params.set('week_no', this.period.weekNo);
+                        if (this.period.boughtWeek) params.set('bought_week', this.period.boughtWeek);
                         if (this.period.status) params.set('status', this.period.status);
                         return params.toString();
                     },
@@ -692,6 +710,7 @@
                             });
                             if (this.period.cropYear) params.set('crop_year', this.period.cropYear);
                             if (this.period.weekNo) params.set('week_no', this.period.weekNo);
+                            if (this.period.boughtWeek) params.set('bought_week', this.period.boughtWeek);
                             if (this.period.status) params.set('status', this.period.status);
 
                             const response = await fetch('{{ route('registry.data') }}?' + params.toString(), {

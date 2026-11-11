@@ -45,6 +45,15 @@
                     </template>
                 </select>
             </div>
+            <div>
+                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1">Week Bought</label>
+                <select x-model="filters.boughtWeek" @change="loadData()" :disabled="!filters.cropYear" class="kp-input py-1.5 text-xs disabled:opacity-40">
+                    <option value="">All Week Bought</option>
+                    <template x-for="w in availableBoughtWeeks" :key="w.week_no">
+                        <option :value="w.week_no" x-text="w.label" :selected="w.week_no === filters.boughtWeek"></option>
+                    </template>
+                </select>
+            </div>
             <button type="button" @click="loadData()" :disabled="!filters.cropYear || loading"
                 class="kp-btn kp-btn-secondary text-xs py-2 disabled:opacity-40" title="Reload the list">
                 <i class="fas mr-1.5" :class="loading ? 'fa-circle-notch fa-spin' : 'fa-rotate'" aria-hidden="true"></i> Refresh
@@ -262,7 +271,7 @@
 <script>
     function buyQuedanData() {
         return {
-            filters: { cropYear: '', weekNo: '' },
+            filters: { cropYear: '', weekNo: '', boughtWeek: '' },
             selectedIds: [],
             search: '',
             statusFilter: '',
@@ -282,7 +291,7 @@
             init() {
                 this.feed = kpFeed('{{ route('registry.data') }}', () => ({
                     type: 'quedan', crop_year: this.filters.cropYear, week_no: this.filters.weekNo,
-                    search: this.search.trim(), status: this.statusFilter,
+                    bought_week: this.filters.boughtWeek, search: this.search.trim(), status: this.statusFilter,
                 }));
                 this.$watch('statusFilter', () => this.loadData());
                 this.$watch('search', () => {
@@ -297,6 +306,8 @@
             // Counts of the crop year / week / search, whatever the status filter
             get stats() { return (this.feed && this.feed.extra.stats) || { total: 0, bought: 0, pending: 0 }; },
             get availableWeeks() { return (this.feed && this.feed.extra.weeks) || []; },
+            // Crop year weeks with dates, for the "Week Bought" filter (matches bought_at)
+            get availableBoughtWeeks() { return (this.feed && this.feed.extra.bought_weeks) || []; },
             get isAllSelected() {
                 return this.filteredData.length > 0 && this.filteredData.every(r => this.selectedIds.includes(r.id));
             },
@@ -304,6 +315,7 @@
             // Picking a crop year lists its weeks and loads its quedans right away
             onCropYearChange() {
                 this.filters.weekNo = '';
+                this.filters.boughtWeek = '';
                 this.loadData();
             },
 

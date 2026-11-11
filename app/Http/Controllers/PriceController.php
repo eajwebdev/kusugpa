@@ -170,7 +170,8 @@ public function registryData(Request $request)
     if ($weekNo) {
         $query->where('week_no', $weekNo);
     }
-    
+    $this->applyBoughtWeek($query, $cropYear, $request->get('bought_week'));
+
     $data = $query->get();
     $weeks = [];
     
@@ -221,6 +222,7 @@ private function registryFeed(Request $request, string $type, ?string $cropYear,
         if ($weekNo) {
             $query->where('week_no', $weekNo);
         }
+        $this->applyBoughtWeek($query, $cropYear, $request->get('bought_week'));
         if ($search = trim((string) $request->get('search'))) {
             $query->where(fn ($q) => $q->where('planter_name', 'like', "%{$search}%")
                 ->orWhere('planter_code', 'like', "%{$search}%")
@@ -279,8 +281,47 @@ private function registryFeed(Request $request, string $type, ?string $cropYear,
                 ? $model::where('crop_year', $cropYear)->select('week_no')->distinct()->pluck('week_no')
                     ->sortByDesc(fn ($w) => (int) $w)->values()
                 : [],
+            'bought_weeks' => $this->boughtWeekOptions($cropYear),
         ];
     });
+}
+
+/**
+ * "Week bought" filter: rows whose bought_at falls inside the crop year's week
+ * (week_no.week_start_date .. week_end_date). Needs a crop year to know which week.
+ */
+private function applyBoughtWeek($query, ?string $cropYear, $boughtWeek)
+{
+    if ($boughtWeek === null || $boughtWeek === '' || !$cropYear) {
+        return $query;
+    }
+
+    $week = WeekNo::where('crop_year', $cropYear)->where('week_no', (string) $boughtWeek)->first();
+    if (!$week || !$week->week_start_date || !$week->week_end_date) {
+        return $query->whereRaw('1 = 0');
+    }
+
+    return $query->whereBetween('bought_at', [$week->week_start_date, $week->week_end_date]);
+}
+
+/** Weeks of the crop year that have started, newest first, for the "Week bought" dropdown */
+private function boughtWeekOptions(?string $cropYear)
+{
+    if (!$cropYear) {
+        return [];
+    }
+
+    return WeekNo::where('crop_year', $cropYear)
+        ->where('week_start_date', '<=', now())
+        ->get(['week_no', 'week_start_date', 'week_end_date'])
+        ->unique('week_no')
+        ->sortByDesc(fn ($w) => (int) $w->week_no)
+        ->map(fn ($w) => [
+            'week_no' => (string) $w->week_no,
+            'label' => 'Week ' . $w->week_no . ' (' . \Carbon\Carbon::parse($w->week_start_date)->format('M j')
+                . ' – ' . \Carbon\Carbon::parse($w->week_end_date)->format('M j') . ')',
+        ])
+        ->values();
 }
 
 public function bulkUpdateQuedan(Request $request)
@@ -469,8 +510,11 @@ private function registryStatus(Request $request): ?string
 private function registryTitle(string $title, Request $request): string
 {
     $status = $this->registryStatus($request);
+    $title = $status ? $title . ' - ' . ucfirst($status) : $title;
 
-    return $status ? $title . ' - ' . ucfirst($status) : $title;
+    return $request->filled('bought_week') && $request->filled('crop_year')
+        ? $title . ' (Bought Week ' . $request->bought_week . ')'
+        : $title;
 }
 
 /** Crop year / week / status filter of the registry page, applied to its PDF too */
@@ -485,6 +529,7 @@ private function registryPeriod($query, Request $request)
     if ($request->filled('week_no')) {
         $query->where('week_no', $request->week_no);
     }
+    $this->applyBoughtWeek($query, $request->get('crop_year'), $request->get('bought_week'));
 
     return $query;
 }
