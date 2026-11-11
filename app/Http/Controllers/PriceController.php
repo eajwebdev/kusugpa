@@ -234,6 +234,10 @@ private function registryFeed(Request $request, string $type, ?string $cropYear,
     $query = $filtered()->select($isQuedan
         ? ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg', 'status', 'sold_price', 'sold_price_type']
         : ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'tin_no', 'mc_no', 'mol_net', 'status']);
+    // Table rows show each quedan's bought week (not needed when only the IDs are asked for)
+    if ($isQuedan && !$request->boolean('all_ids')) {
+        $query->selectRaw('(' . $this->boughtWeekColumn() . ') AS bought_week');
+    }
     if ($status = $request->get('status')) {
         $query->where('status', $status);
     }
@@ -317,6 +321,19 @@ private function applyBoughtWeek($query, ?string $cropYear, $boughtWeek)
     }
 
     return $range ? $query->whereBetween('bought_at', $range) : $query->whereRaw('1 = 0');
+}
+
+/**
+ * A quedan's bought week, the same rule as applyBoughtWeek(): the sold price's week, or for a quedan
+ * bought before sold prices were recorded, the crop year week its bought_at falls in.
+ */
+private function boughtWeekColumn()
+{
+    return "CASE WHEN quedans.status <> 'bought' THEN NULL ELSE COALESCE("
+        . '(SELECT qp.week_no FROM quedan_price qp WHERE qp.id = quedans.quedan_price_id), '
+        . '(SELECT wn.week_no FROM week_no wn WHERE wn.crop_year = quedans.crop_year'
+        . ' AND quedans.quedan_price_id IS NULL AND quedans.bought_at BETWEEN wn.week_start_date AND wn.week_end_date'
+        . ' ORDER BY wn.id LIMIT 1)) END';
 }
 
 /**

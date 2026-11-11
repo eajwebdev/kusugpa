@@ -115,7 +115,8 @@
                         <th>Planter Name</th>
                         <th>QDN No</th>
                         <th class="text-right">Total Liens</th>
-                        <th class="text-right">Sold Price</th>
+                        <th class="text-center">Week Bought</th>
+                        <th class="text-right">Price Used</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -139,26 +140,33 @@
                             <td class="text-xs font-semibold text-[#172B20] dark:text-[#EAF5ED]" x-text="row.planter_name"></td>
                             <td class="font-mono text-xs text-[#52705F] dark:text-[#8AA895]" x-text="row.qdn_no || '—'"></td>
                             <td class="text-xs text-right kp-num font-semibold text-[#172B20] dark:text-[#EAF5ED]" x-text="formatNum(row.total_liens, 3)"></td>
+                            <td class="text-center font-mono text-xs whitespace-nowrap">
+                                <span x-show="row.bought_week" class="font-semibold text-[#005B2A] dark:text-[#52C97E]" x-text="'Week ' + row.bought_week"></span>
+                                <span x-show="!row.bought_week" class="text-[#8AA895]">—</span>
+                            </td>
                             <td class="text-xs text-right kp-num whitespace-nowrap">
                                 <template x-if="row.sold_price !== null && row.sold_price !== undefined">
                                     <span class="font-semibold text-[#005B2A] dark:text-[#52C97E]">
                                         <span class="kp-badge text-[10px] py-0 px-1.5 mr-1" x-text="row.sold_price_type || 'B'"></span>₱<span x-text="formatNum(row.sold_price)"></span>
                                     </span>
                                 </template>
-                                <template x-if="row.sold_price === null || row.sold_price === undefined">
-                                    <span class="text-[#8AA895]" :title="row.status === 'bought' ? 'Bought before sold prices were recorded: the week\'s price is used' : ''">—</span>
+                                <template x-if="(row.sold_price === null || row.sold_price === undefined) && row.status === 'bought'">
+                                    <span class="text-[#52705F] dark:text-[#8AA895] italic" title="Bought before sold prices were recorded: the week's prices from Price Management are used">Week's price</span>
+                                </template>
+                                <template x-if="(row.sold_price === null || row.sold_price === undefined) && row.status !== 'bought'">
+                                    <span class="text-[#8AA895]">—</span>
                                 </template>
                             </td>
                         </tr>
                     </template>
                     <tr x-show="!filters.cropYear" x-cloak>
-                        <td colspan="9" class="py-12 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
+                        <td colspan="10" class="py-12 text-center text-xs text-[#52705F] dark:text-[#8AA895]">
                             <i class="fas fa-filter text-2xl mb-2 text-[#8AA895] block"></i>
                             Select a crop year to list its quedans.
                         </td>
                     </tr>
                     <template x-if="feed && filters.cropYear">
-                        @include('layouts.partials.feed-footer', ['feed' => 'feed', 'colspan' => 9, 'empty' => 'No quedans match the crop year, week, search or status.'])
+                        @include('layouts.partials.feed-footer', ['feed' => 'feed', 'colspan' => 10, 'empty' => 'No quedans match the crop year, week, search or status.'])
                     </template>
                 </tbody>
             </table>
