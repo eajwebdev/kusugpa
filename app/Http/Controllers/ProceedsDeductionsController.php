@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\CropYear;
+use App\Models\Molass;
+use App\Models\Quedan;
 use App\Models\WeekNo;
 use App\Services\PlanterProceeds;
 use App\Support\PdfParts;
@@ -128,6 +130,87 @@ class ProceedsDeductionsController extends Controller
         ])->setPaper('legal', 'landscape');
 
         $filename = $parts->filename('proceeds-deductions-' . $cropYear . '-wk' . str_pad($week, 2, '0', STR_PAD_LEFT));
+
+        return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
+    }
+
+    /**
+     * Consolidated statement for one week: grand totals of every planter's volumes, gross proceeds,
+     * quedan liens and other charges, trucking allowance and fuel, down to the grand total net proceeds
+     */
+    public function consolidated(Request $request)
+    {
+        $data = $request->validate([
+            'crop_year' => 'required|string',
+            'week_no' => 'required|integer|min:1',
+            'date_issued' => 'nullable|date',
+        ]);
+        $cropYear = $data['crop_year'];
+        $week = (int) $data['week_no'];
+        $weekValues = array_values(array_unique([(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)]));
+
+        // Volumes straight from the bought quedans and molasses of the week
+        $sugar = Quedan::notPending()->where('crop_year', $cropYear)->whereIn('week_no', $weekValues)
+            ->selectRaw('COALESCE(SUM(sugar_lkg), 0) AS gross, COALESCE(SUM(labor_lkg), 0) AS labor, COUNT(*) AS quedans')
+            ->first();
+        $molassesVolume = (float) Molass::notPending()->where('crop_year', $cropYear)->whereIn('week_no', $weekValues)->sum('mol_net');
+
+        // Amounts as on each planter's Check Voucher, added up
+        $sum = array_fill_keys(['sugar', 'molasses', 'liens', 'insurance', 'tax', 'service', 'trucking', 'fuel', 'net', 'loan', 'ca', 'others', 'fuel_ac', 'net_paid'], 0.0);
+        $records = PlanterProceeds::summary($cropYear, $week, $week);
+        foreach ($records as $record) {
+            $p = PlanterProceeds::compute($record);
+            $sum['sugar'] += $p['quedanGrossProceeds'];
+            $sum['molasses'] += $p['molasses_gross'];
+            $sum['liens'] += $p['quedanTotalLiens'] + $p['molasses_liens'];
+            $sum['insurance'] += $p['quedanTotalInsurance'] + $p['molasses_insurance'];
+            $sum['tax'] += $p['quedanTotalTax'] + $p['molasses_tax'];
+            $sum['service'] += $p['quedanTotalServiceCharge'] + $p['molasses_service'];
+            $sum['trucking'] += $p['consolidated_display'];
+            $sum['fuel'] += $p['consolidated_fuel_amount'];
+            $sum['net'] += $p['totalNetProceeds'];
+            $sum['loan'] += $p['loanPayment'];
+            $sum['ca'] += $p['caPayment'];
+            $sum['others'] += $p['othersPayment'];
+            $sum['fuel_ac'] += $p['fuelPayment'];
+            $sum['net_paid'] += $p['netProceedsPaid'];
+        }
+        $t = array_map(fn ($v) => round($v, 2), $sum);
+        $t['gross'] = round($t['sugar'] + $t['molasses'], 2);
+        $t['quedan_liens'] = round($t['liens'] + $t['insurance'], 2);
+        $t['other_charges'] = round($t['tax'] + $t['service'], 2);
+        $t['deductions'] = round($t['quedan_liens'] + $t['other_charges'], 2);
+        $t['net_before'] = round($t['gross'] - $t['deductions'], 2);
+        $t['accounts'] = round($t['loan'] + $t['ca'] + $t['others'] + $t['fuel_ac'], 2);
+
+        $volumes = [
+            'sugar_gross' => round((float) $sugar->gross, 3),
+            'labor' => round((float) $sugar->labor, 3),
+            'sugar_net' => round((float) $sugar->gross - (float) $sugar->labor, 3),
+            'molasses' => round($molassesVolume, 3),
+            'quedans' => (int) $sugar->quedans,
+        ];
+
+        $weekEnd = WeekNo::where('crop_year', $cropYear)->whereIn('week_no', $weekValues)->value('week_end_date');
+
+        AuditLog::log('print', 'reports', 'Generated consolidated proceeds and deductions report', [
+            'crop_year' => $cropYear,
+            'week' => $week,
+            'planters' => $records->count(),
+        ]);
+
+        $pdf = Pdf::loadView('pdf.proceeds-deductions-consolidated', [
+            't' => $t,
+            'volumes' => $volumes,
+            'planterCount' => $records->count(),
+            'cropYear' => $cropYear,
+            'week' => $week,
+            'weekEnding' => $weekEnd ? Carbon::parse($weekEnd)->format('m-d-Y') : '',
+            'dateIssued' => Carbon::parse($data['date_issued'] ?? now())->format('m-d-Y'),
+            'org' => config('kusugpa'),
+        ])->setPaper('letter', 'portrait');
+
+        $filename = 'proceeds-deductions-consolidated-' . $cropYear . '-wk' . str_pad($week, 2, '0', STR_PAD_LEFT) . '.pdf';
 
         return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
     }
