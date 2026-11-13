@@ -342,6 +342,29 @@ class PlanterDeductionsTest extends TestCase
         }
     }
 
+    public function test_consolidated_proceeds_and_deductions_adds_up_the_week(): void
+    {
+        $this->createDeduction('fuel', 300, [3 => 100, 4 => 200])->assertCreated();
+
+        $planter = $this->captureView('pdf.proceeds-deductions', 'proceeds-deductions-report.pdf', [
+            'crop_year' => '20262027', 'week_no' => 4,
+        ])['totals']['week'];
+        $data = $this->captureView('pdf.proceeds-deductions-consolidated', 'proceeds-deductions-report.consolidated', [
+            'crop_year' => '20262027', 'week_no' => 4,
+        ]);
+        $t = $data['t'];
+
+        // Same week totals as the per planter report
+        $this->assertEqualsWithDelta($planter['quedan'], $t['sugar'], 0.01);
+        $this->assertEqualsWithDelta($planter['molasses'], $t['molasses'], 0.01);
+        $this->assertEqualsWithDelta($planter['net'], $t['net'], 0.01);
+        $this->assertEqualsWithDelta($planter['net_paid'], $t['net_paid'], 0.01);
+        $this->assertEqualsWithDelta(200, $t['fuel_ac'], 0.001);
+        // Gross - liens & charges + trucking - fuel issuance = grand total net proceeds
+        $this->assertEqualsWithDelta($t['gross'] - $t['deductions'] + $t['trucking'] - $t['fuel'], $t['net'], 0.01);
+        $this->assertEqualsWithDelta($data['volumes']['sugar_gross'] - $data['volumes']['labor'], $data['volumes']['sugar_net'], 0.001);
+    }
+
     private function uploadFuel(string $csv, string $week = '3')
     {
         if (!Schema::hasTable('fuel_allowance')) {

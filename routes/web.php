@@ -253,6 +253,7 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::get('/planter-accounts-report/pdf', [PlanterAccountsAppliedController::class, 'pdf'])->name('planter-accounts-report.pdf');
     Route::get('/proceeds-deductions-report', [ProceedsDeductionsController::class, 'index'])->name('proceeds-deductions-report');
     Route::get('/proceeds-deductions-report/pdf', [ProceedsDeductionsController::class, 'pdf'])->name('proceeds-deductions-report.pdf');
+    Route::get('/proceeds-deductions-report/consolidated', [ProceedsDeductionsController::class, 'consolidated'])->name('proceeds-deductions-report.consolidated');
     Route::get('/hauler-signature-report', [HaulerSignatureSheetController::class, 'index'])->name('hauler-signature-report');
     Route::get('/hauler-signature-report/pdf', [HaulerSignatureSheetController::class, 'pdf'])->name('hauler-signature-report.pdf');
     Route::get('/certification-report', [CertificationController::class, 'index'])->name('certification-report');

@@ -72,9 +72,14 @@
                         <i class="fas fa-info-circle text-[#087A3D]" aria-hidden="true"></i>
                         <span>Printed on legal paper, landscape.</span>
                     </div>
-                    <button type="submit" class="kp-btn kp-btn-primary shadow-sm" :disabled="!canPreview">
-                        <i class="fas fa-file-pdf mr-1.5" aria-hidden="true"></i> Preview Report
-                    </button>
+                    <div class="flex flex-wrap items-center justify-end gap-2">
+                        <button type="button" @click="preview('consolidated')" class="kp-btn kp-btn-secondary shadow-sm" :disabled="!canPreview">
+                            <i class="fas fa-file-invoice mr-1.5" aria-hidden="true"></i> Consolidated
+                        </button>
+                        <button type="submit" class="kp-btn kp-btn-primary shadow-sm" :disabled="!canPreview">
+                            <i class="fas fa-users mr-1.5" aria-hidden="true"></i> Per Planter
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -85,7 +90,8 @@
                 <li><b>Proceeds:</b> Quedan, Molasses, Trucking Allowance and Gross Proceeds.</li>
                 <li><b>Mill deductions:</b> liens, service charge, insurance and tax; fuel issuance; Net Proceeds.</li>
                 <li><b>Accounts applied:</b> Loan Payment, Cash Advance, Others and Fuel A/C; then Net Paid, the check amount.</li>
-                <li>Each planter has a <b>This Week</b> line and a <b>To Date</b> line. To date adds up each week's Check Voucher, with totals at the end.</li>
+                <li><b>Per Planter:</b> each planter has a <b>This Week</b> line and a <b>To Date</b> line. To date adds up each week's Check Voucher, with totals at the end.</li>
+                <li><b>Consolidated:</b> the grand totals of the selected week on one page — sugar and molasses volumes, gross proceeds, liens and charges, trucking allowance, fuel, grand total net proceeds and net paid.</li>
             </ul>
         </div>
     </div>
@@ -105,10 +111,14 @@
                     get canPreview() {
                         return this.filters.crop_year && this.filters.week_no;
                     },
-                    preview() {
+                    preview(type = 'planter') {
                         if (!this.canPreview) return;
                         const params = new URLSearchParams(this.filters);
                         if (this.dateIssued) params.append('date_issued', this.dateIssued);
+                        if (type === 'consolidated') {
+                            window.KusugpaPdfPreview.open('{{ route('proceeds-deductions-report.consolidated') }}?' + params.toString(), 'Consolidated Proceeds & Deductions');
+                            return;
+                        }
                         window.KusugpaPdfPreview.open('{{ route('proceeds-deductions-report.pdf') }}?' + params.toString(), 'Proceeds & Deductions');
                     },
                     resetFilters() {

@@ -8,6 +8,7 @@ use App\Models\Summary;
 use App\Models\ConsolidatedUpload;
 use Illuminate\Support\Facades\DB;
 use App\Models\AuditLog;
+use App\Services\PlanterProfileSync;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class PlanterProfileController extends Controller
@@ -216,63 +217,10 @@ class PlanterProfileController extends Controller
      */
     public function syncPlanters()
 {
-    $normalize = function ($code) {
-        $code = trim((string) $code);
-        $stripped = ltrim($code, '0');
-        return $stripped === '' ? $code : $stripped;
-    };
-
-    $existing = PlanterProfile::pluck('planter_code')
-        ->mapWithKeys(fn ($code) => [$normalize($code) => true])
-        ->all();
-
-    // Latest upload first, so a planter gets the name from their most recent record
-    $rows = ConsolidatedUpload::select('planter_code', 'planter_name', 'crop_year')
-        ->orderByDesc('crop_year')
-        ->orderByRaw('CAST(week_no AS UNSIGNED) DESC')
-        ->orderByDesc('id')
-        ->get();
-
-    $imported = 0;
-    $skipped = 0;
-    $errors = [];
-    $seen = [];
-
-    DB::transaction(function () use ($rows, $normalize, &$existing, &$seen, &$imported, &$skipped, &$errors) {
-        foreach ($rows as $row) {
-            $code = trim((string) $row->planter_code);
-            $name = trim((string) $row->planter_name);
-            $key = $normalize($code);
-
-            if ($code === '' || $name === '') {
-                $errors[] = "Empty data: code={$code}, name={$name}";
-                continue;
-            }
-            // Same planter appears once per week in the upload; count each planter once
-            if (isset($seen[$key])) {
-                continue;
-            }
-            $seen[$key] = true;
-
-            if (isset($existing[$key])) {
-                $skipped++;
-                continue;
-            }
-
-            try {
-                PlanterProfile::create([
-                    'planter_code' => $code,
-                    'planter_name' => $name,
-                    'status' => 'active',
-                    'crop_year' => $row->crop_year,
-                ]);
-                $existing[$key] = true;
-                $imported++;
-            } catch (\Exception $e) {
-                $errors[] = "Error on {$code}: " . $e->getMessage();
-            }
-        }
-    });
+    $result = app(PlanterProfileSync::class)->sync();
+    $imported = $result['imported'];
+    $skipped = $result['skipped'];
+    $errors = $result['errors'];
 
     AuditLog::log('sync', 'planters', 'Synced planter profiles from consolidated report', [
         'imported' => $imported,
@@ -281,7 +229,7 @@ class PlanterProfileController extends Controller
     ]);
 
     $totalProfiles = PlanterProfile::count();
-    $uniqueConsolidated = count($seen);
+    $uniqueConsolidated = $result['planters'];
 
     $message = $uniqueConsolidated === 0
         ? 'No planters found in the uploaded Consolidated report. Upload a Consolidated Summary first.'

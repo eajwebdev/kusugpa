@@ -12,6 +12,7 @@ use App\Models\TransloadingAllowance;
 use App\Models\AuditLog;
 use App\Models\PlanterDeduction;
 use App\Models\WeekNo;
+use App\Services\PlanterProfileSync;
 use App\Services\TlsHaulingLiquidationGenerator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -317,6 +318,32 @@ class UploadController extends Controller
                 $message .= " Created {$fuelDeductions} Fuel deductions (Fuel & Others Deduction) for Week {$weekNo}.";
             }
 
+            // New planters in the Consolidated upload get a Planter Profile (never a duplicate).
+            // The upload is already saved, so a failed sync is reported but does not undo it.
+            $planterSync = null;
+            if ($type === 'consolidated' && $importedCount > 0) {
+                try {
+                    // Only the uploaded week is read; without a crop year / week the whole report is
+                    $planterSync = app(PlanterProfileSync::class)->sync(
+                        $cropYear ? (string) $cropYear : null,
+                        $cropYear && $weekNo ? (string) $weekNo : null,
+                    );
+                    AuditLog::log('sync', 'planters', 'Synced planter profiles from consolidated upload', [
+                        'crop_year' => $cropYear,
+                        'week_no' => $weekNo,
+                        'imported' => $planterSync['imported'],
+                        'skipped' => $planterSync['skipped'],
+                        'errors' => count($planterSync['errors']),
+                    ]);
+                    $message .= $planterSync['imported'] > 0
+                        ? " Added {$planterSync['imported']} new planter(s) to Planter Profiles."
+                        : ' No new planters to add to Planter Profiles.';
+                } catch (\Throwable $e) {
+                    Log::error('Planter profile sync after consolidated upload failed: ' . $e->getMessage());
+                    $message .= ' Planter Profiles were not synced; use Sync Planters on Planter Profiles.';
+                }
+            }
+
             if ($liquidation) {
                 AuditLog::log('create', 'hauling_liquidity', 'Generated ' . $liquidation['entries'] . ' hauling liquidation entries from TLS upload', [
                     'crop_year' => $cropYear,
@@ -343,6 +370,7 @@ class UploadController extends Controller
                     'errors' => count($errors),
                     'liquidations' => $liquidation['entries'] ?? null,
                     'fuel_deductions' => $type === 'fuel' ? $fuelDeductions : null,
+                    'planters_added' => $planterSync['imported'] ?? null,
                 ]);
             }
             
