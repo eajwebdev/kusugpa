@@ -25,6 +25,7 @@ use App\Http\Controllers\HaulerSignatureSheetController;
 use App\Http\Controllers\PlanterDeductionController;
 use App\Http\Controllers\PlanterAccountsAppliedController;
 use App\Http\Controllers\ProceedsDeductionsController;
+use App\Http\Controllers\VoucherBatchController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\HaulingLiquidityController;
 use App\Http\Controllers\CaReceiptController;
@@ -273,6 +274,12 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     // Print Voucher
     Route::get('/print-voucher', [MenuController::class, 'printVoucher'])->name('printVoucher');
     Route::get('/voucher/pdf-preview', [MenuController::class, 'voucherPDF'])->name('voucher.pdf');
+    // Generated voucher groups (a planter is generated once per week until its group is deleted)
+    Route::get('/voucher/batches', [VoucherBatchController::class, 'index'])->name('voucher.batches.index');
+    Route::post('/voucher/batches', [VoucherBatchController::class, 'store'])->name('voucher.batches.store');
+    Route::get('/voucher/batches/{batch}', [VoucherBatchController::class, 'show'])->name('voucher.batches.show');
+    Route::delete('/voucher/batches/{batch}', [VoucherBatchController::class, 'destroy'])->name('voucher.batches.destroy');
+    Route::patch('/voucher/batches/{batch}/items/{item}', [VoucherBatchController::class, 'receiver'])->name('voucher.batches.receiver');
 
     Route::get('/get-planter-names', [MenuController::class, 'getPlanterNames'])->name('get.planter.names');
 
