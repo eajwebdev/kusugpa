@@ -22,6 +22,9 @@ use App\Support\PdfParts;
 use App\Models\TruckingAllowance;
 use App\Models\AuditLog;
 use App\Models\PlanterProfile;
+use App\Models\VoucherBatch;
+use App\Models\VoucherBatchItem;
+use App\Services\PlanterProfileSync;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -328,6 +331,18 @@ class MenuController extends Controller
     $allPlanters = $allPlanters->unique('planter_code')
         ->sortBy('planter_name')
         ->values();
+
+    // Print Vouchers: leave out planters already in a generated voucher group for any of these weeks
+    if ($request->boolean('exclude_generated')) {
+        $generated = VoucherBatchItem::where('crop_year', $cropYear)
+            ->where('week_from', '<=', $to)
+            ->where('week_to', '>=', $from)
+            ->pluck('planter_code')
+            ->mapWithKeys(fn ($code) => [PlanterProfileSync::key($code) => true]);
+        $allPlanters = $allPlanters
+            ->reject(fn ($p) => $generated->has(PlanterProfileSync::key($p->planter_code)))
+            ->values();
+    }
     
     Log::info('Total unique planters: ' . $allPlanters->count());
     
@@ -365,8 +380,27 @@ public function voucherPDF(Request $request)
     $weekFrom = $request->input('week_from');
     $weekTo = $request->input('week_to');
     $planterNames = $request->input('planter_name');
+    $receivers = collect();
+
+    // A generated group prints its own planters (all, or the ones asked for), with the person
+    // authorized to receive each voucher printed in place of the planter's name
+    if ($request->filled('batch_id')) {
+        $batch = VoucherBatch::findOrFail($request->input('batch_id'));
+        $items = $batch->items()->get();
+        if (!empty($planterNames)) {
+            $items = $items->whereIn('planter_code', (array) $planterNames);
+        }
+        $cropYear = $batch->crop_year;
+        $weekFrom = $batch->week_from;
+        $weekTo = $batch->week_to;
+        $planterNames = $items->pluck('planter_code')->all() ?: ['__none__'];
+        $receivers = $items->whereNotNull('receiver_name')->pluck('receiver_name', 'planter_code');
+    }
 
     $summaryData = PlanterProceeds::summary($cropYear, $weekFrom, $weekTo, $planterNames);
+    if (isset($batch)) {
+        $summaryData = $summaryData->sortBy(fn ($r) => mb_strtoupper(trim((string) $r['planter_name'])))->values();
+    }
 
     // One voucher page per planter. Smaller parts avoid production proxy timeouts
     // and memory exhaustion on shared hosting.
@@ -380,6 +414,7 @@ public function voucherPDF(Request $request)
         'crop_year' => $cropYear,
         'weeks' => $weekFrom . ' - ' . $weekTo,
         'planters' => $planterNames ? count((array)$planterNames) : 'all',
+        'batch_id' => $request->input('batch_id'),
         'part' => $parts->label() ?: 'whole',
     ]);
 
@@ -388,7 +423,9 @@ public function voucherPDF(Request $request)
 
     $pdf = Pdf::loadView('pdf.voucher', [
         'summaryData' => $summaryData,
-        'autoDeduct' => $autoDeduct
+        'autoDeduct' => $autoDeduct,
+        // A voucher with an authorized receiver prints that name in place of the planter's
+        'receivers' => $receivers,
     ]);
     return $request->boolean('download') ? $pdf->download($parts->filename('voucher')) : $pdf->stream($parts->filename('voucher-preview'));
 }

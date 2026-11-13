@@ -140,6 +140,8 @@ class PlanterDeductionsTest extends TestCase
             '2026_10_24_000002_create_planter_deductions_tables.php',
             '2026_11_09_000000_add_liters_to_fuel_deductions.php',
             '2026_11_09_000001_add_sold_price_to_quedans.php',
+            '2026_11_13_000000_create_voucher_receivers_table.php',
+            '2026_11_13_000001_create_voucher_batches_tables.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }
@@ -363,6 +365,76 @@ class PlanterDeductionsTest extends TestCase
         // Gross - liens & charges + trucking - fuel issuance = grand total net proceeds
         $this->assertEqualsWithDelta($t['gross'] - $t['deductions'] + $t['trucking'] - $t['fuel'], $t['net'], 0.01);
         $this->assertEqualsWithDelta($data['volumes']['sugar_gross'] - $data['volumes']['labor'], $data['volumes']['sugar_net'], 0.001);
+    }
+
+    public function test_generate_saves_a_group_and_never_generates_a_planter_twice_for_its_weeks(): void
+    {
+        DB::table('quedans')->insert([
+            'crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00456', 'planter_name' => 'ABATAYO, EDDIE',
+            'sugar_lkg' => 5, 'labor_lkg' => 0, 'status' => 'bought',
+        ]);
+        $week4 = ['crop_year' => '20262027', 'week_from' => 4, 'week_to' => 4];
+
+        // Only DELA CRUZ first
+        $first = $this->postJson(route('voucher.batches.store'), $week4 + ['planter_name' => ['00123']])
+            ->assertCreated()->assertJsonPath('batch.planters', 1)->json('batch.id');
+
+        // Then all of week 4: DELA CRUZ is already in a group, so only ABATAYO is generated
+        $second = $this->postJson(route('voucher.batches.store'), $week4)
+            ->assertCreated()->assertJsonPath('batch.planters', 1)->assertJsonPath('skipped', 1)->json('batch.id');
+        $this->assertSame(['ABATAYO, EDDIE'], $this->getJson(route('voucher.batches.show', $second))->json('items.*.planter_name'));
+
+        // Print Vouchers' planter list leaves out generated planters; other reports still list everyone
+        $names = fn ($extra) => $this->getJson(route('get.planter.names', $week4 + $extra))->assertOk()->json('*.planter_code');
+        $this->assertSame([], $names(['exclude_generated' => 1]));
+        $this->assertEqualsCanonicalizing(['00123', '00456'], $names([]));
+
+        // Nothing left in week 4, and weeks 3-4 overlap week 4, so neither generates anything
+        $this->postJson(route('voucher.batches.store'), $week4)->assertStatus(422);
+        $this->postJson(route('voucher.batches.store'), ['crop_year' => '20262027', 'week_from' => 3, 'week_to' => 4])->assertStatus(422);
+        $this->getJson(route('voucher.batches.index', ['crop_year' => '20262027']))->assertOk()->assertJsonCount(2);
+
+        // Deleting a group lets its planters be generated again
+        $this->deleteJson(route('voucher.batches.destroy', $first))->assertOk();
+        $this->assertSame(0, DB::table('voucher_batch_items')->where('voucher_batch_id', $first)->count());
+        $this->assertSame(['00123'], $names(['exclude_generated' => 1]));
+        $this->postJson(route('voucher.batches.store'), $week4)
+            ->assertCreated()->assertJsonPath('batch.planters', 1);
+        $this->assertSame(2, DB::table('voucher_batch_items')->count());
+    }
+
+    public function test_group_voucher_prints_the_authorized_receiver_in_place_of_the_planter(): void
+    {
+        $period = ['crop_year' => '20262027', 'week_from' => 4, 'week_to' => 4];
+        $batch = $this->postJson(route('voucher.batches.store'), $period)->assertCreated()->json('batch.id');
+        $item = $this->getJson(route('voucher.batches.show', $batch))->assertOk()
+            ->assertJsonPath('items.0.planter_name', 'DELA CRUZ, JUAN')
+            ->assertJsonPath('items.0.receiver_name', '')
+            ->json('items.0.id');
+
+        $this->patchJson(route('voucher.batches.receiver', [$batch, $item]), ['receiver_name' => '  Edwin   Abril '])
+            ->assertOk()->assertJsonPath('receiver_name', 'Edwin Abril');
+        $this->getJson(route('voucher.batches.index'))->assertJsonPath('0.receivers', 1);
+
+        $html = view('pdf.voucher', $this->captureView('pdf.voucher', 'voucher.pdf', ['batch_id' => $batch]))->render();
+        $this->assertStringContainsString('Edwin Abril', $html);
+        $this->assertStringNotContainsString('DELA CRUZ, JUAN', $html);
+
+        // One planter of the group prints alone
+        $one = $this->captureView('pdf.voucher', 'voucher.pdf', ['batch_id' => $batch, 'planter_name' => ['00123']]);
+        $this->assertCount(1, $one['summaryData']);
+
+        // A blank name prints the planter again
+        $this->patchJson(route('voucher.batches.receiver', [$batch, $item]), ['receiver_name' => ''])->assertOk();
+        $html = view('pdf.voucher', $this->captureView('pdf.voucher', 'voucher.pdf', ['batch_id' => $batch]))->render();
+        $this->assertStringContainsString('DELA CRUZ, JUAN', $html);
+
+        // Week 3 does not overlap week 4, so DELA CRUZ's week 3 voucher is its own group;
+        // an item of that group cannot be changed through the week 4 group
+        $other = $this->postJson(route('voucher.batches.store'), ['crop_year' => '20262027', 'week_from' => 3, 'week_to' => 3])
+            ->assertCreated()->json('batch.id');
+        $otherItem = $this->getJson(route('voucher.batches.show', $other))->json('items.0.id');
+        $this->patchJson(route('voucher.batches.receiver', [$batch, $otherItem]), ['receiver_name' => 'X'])->assertNotFound();
     }
 
     private function uploadFuel(string $csv, string $week = '3')

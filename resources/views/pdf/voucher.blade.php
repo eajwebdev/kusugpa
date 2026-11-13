@@ -214,7 +214,8 @@
             <table class="info-table">
                 <tr>
                     <td class="text-center" width="70%">
-                        {{ $record['planter_name'] }}
+                        {{-- The person authorized to receive this voucher, when set, in place of the planter --}}
+                        {{ ($receivers ?? collect())[(string) $record['planter_code']] ?? $record['planter_name'] }}
                     </td>
                     <td width="30%" class="text-right">
                         <strong>Date:</strong> {{ now()->format('F d, Y') }}
