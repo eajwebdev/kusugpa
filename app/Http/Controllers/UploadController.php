@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\PlanterCode;
 use Illuminate\Http\Request;
 use App\Models\Summary;
 use App\Models\TruckingAllowance;
@@ -249,6 +250,10 @@ class UploadController extends Controller
                     if ($processed['success']) {
                         $processed['data']['crop_year'] = $cropYear;
                         $processed['data']['week_no'] = $weekNo;
+                        // 5-digit planter codes with leading zeros (9997 → 09997), so one planter keeps one code
+                        if (array_key_exists('planter_code', $processed['data'])) {
+                            $processed['data']['planter_code'] = PlanterCode::normalize($processed['data']['planter_code']);
+                        }
                         $batchData[] = $processed['data'];
                     } else {
                         $errors[] = $processed['error'];
@@ -531,12 +536,8 @@ class UploadController extends Controller
         $hasLiters = count($line) >= 6 && trim((string) $line[5]) !== '';
         $liters = $hasLiters ? $number($line[4]) : '';
         $amount = $number($hasLiters ? $line[5] : $line[4]);
-        // Numeric codes are stored without leading zeros (00733 → 733), like the quedan, molasses and
-        // planter profile codes, so the deduction reaches the planter's voucher
-        $planterCode = trim((string) $line[2]);
-        if (ctype_digit($planterCode)) {
-            $planterCode = ltrim($planterCode, '0') ?: '0';
-        }
+        // 5-digit planter codes with leading zeros (733 → 00733), like every other upload
+        $planterCode = PlanterCode::normalize($line[2]);
 
         if ($planterCode === '') {
             return ['success' => false, 'error' => "Line {$index}: Missing planter_code"];

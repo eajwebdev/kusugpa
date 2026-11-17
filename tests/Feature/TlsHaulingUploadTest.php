@@ -183,7 +183,7 @@ class TlsHaulingUploadTest extends TestCase
         $this->upload(implode("\n", self::ROWS))->assertOk()->assertJsonPath('liquidations', 5);
 
         $rjg = DB::table('hauling_liquidations')->where('week_no', '3')->where('truck_code', 'RJG480')->first();
-        $this->assertSame('042878', $rjg->planter_code);
+        $this->assertSame('42878', $rjg->planter_code); // 5-digit planter code
         $this->assertSame('GEMOYA, EMILY', $rjg->payee_name);
         $this->assertEqualsWithDelta(13.968, (float) $rjg->tonnage, 0.0001);
         $this->assertEqualsWithDelta(340, (float) $rjg->rate_per_ton, 0.001);

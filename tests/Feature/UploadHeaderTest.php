@@ -65,7 +65,7 @@ class UploadHeaderTest extends TestCase
         $this->uploadSummary("20232024,1,111,First Row,10,100\n20232024,1,222,Second Row,20,200\n")
             ->assertOk()->assertJsonPath('imported', 2);
 
-        $this->assertSame(['111', '222'], DB::table('summary')->orderBy('id')->pluck('planter_code')->all());
+        $this->assertSame(['00111', '00222'], DB::table('summary')->orderBy('id')->pluck('planter_code')->all());
     }
 
     /** @dataProvider headerRows */
@@ -74,7 +74,7 @@ class UploadHeaderTest extends TestCase
         $this->uploadSummary("{$header}\n20232024,1,111,First Row,10,100\n20232024,1,222,Second Row,20,200\n")
             ->assertOk()->assertJsonPath('imported', 2);
 
-        $this->assertSame(['111', '222'], DB::table('summary')->orderBy('id')->pluck('planter_code')->all());
+        $this->assertSame(['00111', '00222'], DB::table('summary')->orderBy('id')->pluck('planter_code')->all());
     }
 
     public function headerRows(): array

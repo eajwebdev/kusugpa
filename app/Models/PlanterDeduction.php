@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class PlanterDeduction extends Model
 {
+    use \App\Models\Concerns\NormalizesPlanterCode;
+
     public const TYPES = [
         'fuel' => 'Fuel',
         'others' => 'Others',

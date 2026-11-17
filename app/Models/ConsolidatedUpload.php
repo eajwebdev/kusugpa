@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ConsolidatedUpload extends Model
 {
+    use \App\Models\Concerns\NormalizesPlanterCode;
+
     use HasFactory;
 
     protected $table = 'consolidated_uploads';

@@ -479,8 +479,37 @@
                             body: JSON.stringify(body)
                         });
                         const d = await r.json();
-                        if (!r.ok) throw new Error(d.message || 'Request failed');
+                        if (!r.ok) {
+                            const err = new Error(d.message || 'Request failed');
+                            err.status = r.status;
+                            err.data = d;
+                            throw err;
+                        }
                         return d;
+                    },
+                    // Same planter (9997 = 09997, or same name) already has this deduction type in one of the weeks
+                    async confirmDuplicate(data) {
+                        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+                        const peso = n => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        const rows = (data.matches || []).map(m =>
+                            '<tr><td style="padding:4px 8px;text-align:left">#' + esc(m.reference_no) + '</td>'
+                            + '<td style="padding:4px 8px;text-align:left"><b>' + esc(m.planter_code) + '</b> ' + esc(m.planter_name) + '</td>'
+                            + '<td style="padding:4px 8px;text-align:left">Week ' + esc((m.weeks || []).join(', ')) + '</td>'
+                            + '<td style="padding:4px 8px;text-align:right">' + peso(m.amount) + '</td></tr>').join('');
+                        const res = await Swal.fire({
+                            icon: 'warning',
+                            title: 'Possible duplicate',
+                            html: '<p style="margin-bottom:10px">' + esc(data.message) + '</p>'
+                                + '<table style="width:100%;font-size:13px;border-collapse:collapse">' + rows + '</table>'
+                                + '<p style="margin-top:10px;font-size:12px;color:#52705F">Planter codes are matched without leading zeros (9997 = 09997) and by name.</p>',
+                            width: 640,
+                            showCancelButton: true,
+                            confirmButtonText: 'Save anyway',
+                            cancelButtonText: 'Cancel',
+                            confirmButtonColor: '#b45309',
+                            focusCancel: true,
+                        });
+                        return res.isConfirmed;
                     },
                     async save() {
                         if (!this.canSave()) {
@@ -498,7 +527,14 @@
                             const url = this.editing
                                 ? '/planter-deductions/' + this.editing.id + '/update'
                                 : '{{ route('planter-deductions.store') }}';
-                            const d = await this.post(url, payload);
+                            let d;
+                            try {
+                                d = await this.post(url, payload);
+                            } catch (e) {
+                                if (e.status !== 409 || !e.data?.duplicate) throw e;
+                                if (!(await this.confirmDuplicate(e.data))) return;
+                                d = await this.post(url, { ...payload, confirm_duplicate: true });
+                            }
                             // Reload the tab of the saved deduction (counts and totals included)
                             if (this.tab !== d.deduction.type) {
                                 this.tab = d.deduction.type;

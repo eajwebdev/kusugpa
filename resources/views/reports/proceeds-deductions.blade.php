@@ -48,16 +48,20 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
-                            <i class="fas fa-calendar-week text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week No. <span class="text-rose-600">*</span>
+                            <i class="fas fa-calendar-week text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week No.
                         </label>
                         <select x-model="filters.week_no" :disabled="!filters.crop_year" class="kp-input w-full disabled:opacity-50">
-                            <option value="" x-text="filters.crop_year ? 'Select Week' : 'Select crop year first'"></option>
+                            <option value="" x-text="filters.crop_year ? 'All Weeks' : 'Select crop year first'"></option>
                             <template x-for="w in cropWeeks" :key="w">
                                 <option :value="w" x-text="'Week ' + w"></option>
                             </template>
                         </select>
                         <p class="text-[11px] mt-1 text-[#52705F] dark:text-[#8AA895]" x-show="filters.week_no"
                             x-text="'To date: week ' + (cropWeeks[0] || 1) + ' to week ' + filters.week_no"></p>
+                        <p class="text-[11px] mt-1 text-[#52705F] dark:text-[#8AA895]" x-show="filters.crop_year">
+                            Consolidated: trucking allowance and fuel of this week, same as the Trucking Allowance Report.
+                            <span x-show="!filters.week_no">Per Planter needs a week.</span>
+                        </p>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
@@ -70,7 +74,7 @@
                             </template>
                         </select>
                         <p class="text-[11px] mt-1 text-[#52705F] dark:text-[#8AA895]" x-show="filters.bought_week">
-                            Only quedans and molasses bought that week, same as Week Bought on the Registry.
+                            Quedans and molasses bought that week (any quedan week), same as Week Bought on the Registry.
                         </p>
                     </div>
                     <div>
@@ -87,7 +91,7 @@
                         <span>Printed on legal paper, landscape.</span>
                     </div>
                     <div class="flex flex-wrap items-center justify-end gap-2">
-                        <button type="button" @click="preview('consolidated')" class="kp-btn kp-btn-secondary shadow-sm" :disabled="!canPreview">
+                        <button type="button" @click="preview('consolidated')" class="kp-btn kp-btn-secondary shadow-sm" :disabled="!filters.crop_year">
                             <i class="fas fa-file-invoice mr-1.5" aria-hidden="true"></i> Consolidated
                         </button>
                         <button type="submit" class="kp-btn kp-btn-primary shadow-sm" :disabled="!canPreview">
@@ -106,7 +110,7 @@
                 <li><b>Accounts applied:</b> Loan Payment, Cash Advance, Others and Fuel A/C; then Net Paid, the check amount.</li>
                 <li><b>Per Planter:</b> each planter has a <b>This Week</b> line and a <b>To Date</b> line. To date adds up each week's Check Voucher, with totals at the end.</li>
                 <li><b>Week Bought</b> (optional): counts only the quedans and molasses bought in that week, the same rule as Week Bought on the Quedan &amp; Molasses Registry, so the two tally. Planters with nothing bought that week are left out.</li>
-                <li><b>Consolidated:</b> the grand totals of the selected week on one page — sugar and molasses volumes, gross proceeds, liens and charges, trucking allowance, fuel, grand total net proceeds and net paid.</li>
+                <li><b>Consolidated:</b> the grand totals of the selected week (or All Weeks) on one page — sugar and molasses volumes, gross proceeds, liens and charges, trucking allowance, fuel and grand total net proceeds.</li>
             </ul>
         </div>
     </div>
@@ -131,8 +135,10 @@
                         return this.filters.crop_year && this.filters.week_no;
                     },
                     preview(type = 'planter') {
-                        if (!this.canPreview) return;
-                        const params = new URLSearchParams({ crop_year: this.filters.crop_year, week_no: this.filters.week_no });
+                        if (!this.filters.crop_year) return;
+                        if (type !== 'consolidated' && !this.filters.week_no) return;
+                        const params = new URLSearchParams({ crop_year: this.filters.crop_year });
+                        if (this.filters.week_no) params.append('week_no', this.filters.week_no);
                         if (this.filters.bought_week) params.append('bought_week', this.filters.bought_week);
                         if (this.dateIssued) params.append('date_issued', this.dateIssued);
                         if (type === 'consolidated') {

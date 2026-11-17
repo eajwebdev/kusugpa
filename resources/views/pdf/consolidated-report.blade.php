@@ -23,6 +23,7 @@
         .center { text-align: center; }
         .name { overflow-wrap: anywhere; }
         .total { font-weight: bold; color: #005b2a; }
+        tr.grand td { background: #e7f2e9; border-top: 2px solid #006c38; font-weight: bold; font-size: 7.5px; padding: 6px 3px; }
         .empty { padding: 24px; text-align: center; color: #60766a; }
         .footer { margin-top: 10px; color: #60766a; font-size: 6px; }
     </style>
@@ -84,6 +85,12 @@
                     @endforeach
                 </tr>
             @endforeach
+            @if ($loop->last && ($isLastPart ?? true))
+                <tr class="grand">
+                    <td class="left" colspan="19">GRAND TOTAL ({{ number_format($totalRows ?? $uploads->count()) }} {{ ($totalRows ?? $uploads->count()) === 1 ? 'record' : 'records' }})</td>
+                    <td class="total">{{ number_format((float) ($grandTotal ?? $uploads->sum('total_summary')), 2) }}</td>
+                </tr>
+            @endif
         </tbody>
     </table>
     @empty

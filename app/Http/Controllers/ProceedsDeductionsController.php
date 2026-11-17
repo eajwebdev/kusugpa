@@ -24,6 +24,10 @@ class ProceedsDeductionsController extends Controller
 {
     private const PLANTERS_PER_PAGE = 18;
 
+    /** Consolidated statement: molasses handling fee per MT, and the flat insurance per planter with molasses (as on the voucher) */
+    public const MOLASSES_HANDLING_PER_MT = 120.0;
+    public const MOLASSES_INSURANCE_PER_PLANTER = 30.0;
+
     /** Amount columns of the report, in print order */
     public const COLUMNS = [
         'quedan' => 'QUEDAN PROCEEDS',
@@ -149,21 +153,40 @@ class ProceedsDeductionsController extends Controller
     {
         $data = $request->validate([
             'crop_year' => 'required|string',
-            'week_no' => 'required|integer|min:1',
+            'week_no' => 'nullable|integer|min:1',
             'date_issued' => 'nullable|date',
             'bought_week' => 'nullable|integer|min:1',
         ]);
         $cropYear = $data['crop_year'];
-        $week = (int) $data['week_no'];
+        // No week = All Weeks of the crop year (like the Registry's "All Weeks")
+        $week = isset($data['week_no']) ? (int) $data['week_no'] : null;
         $boughtWeek = $data['bought_week'] ?? null;
-        $weekValues = array_values(array_unique([(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)]));
+        $weekValues = $week !== null
+            ? array_values(array_unique([(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)]))
+            : null;
 
-        // Volumes straight from the bought quedans and molasses of the week
-        $sugarQuery = Quedan::notPending()->where('crop_year', $cropYear)->whereIn('week_no', $weekValues);
-        $molassesQuery = Molass::notPending()->where('crop_year', $cropYear)->whereIn('week_no', $weekValues);
+        // Two selections, two parts of the statement:
+        //  - WEEK BOUGHT picks the quedans and molasses (gross proceeds down to NET PROCEEDS B4 TRKNG ALLW.):
+        //    quedans bought that week, of any quedan week, at the bought week's price (same as the Registry's
+        //    All Weeks + Week Bought), and the molasses of that week number at its week's molasses price.
+        //    With no Week Bought, the quedans and molasses of the Week No. (or of every week).
+        //  - WEEK NO. picks the trucking allowance, fuel issuance, trans-code service charge and accounts
+        //    applied, the same weeks as Week From / Week To on the Trucking Allowance Report.
+        $molWeek = $boughtWeek ? (int) $boughtWeek : $week;
+        $molWeekValues = $molWeek !== null
+            ? array_values(array_unique([(string) $molWeek, str_pad((string) $molWeek, 2, '0', STR_PAD_LEFT)]))
+            : null;
+
+        // Volumes straight from the bought quedans and molasses
+        $sugarQuery = Quedan::notPending()->where('crop_year', $cropYear);
+        $molassesQuery = Molass::notPending()->where('crop_year', $cropYear);
         if ($boughtWeek) {
             $sugarQuery->boughtInWeek($cropYear, $boughtWeek);
-            $molassesQuery->boughtInWeek($cropYear, $boughtWeek);
+        } elseif ($weekValues !== null) {
+            $sugarQuery->whereIn('week_no', $weekValues);
+        }
+        if ($molWeekValues !== null) {
+            $molassesQuery->whereIn('week_no', $molWeekValues);
         }
         $sugar = $sugarQuery
             ->selectRaw('COALESCE(SUM(sugar_lkg), 0) AS gross, COALESCE(SUM(labor_lkg), 0) AS labor, COUNT(*) AS quedans')
@@ -172,31 +195,76 @@ class ProceedsDeductionsController extends Controller
 
         // Amounts as on each planter's Check Voucher, added up
         $sum = array_fill_keys(['sugar', 'molasses', 'liens', 'insurance', 'tax', 'service', 'trucking', 'fuel', 'net', 'loan', 'ca', 'others', 'fuel_ac', 'net_paid'], 0.0);
-        $records = PlanterProceeds::summary($cropYear, $week, $week, null, $boughtWeek);
+        // Each week is computed on its own (its own prices), as on that week's vouchers, then added up
+        $allWeeks = $this->allWeeks($cropYear);
+        $weeksToRun = ($week !== null && !$boughtWeek) ? [$week] : $allWeeks;
+        if ($molWeek !== null && !in_array($molWeek, $weeksToRun, true)) {
+            $weeksToRun[] = $molWeek;
+        }
+        $records = collect();
+        $planterCodes = [];
+        foreach ($weeksToRun as $w) {
+            $withMolasses = $molWeek === null || $w === $molWeek;
+            foreach (PlanterProceeds::summary($cropYear, $w, $w, null, $boughtWeek, $withMolasses) as $record) {
+                $records->push($record);
+                $planterCodes[strtoupper(preg_replace('/\s+/', ' ', trim((string) $record['planter_code'])))] = true;
+            }
+        }
+        // Laid out like the mill's consolidated statement. Each amount is rounded per voucher, as printed,
+        // then added up. The voucher's molasses "Insurance / Handling" (120.00/MT + 30.00) is split:
+        // the 30.00 per planter with molasses goes to INSURANCE, the 120.00/MT to HANDLING FEE.
+        // The 7.00/ton additional service charge (trans codes 06/08/25/36/38) is kept off the mill
+        // deductions and taken off with the trucking allowance, so the grand total still equals the vouchers.
+        $sum['handling'] = 0.0;
+        $sum['additional'] = 0.0;
+        $sum['storage'] = 0.0;
+        // Quedans and molasses (Week Bought rule): gross proceeds down to net proceeds before trucking
         foreach ($records as $record) {
             $p = PlanterProceeds::compute($record);
-            $sum['sugar'] += $p['quedanGrossProceeds'];
-            $sum['molasses'] += $p['molasses_gross'];
-            $sum['liens'] += $p['quedanTotalLiens'] + $p['molasses_liens'];
-            $sum['insurance'] += $p['quedanTotalInsurance'] + $p['molasses_insurance'];
-            $sum['tax'] += $p['quedanTotalTax'] + $p['molasses_tax'];
-            $sum['service'] += $p['quedanTotalServiceCharge'] + $p['molasses_service'];
-            $sum['trucking'] += $p['consolidated_display'];
-            $sum['fuel'] += $p['consolidated_fuel_amount'];
-            $sum['net'] += $p['totalNetProceeds'];
-            $sum['loan'] += $p['loanPayment'];
-            $sum['ca'] += $p['caPayment'];
-            $sum['others'] += $p['othersPayment'];
-            $sum['fuel_ac'] += $p['fuelPayment'];
-            $sum['net_paid'] += $p['netProceedsPaid'];
+            $hasMolasses = $p['mol_net'] > 0;
+            $additional = round((float) $p['trucking_additional_charge'], 2);
+
+            $sum['sugar'] += round($p['quedanGrossProceeds'], 2);
+            $sum['molasses'] += round($p['molasses_gross'], 2);
+            $sum['liens'] += round($p['quedanTotalLiens'] + $p['molasses_liens'], 2);
+            $sum['insurance'] += round($p['quedanTotalInsurance'], 2) + ($hasMolasses ? self::MOLASSES_INSURANCE_PER_PLANTER : 0);
+            $sum['handling'] += $hasMolasses ? round($p['mol_net'] * self::MOLASSES_HANDLING_PER_MT, 2) : 0;
+            $sum['tax'] += round($p['quedanTotalTax'], 2) + round($p['molasses_tax'], 2);
+            $sum['service'] += round($p['quedanTotalServiceCharge'] - $additional, 2) + round($p['molasses_service'], 2);
+        }
+
+        // Week No.: trucking allowance, fuel issuance, trans-code service charge and accounts applied of
+        // that week (every week when All Weeks), as on that week's vouchers and Planter Accnt. Applied
+        $truckingWeeks = $week !== null ? [$week] : $allWeeks;
+        // Trucking allowance and fuel issuance: the Total and Fuel columns of the Trucking Allowance Report
+        // (consolidated uploads) for the Week No., so the two reports tally
+        $truckingWeekValues = collect($truckingWeeks)
+            ->flatMap(fn ($w) => [(string) $w, str_pad((string) $w, 2, '0', STR_PAD_LEFT)])
+            ->uniqueStrict()->values()->all();
+        $uploads = \App\Models\ConsolidatedUpload::where('crop_year', $cropYear)
+            ->whereIn('week_no', $truckingWeekValues)
+            ->get(['total_summary', 'fuel_issuance_amt']);
+        $sum['trucking'] = $uploads->sum(fn ($u) => round((float) $u->total_summary, 2));
+        $sum['fuel'] = $uploads->sum(fn ($u) => round((float) $u->fuel_issuance_amt, 2));
+        foreach ($truckingWeeks as $w) {
+            foreach (PlanterProceeds::summary($cropYear, $w, $w) as $record) {
+                $p = PlanterProceeds::compute($record);
+                $sum['additional'] += round((float) $p['trucking_additional_charge'], 2);
+                $sum['loan'] += round($p['loanPayment'], 2);
+                $sum['ca'] += round($p['caPayment'], 2);
+                $sum['others'] += round($p['othersPayment'], 2);
+                $sum['fuel_ac'] += round($p['fuelPayment'], 2);
+            }
         }
         $t = array_map(fn ($v) => round($v, 2), $sum);
         $t['gross'] = round($t['sugar'] + $t['molasses'], 2);
-        $t['quedan_liens'] = round($t['liens'] + $t['insurance'], 2);
-        $t['other_charges'] = round($t['tax'] + $t['service'], 2);
+        $t['quedan_liens'] = round($t['liens'] + $t['insurance'] + $t['handling'], 2);
+        $t['other_charges'] = round($t['tax'] + $t['service'] + $t['storage'], 2);
         $t['deductions'] = round($t['quedan_liens'] + $t['other_charges'], 2);
         $t['net_before'] = round($t['gross'] - $t['deductions'], 2);
+        $t['net'] = round($t['net_before'] + $t['trucking'] - $t['fuel'] - $t['additional'], 2);
         $t['accounts'] = round($t['loan'] + $t['ca'] + $t['others'] + $t['fuel_ac'], 2);
+        $t['net_paid'] = round($t['net'] - $t['accounts'], 2);
 
         $volumes = [
             'sugar_gross' => round((float) $sugar->gross, 3),
@@ -206,20 +274,25 @@ class ProceedsDeductionsController extends Controller
             'quedans' => (int) $sugar->quedans,
         ];
 
-        $weekEnd = WeekNo::where('crop_year', $cropYear)->whereIn('week_no', $weekValues)->value('week_end_date');
+        $weekEnd = $weekValues !== null
+            ? WeekNo::where('crop_year', $cropYear)->whereIn('week_no', $weekValues)->value('week_end_date')
+            : null;
+        $planterCount = count($planterCodes);
 
         AuditLog::log('print', 'reports', 'Generated consolidated proceeds and deductions report', [
             'crop_year' => $cropYear,
-            'week' => $week,
-            'planters' => $records->count(),
+            'week' => $week ?? 'all',
+            'planters' => $planterCount,
             'bought_week' => $boughtWeek,
         ]);
 
         $pdf = Pdf::loadView('pdf.proceeds-deductions-consolidated', [
             't' => $t,
             'volumes' => $volumes,
-            'planterCount' => $records->count(),
+            'planterCount' => $planterCount,
             'boughtWeek' => $boughtWeek,
+            'molWeek' => $molWeek,
+            'handlingRate' => self::MOLASSES_HANDLING_PER_MT,
             'cropYear' => $cropYear,
             'week' => $week,
             'weekEnding' => $weekEnd ? Carbon::parse($weekEnd)->format('m-d-Y') : '',
@@ -227,10 +300,37 @@ class ProceedsDeductionsController extends Controller
             'org' => config('kusugpa'),
         ])->setPaper('letter', 'portrait');
 
-        $filename = 'proceeds-deductions-consolidated-' . $cropYear . '-wk' . str_pad($week, 2, '0', STR_PAD_LEFT)
+        $filename = 'proceeds-deductions-consolidated-' . $cropYear
+            . ($week !== null ? '-wk' . str_pad($week, 2, '0', STR_PAD_LEFT) : '-all-weeks')
             . ($boughtWeek ? '-bought-wk' . str_pad($boughtWeek, 2, '0', STR_PAD_LEFT) : '') . '.pdf';
 
         return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
+    }
+
+    /**
+     * Every week number of a crop year that has a week set up or any quedan, molasses,
+     * trucking or consolidated upload ("3" and "03" count as the same week)
+     *
+     * @return int[]
+     */
+    private function allWeeks(string $cropYear): array
+    {
+        $sources = [
+            WeekNo::where('crop_year', $cropYear),
+            Quedan::where('crop_year', $cropYear),
+            Molass::where('crop_year', $cropYear),
+            \App\Models\TruckingAllowance::where('crop_year', $cropYear),
+            \App\Models\ConsolidatedUpload::where('crop_year', $cropYear),
+        ];
+
+        return collect($sources)
+            ->flatMap(fn ($q) => $q->distinct()->pluck('week_no'))
+            ->map(fn ($w) => (int) $w)
+            ->filter(fn ($w) => $w >= 1)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     /**

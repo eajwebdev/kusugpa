@@ -8,6 +8,7 @@ use App\Models\PlanterDeduction;
 use App\Models\PlanterProfile;
 use App\Models\User;
 use App\Models\WeekNo;
+use App\Services\PlanterProfileSync;
 use App\Support\TableFeed;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -110,6 +111,9 @@ class PlanterDeductionController extends Controller
         abort_unless($this->canManage(), 403, 'Unauthorized');
 
         $data = $this->validated($request);
+        if ($warning = $this->duplicateWarning($request, $data)) {
+            return $warning;
+        }
         $deduction = new PlanterDeduction([
             'type' => $data['type'],
             'reference_no' => PlanterDeduction::generateReferenceNo($data['type']),
@@ -131,6 +135,9 @@ class PlanterDeductionController extends Controller
         abort_unless($this->canManage(), 403, 'Unauthorized');
 
         $data = $this->validated($request, $deduction);
+        if ($warning = $this->duplicateWarning($request, $data, $deduction)) {
+            return $warning;
+        }
         DB::transaction(fn () => $this->save($deduction, $data));
 
         AuditLog::log('update', 'planter_deductions', 'Updated ' . $deduction->type . ' deduction #' . $deduction->reference_no, $this->auditDetails($deduction, $data));
@@ -193,6 +200,59 @@ class PlanterDeductionController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * The same planter already has a deduction of this type in one of the scheduled weeks. "Same planter" is
+     * the code ignoring leading zeros and spaces (9997 = 09997) or the same name, so a planter listed twice
+     * under two codes is caught. Answers 409 with the matches until the user confirms (confirm_duplicate).
+     */
+    private function duplicateWarning(Request $request, array $data, ?PlanterDeduction $existing = null)
+    {
+        if ($request->boolean('confirm_duplicate')) {
+            return null;
+        }
+
+        $weeks = collect($data['schedule'])->pluck('week_no')->map(fn ($w) => (string) $w);
+        $weekKeys = $weeks->map(fn ($w) => (int) $w)->all();
+        $codeKey = PlanterProfileSync::key($data['planter_code']);
+        $nameKey = $this->nameKey($data['planter_name']);
+
+        $matches = PlanterDeduction::where('type', $data['type'])
+            ->where('crop_year', $data['crop_year'])
+            ->when($existing, fn ($q) => $q->where('id', '!=', $existing->id))
+            ->whereHas('weeks', fn ($q) => $q->whereIn('week_no', $weeks->merge($weeks->map(fn ($w) => str_pad($w, 2, '0', STR_PAD_LEFT)))->unique()->values()))
+            ->with('weeks')
+            ->get()
+            ->filter(fn ($d) => PlanterProfileSync::key($d->planter_code) === $codeKey || $this->nameKey($d->planter_name) === $nameKey)
+            ->map(fn ($d) => [
+                'reference_no' => $d->reference_no,
+                'planter_code' => $d->planter_code,
+                'planter_name' => $d->planter_name,
+                'amount' => (float) $d->amount,
+                'weeks' => $d->weeks->pluck('week_no')->map(fn ($w) => (string) $w)
+                    ->filter(fn ($w) => in_array((int) $w, $weekKeys, true))->values()->all(),
+            ])
+            ->values();
+
+        if ($matches->isEmpty()) {
+            return null;
+        }
+
+        $label = PlanterDeduction::TYPES[$data['type']] ?? ucfirst($data['type']);
+
+        return response()->json([
+            'duplicate' => true,
+            'message' => trim($data['planter_name']) . ' (' . trim($data['planter_code']) . ') already has a ' . strtolower($label)
+                . ' deduction in the same week. Saving again may deduct it twice on the Check Voucher.',
+            'matches' => $matches,
+        ], 409);
+    }
+
+    /** Planter name compared without case, extra spaces or punctuation */
+    private function nameKey($name): string
+    {
+        return preg_replace('/[^A-Z0-9]/', '', mb_strtoupper(trim((string) $name)));
     }
 
     /** Save the deduction and replace its weekly schedule; call inside a transaction */

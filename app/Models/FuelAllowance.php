@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class FuelAllowance extends Model
 {
+    use \App\Models\Concerns\NormalizesPlanterCode;
+
     use HasFactory;
 
     protected $table = 'fuel_allowance';

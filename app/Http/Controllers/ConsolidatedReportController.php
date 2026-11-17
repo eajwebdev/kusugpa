@@ -113,6 +113,9 @@ class ConsolidatedReportController extends Controller
         $pdf = Pdf::loadView('pdf.consolidated-report', [
             'uploads' => $parts->items(),
             'totalRows' => $uploads->count(),
+            // Grand total of the Total column over every matching row, printed at the end of the last part
+            'grandTotal' => round($uploads->sum(fn ($u) => round((float) $u->total_summary, 2)), 2),
+            'isLastPart' => $parts->isLast(),
             'partLabel' => $parts->label(),
             'generatedDate' => now()->format('F d, Y H:i:s'),
         ])->setPaper('a3', 'landscape');

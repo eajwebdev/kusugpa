@@ -227,6 +227,31 @@ class PlanterDeductionsTest extends TestCase
         $this->assertSame(3, DB::table('planter_deduction_weeks')->count());
     }
 
+    public function test_same_planter_same_week_warns_before_saving_a_second_deduction(): void
+    {
+        $this->createDeduction('fuel', 100, [3 => 100])->assertCreated();
+
+        // Same planter under a code without the leading zeros, same week: warned, nothing saved
+        $second = [
+            'type' => 'fuel', 'planter_code' => '123', 'planter_name' => 'Dela Cruz, Juan', 'crop_year' => '20262027',
+            'amount' => 50, 'schedule' => [['week_no' => '3', 'amount' => 50]],
+        ];
+        $this->postJson(route('planter-deductions.store'), $second)
+            ->assertStatus(409)
+            ->assertJsonPath('duplicate', true)
+            ->assertJsonPath('matches.0.planter_code', '00123')
+            ->assertJsonPath('matches.0.weeks', ['3']);
+        $this->assertSame(1, DB::table('planter_deductions')->count());
+
+        // Another week, or another type, is not a duplicate
+        $this->postJson(route('planter-deductions.store'), ['schedule' => [['week_no' => '4', 'amount' => 50]]] + $second)->assertCreated();
+        $this->postJson(route('planter-deductions.store'), ['type' => 'others'] + $second)->assertCreated();
+
+        // Confirmed by the user: saved
+        $this->postJson(route('planter-deductions.store'), $second + ['confirm_duplicate' => true])->assertCreated();
+        $this->assertSame(4, DB::table('planter_deductions')->count());
+    }
+
     public function test_voucher_deducts_fuel_and_others_of_its_weeks(): void
     {
         $this->createDeduction('fuel', 300, [3 => 100, 4 => 200])->assertCreated();
@@ -510,15 +535,15 @@ class PlanterDeductionsTest extends TestCase
             ->assertJsonPath('imported', 2)
             ->assertJsonPath('fuel_deductions', 2);
 
-        // Stored like the other uploads' codes, without leading zeros
-        $this->assertSame('123', DB::table('fuel_allowance')->orderBy('id')->value('planter_code'));
+        // Stored as 5-digit codes with leading zeros, like every other upload
+        $this->assertSame('00123', DB::table('fuel_allowance')->orderBy('id')->value('planter_code'));
         $this->assertEquals(20.5, (float) DB::table('fuel_allowance')->orderBy('id')->value('liters'));
 
         $uploaded = PlanterDeduction::where('source', 'upload')->with('weeks')->orderBy('id')->get();
         $this->assertCount(2, $uploaded);
         $year = date('Y');
         $this->assertSame(["FD{$year}0002", "FD{$year}0003"], $uploaded->pluck('reference_no')->all());
-        $this->assertSame('123', $uploaded[0]->planter_code);
+        $this->assertSame('00123', $uploaded[0]->planter_code);
         $this->assertSame('DELA CRUZ, JUAN', $uploaded[0]->planter_name);
 
         // Still comes off the voucher of the planter whose quedan code is 00123

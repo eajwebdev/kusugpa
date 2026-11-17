@@ -131,6 +131,8 @@ class PlanterProfileController extends Controller
      */
     public function store(Request $request)
     {
+        // 5-digit code with leading zeros before the unique check (9997 = 09997)
+        $request->merge(['planter_code' => \App\Support\PlanterCode::normalize($request->input('planter_code'))]);
         $request->validate([
             'planter_code' => 'required|string|unique:planter_profiles,planter_code',
             'planter_name' => 'required|string|max:255',
@@ -159,6 +161,7 @@ class PlanterProfileController extends Controller
      */
     public function update(Request $request, PlanterProfile $planter)
     {
+        $request->merge(['planter_code' => \App\Support\PlanterCode::normalize($request->input('planter_code'))]);
         $request->validate([
             'planter_code' => 'required|string|unique:planter_profiles,planter_code,' . $planter->id,
             'planter_name' => 'required|string|max:255',

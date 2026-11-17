@@ -9,6 +9,8 @@ use App\Models\CashAdvanceAmortization;
 
 class CashAdvance extends Model
 {
+    use \App\Models\Concerns\NormalizesPlanterCode;
+
     use HasFactory;
 
     protected $table = 'cash_advances';

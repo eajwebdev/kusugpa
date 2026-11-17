@@ -27,8 +27,10 @@ class PlanterProceeds
      * With $boughtWeek, only quedans and molasses bought in that week count (the "Week Bought" rule of
      * the Registry / Buy pages) and only planters with such a quedan or molasses are listed.
      */
-    public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null, $boughtWeek = null): Collection
+    public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null, $boughtWeek = null, ?bool $includeMolasses = null): Collection
     {
+        // $includeMolasses: null = molasses follow the Week Bought rule like quedans (default);
+        // true = all bought molasses of the weeks, regardless of Week Bought; false = no molasses
         $from = min((int) $weekFrom, (int) $weekTo);
         $to = max((int) $weekFrom, (int) $weekTo);
         // An IN list keeps MySQL on the (crop_year, week_no) indexes. Casting the
@@ -60,6 +62,11 @@ class PlanterProceeds
 
         $quedans = $quedanQuery->get();
 
+        // The bought week's price each quedan was bought at (Price Management), as it stands now
+        $boughtPrices = QuedanPrice::whereIn('id', $quedans->pluck('quedan_price_id')->filter()->unique()->values())
+            ->get(['id', 'quedan_type', 'quedan_price'])
+            ->keyBy('id');
+
         // Types are matched regardless of case ("b" = "B"); the latest price entered wins
         $quedanPrices = QuedanPrice::where('crop_year', $cropYear)
             ->whereIn('week_no', $weekValues)
@@ -74,7 +81,9 @@ class PlanterProceeds
         if (!empty($planterNames)) {
             $molassesQuery->whereIn('molasses.planter_code', (array) $planterNames);
         }
-        if ($byBoughtWeek) {
+        if ($includeMolasses === false) {
+            $molassesQuery->whereRaw('1 = 0');
+        } elseif ($byBoughtWeek && $includeMolasses === null) {
             $molassesQuery->boughtInWeek($cropYear, $boughtWeek);
         }
 
@@ -111,11 +120,12 @@ class PlanterProceeds
         $summaryData = [];
 
         foreach ($quedans as $quedan) {
-            $key = $quedan->planter_code;
+            // One record per planter: codes that differ only in leading zeros or spaces (9997 = 09997) are the same planter
+            $key = PlanterProfileSync::key($quedan->planter_code);
 
             if (!isset($summaryData[$key])) {
                 $summaryData[$key] = [
-                    'planter_code' => $quedan->planter_code,
+                    'planter_code' => \App\Support\PlanterCode::normalize($quedan->planter_code),
                     'planter_name' => $quedan->planter_name,
                     'tin_no' => $quedan->tin_no,
                     'week_no' => $weekFrom . ' - ' . $weekTo,
@@ -152,6 +162,13 @@ class PlanterProceeds
                 ];
             }
 
+            $boughtPrice = $quedan->quedan_price_id ? $boughtPrices->get($quedan->quedan_price_id) : null;
+            if ($boughtPrice) {
+                // Priced at its bought week's price, so a price corrected in Price Management carries over
+                self::addQuedan($summaryData[$key], self::quedanType($boughtPrice->quedan_type), $quedan, (float) $boughtPrice->quedan_price);
+                continue;
+            }
+
             if ($quedan->sold_price !== null) {
                 // Bought at the price picked on Buy Quedan: that price and type only
                 self::addQuedan($summaryData[$key], self::quedanType($quedan->sold_price_type), $quedan, (float) $quedan->sold_price);
@@ -172,11 +189,12 @@ class PlanterProceeds
         }
 
         foreach ($molasses as $mol) {
-            $key = $mol->planter_code;
+            // One record per planter: codes that differ only in leading zeros or spaces (9997 = 09997) are the same planter
+            $key = PlanterProfileSync::key($mol->planter_code);
 
             if (!isset($summaryData[$key])) {
                 $summaryData[$key] = [
-                    'planter_code' => $mol->planter_code,
+                    'planter_code' => \App\Support\PlanterCode::normalize($mol->planter_code),
                     'planter_name' => $mol->planter_name,
                     'tin_no' => $mol->tin_no,
                     'week_no' => $weekFrom . ' - ' . $weekTo,
@@ -202,11 +220,12 @@ class PlanterProceeds
         }
 
    foreach ($consolidatedUploads as $consolidated) {
-        $key = $consolidated->planter_code;
+        // One record per planter: codes that differ only in leading zeros or spaces (9997 = 09997) are the same planter
+        $key = PlanterProfileSync::key($consolidated->planter_code);
 
         if (!isset($summaryData[$key])) {
             $summaryData[$key] = [
-                'planter_code' => $consolidated->planter_code,
+                'planter_code' => \App\Support\PlanterCode::normalize($consolidated->planter_code),
                 'planter_name' => $consolidated->planter_name,
                 'tin_no' => '',
                 'week_no' => $weekFrom . ' - ' . $weekTo,
@@ -234,11 +253,12 @@ class PlanterProceeds
 }
 
         foreach ($truckingAllowances as $trucking) {
-        $key = $trucking->planter_code;
+        // One record per planter: codes that differ only in leading zeros or spaces (9997 = 09997) are the same planter
+        $key = PlanterProfileSync::key($trucking->planter_code);
 
         if (!isset($summaryData[$key])) {
             $summaryData[$key] = [
-                'planter_code' => $trucking->planter_code,
+                'planter_code' => \App\Support\PlanterCode::normalize($trucking->planter_code),
                 'planter_name' => $trucking->planter_name,
                 'tin_no' => '',
                 'week_no' => $weekFrom . ' - ' . $weekTo,
@@ -274,8 +294,9 @@ class PlanterProceeds
 
         // By week bought, a planter is listed only for the quedans / molasses bought that week
         if ($byBoughtWeek) {
-            $boughtCodes = $quedans->pluck('planter_code')->merge($molasses->pluck('planter_code'))->flip();
-            $summaryData = array_filter($summaryData, fn ($data) => $boughtCodes->has($data['planter_code']));
+            $boughtCodes = $quedans->pluck('planter_code')->merge($molasses->pluck('planter_code'))
+                ->map(fn ($code) => PlanterProfileSync::key($code))->flip();
+            $summaryData = array_filter($summaryData, fn ($data) => $boughtCodes->has(PlanterProfileSync::key($data['planter_code'])));
         }
 
         $summaryData = collect(array_values($summaryData));
@@ -361,12 +382,12 @@ class PlanterProceeds
                 ->whereHas('loan', fn ($q) => $q->where('crop_year', $cropYear)->whereIn('status', ['approved', 'active', 'completed']))
                 ->with('loan:id,planter_code')
                 ->get()
-                ->groupBy(fn ($a) => $a->loan->planter_code)
+                ->groupBy(fn ($a) => PlanterProfileSync::key($a->loan->planter_code))
                 ->map(fn ($rows) => round((float) $rows->sum('amount_due'), 2));
         }
 
         $summaryData = $summaryData->map(function ($data) use ($loanDue) {
-            $data['loan_deduction'] = $loanDue[$data['planter_code']] ?? 0;
+            $data['loan_deduction'] = $loanDue[PlanterProfileSync::key($data['planter_code'])] ?? 0;
             return $data;
         });
 
@@ -454,7 +475,8 @@ class PlanterProceeds
         $molasses_gross = $mol_net * $mol_price;
         $molasses_liens = $record['molasses_liens'] ?? 0;
         $molasses_service = $mol_net * 20.0;
-        $molasses_insurance = $mol_net * 120.0 + 30.0;
+        // 120.00 per MT + 30.00 handling, only when the planter has molasses
+        $molasses_insurance = $mol_net > 0 ? $mol_net * 120.0 + 30.0 : 0.0;
         $molasses_tax = $mol_net * $mol_price * 0.01;
         $molasses_total_deductions = $molasses_liens + $molasses_service + $molasses_insurance + $molasses_tax;
         $molasses_net = $molasses_gross - $molasses_total_deductions;

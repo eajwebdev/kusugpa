@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class VoucherBatchItem extends Model
 {
+    use \App\Models\Concerns\NormalizesPlanterCode;
+
     protected $fillable = [
         'voucher_batch_id', 'crop_year', 'week_from', 'week_to',
         'planter_code', 'planter_name', 'net_paid', 'receiver_name',

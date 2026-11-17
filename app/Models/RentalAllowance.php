@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class RentalAllowance extends Model
 {
+    use \App\Models\Concerns\NormalizesPlanterCode;
+
     use HasFactory;
 
     protected $table = 'rental_allowance';
