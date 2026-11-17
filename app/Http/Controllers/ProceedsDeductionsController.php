@@ -44,8 +44,10 @@ class ProceedsDeductionsController extends Controller
     {
         $cropYear = CropYear::pluck('crop_year');
         $weeks = WeekNo::byCropYear();
+        // Same "Week Bought" options as the Quedan & Molasses Registry
+        $boughtWeeks = $cropYear->mapWithKeys(fn ($year) => [(string) $year => WeekNo::boughtWeekOptions((string) $year, true)]);
 
-        return view('reports.proceeds-deductions', compact('cropYear', 'weeks'));
+        return view('reports.proceeds-deductions', compact('cropYear', 'weeks', 'boughtWeeks'));
     }
 
     public function pdf(Request $request)
@@ -54,9 +56,11 @@ class ProceedsDeductionsController extends Controller
             'crop_year' => 'required|string',
             'week_no' => 'required|integer|min:1',
             'date_issued' => 'nullable|date',
+            'bought_week' => 'nullable|integer|min:1',
         ]);
         $cropYear = $data['crop_year'];
         $week = (int) $data['week_no'];
+        $boughtWeek = $data['bought_week'] ?? null;
 
         // Weeks of the crop year up to the selected one (week 1.. when none are set up)
         $weeks = WeekNo::where('crop_year', $cropYear)->pluck('week_no')
@@ -68,7 +72,7 @@ class ProceedsDeductionsController extends Controller
         $thisWeek = collect();
         $toDate = collect();
         foreach ($weeks as $w) {
-            $lines = $this->weekLines($cropYear, $w);
+            $lines = $this->weekLines($cropYear, $w, $boughtWeek);
             if ($w === $week) {
                 $thisWeek = $lines;
             }
@@ -109,6 +113,7 @@ class ProceedsDeductionsController extends Controller
             'crop_year' => $cropYear,
             'week' => $week,
             'weeks_to_date' => $weeks->first() . ' - ' . $weeks->last(),
+            'bought_week' => $boughtWeek,
             'planters' => $planters->count(),
             'part' => $parts->label() ?: 'whole',
         ]);
@@ -123,13 +128,15 @@ class ProceedsDeductionsController extends Controller
             'columns' => self::COLUMNS,
             'cropYear' => $cropYear,
             'week' => $week,
+            'boughtWeek' => $boughtWeek,
             'toDateLabel' => 'WK ' . $weeks->first() . '-' . $weeks->last(),
             'weekEnding' => $weekEnd ? Carbon::parse($weekEnd)->format('m-d-Y') : '',
             'dateIssued' => Carbon::parse($data['date_issued'] ?? now())->format('m-d-Y'),
             'org' => config('kusugpa'),
         ])->setPaper('legal', 'landscape');
 
-        $filename = $parts->filename('proceeds-deductions-' . $cropYear . '-wk' . str_pad($week, 2, '0', STR_PAD_LEFT));
+        $filename = $parts->filename('proceeds-deductions-' . $cropYear . '-wk' . str_pad($week, 2, '0', STR_PAD_LEFT)
+            . ($boughtWeek ? '-bought-wk' . str_pad($boughtWeek, 2, '0', STR_PAD_LEFT) : ''));
 
         return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
     }
@@ -144,20 +151,28 @@ class ProceedsDeductionsController extends Controller
             'crop_year' => 'required|string',
             'week_no' => 'required|integer|min:1',
             'date_issued' => 'nullable|date',
+            'bought_week' => 'nullable|integer|min:1',
         ]);
         $cropYear = $data['crop_year'];
         $week = (int) $data['week_no'];
+        $boughtWeek = $data['bought_week'] ?? null;
         $weekValues = array_values(array_unique([(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)]));
 
         // Volumes straight from the bought quedans and molasses of the week
-        $sugar = Quedan::notPending()->where('crop_year', $cropYear)->whereIn('week_no', $weekValues)
+        $sugarQuery = Quedan::notPending()->where('crop_year', $cropYear)->whereIn('week_no', $weekValues);
+        $molassesQuery = Molass::notPending()->where('crop_year', $cropYear)->whereIn('week_no', $weekValues);
+        if ($boughtWeek) {
+            $sugarQuery->boughtInWeek($cropYear, $boughtWeek);
+            $molassesQuery->boughtInWeek($cropYear, $boughtWeek);
+        }
+        $sugar = $sugarQuery
             ->selectRaw('COALESCE(SUM(sugar_lkg), 0) AS gross, COALESCE(SUM(labor_lkg), 0) AS labor, COUNT(*) AS quedans')
             ->first();
-        $molassesVolume = (float) Molass::notPending()->where('crop_year', $cropYear)->whereIn('week_no', $weekValues)->sum('mol_net');
+        $molassesVolume = (float) $molassesQuery->sum('mol_net');
 
         // Amounts as on each planter's Check Voucher, added up
         $sum = array_fill_keys(['sugar', 'molasses', 'liens', 'insurance', 'tax', 'service', 'trucking', 'fuel', 'net', 'loan', 'ca', 'others', 'fuel_ac', 'net_paid'], 0.0);
-        $records = PlanterProceeds::summary($cropYear, $week, $week);
+        $records = PlanterProceeds::summary($cropYear, $week, $week, null, $boughtWeek);
         foreach ($records as $record) {
             $p = PlanterProceeds::compute($record);
             $sum['sugar'] += $p['quedanGrossProceeds'];
@@ -197,12 +212,14 @@ class ProceedsDeductionsController extends Controller
             'crop_year' => $cropYear,
             'week' => $week,
             'planters' => $records->count(),
+            'bought_week' => $boughtWeek,
         ]);
 
         $pdf = Pdf::loadView('pdf.proceeds-deductions-consolidated', [
             't' => $t,
             'volumes' => $volumes,
             'planterCount' => $records->count(),
+            'boughtWeek' => $boughtWeek,
             'cropYear' => $cropYear,
             'week' => $week,
             'weekEnding' => $weekEnd ? Carbon::parse($weekEnd)->format('m-d-Y') : '',
@@ -210,7 +227,8 @@ class ProceedsDeductionsController extends Controller
             'org' => config('kusugpa'),
         ])->setPaper('letter', 'portrait');
 
-        $filename = 'proceeds-deductions-consolidated-' . $cropYear . '-wk' . str_pad($week, 2, '0', STR_PAD_LEFT) . '.pdf';
+        $filename = 'proceeds-deductions-consolidated-' . $cropYear . '-wk' . str_pad($week, 2, '0', STR_PAD_LEFT)
+            . ($boughtWeek ? '-bought-wk' . str_pad($boughtWeek, 2, '0', STR_PAD_LEFT) : '') . '.pdf';
 
         return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
     }
@@ -218,9 +236,9 @@ class ProceedsDeductionsController extends Controller
     /**
      * One week's voucher figures per planter, keyed by planter code (spacing / case ignored)
      */
-    private function weekLines(string $cropYear, int $week): Collection
+    private function weekLines(string $cropYear, int $week, $boughtWeek = null): Collection
     {
-        return PlanterProceeds::summary($cropYear, $week, $week)
+        return PlanterProceeds::summary($cropYear, $week, $week, null, $boughtWeek)
             ->mapWithKeys(function ($record) {
                 $p = PlanterProceeds::compute($record);
                 $key = strtoupper(preg_replace('/\s+/', ' ', trim((string) $record['planter_code'])));

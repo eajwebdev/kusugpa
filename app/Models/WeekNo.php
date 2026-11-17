@@ -33,6 +33,51 @@ class WeekNo extends Model
     }
 
     /**
+     * [start, end] dates of a crop year week, or null when the week has no dates
+     */
+    public static function dateRange($cropYear, $weekNo): ?array
+    {
+        $week = static::where('crop_year', $cropYear)->where('week_no', (string) $weekNo)->first();
+
+        return $week && $week->week_start_date && $week->week_end_date
+            ? [$week->week_start_date, $week->week_end_date]
+            : null;
+    }
+
+    /**
+     * Weeks for a "Week Bought" dropdown, newest first: the crop year's weeks that have started,
+     * plus, for quedans, any week with a quedan price (a quedan's bought week is its price's week).
+     * Shared by the Registry / Buy pages and the Proceeds & Deductions report.
+     */
+    public static function boughtWeekOptions(?string $cropYear, bool $withPriceWeeks = false)
+    {
+        if (!$cropYear) {
+            return collect();
+        }
+
+        $weeks = static::where('crop_year', $cropYear)
+            ->get(['week_no', 'week_start_date', 'week_end_date'])
+            ->keyBy(fn ($w) => (string) $w->week_no);
+
+        $weekNos = $weeks->filter(fn ($w) => $w->week_start_date && \Carbon\Carbon::parse($w->week_start_date)->lte(now()))->keys();
+        if ($withPriceWeeks) {
+            $weekNos = $weekNos->merge(QuedanPrice::where('crop_year', $cropYear)->distinct()->pluck('week_no')->map(fn ($w) => (string) $w));
+        }
+
+        return $weekNos->unique()
+            ->sortByDesc(fn ($w) => (int) $w)
+            ->map(function ($weekNo) use ($weeks) {
+                $w = $weeks->get($weekNo);
+                $dates = $w && $w->week_start_date && $w->week_end_date
+                    ? ' (' . \Carbon\Carbon::parse($w->week_start_date)->format('M j') . ' – ' . \Carbon\Carbon::parse($w->week_end_date)->format('M j') . ')'
+                    : '';
+
+                return ['week_no' => (string) $weekNo, 'label' => 'Week ' . $weekNo . $dates];
+            })
+            ->values();
+    }
+
+    /**
      * Every crop year's weeks in order, for report pages that list only the selected crop year's weeks
      *
      * @return \Illuminate\Support\Collection<int, array{crop_year: string, week_no: string}>

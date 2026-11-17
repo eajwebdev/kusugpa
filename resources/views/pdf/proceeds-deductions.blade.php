@@ -119,7 +119,7 @@
                     </td>
                     <td class="center" style="width: 40%; vertical-align: top">
                         <div style="font-size: 11pt; font-weight: bold; letter-spacing: 1px">PROCEEDS &amp; DEDUCTIONS</div>
-                        <div>CROP YEAR {{ $cropYear }} · WEEK {{ $week }}{{ $weekEnding ? ' (ending ' . $weekEnding . ')' : '' }} · TO DATE {{ $toDateLabel }}</div>
+                        <div>CROP YEAR {{ $cropYear }} · WEEK {{ $week }}{{ $weekEnding ? ' (ending ' . $weekEnding . ')' : '' }}{!! !empty($boughtWeek) ? ' · BOUGHT WEEK ' . e($boughtWeek) : '' !!} · TO DATE {{ $toDateLabel }}</div>
                     </td>
                     <td class="num" style="width: 30%; vertical-align: top">
                         <div>DATE ISSUED: {{ $dateIssued }}</div>

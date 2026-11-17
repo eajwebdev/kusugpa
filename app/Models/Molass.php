@@ -23,4 +23,17 @@ class Molass extends Model
     {
         return $query->where($query->qualifyColumn('status'), '!=', 'pending');
     }
+
+    /**
+     * "Week Bought": molasses whose bought_at falls inside the week (week_start_date .. week_end_date).
+     * Used by the Registry / Buy pages and the Proceeds & Deductions report, so both tally.
+     */
+    public function scopeBoughtInWeek($query, $cropYear, $boughtWeek)
+    {
+        $range = WeekNo::dateRange($cropYear, $boughtWeek);
+
+        return $range
+            ? $query->whereBetween($query->qualifyColumn('bought_at'), $range)
+            : $query->whereRaw('1 = 0');
+    }
 }

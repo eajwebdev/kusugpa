@@ -34,12 +34,12 @@
             </div>
 
             <form @submit.prevent="preview()" class="space-y-5">
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
                             <i class="fas fa-calendar-alt text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Crop Year <span class="text-rose-600">*</span>
                         </label>
-                        <select x-model="filters.crop_year" @change="filters.week_no = ''" class="kp-input w-full">
+                        <select x-model="filters.crop_year" @change="filters.week_no = ''; filters.bought_week = ''" class="kp-input w-full">
                             <option value="">Select Crop Year</option>
                             @foreach ($cropYear as $year)
                                 <option value="{{ $year }}">{{ $year }}</option>
@@ -58,6 +58,20 @@
                         </select>
                         <p class="text-[11px] mt-1 text-[#52705F] dark:text-[#8AA895]" x-show="filters.week_no"
                             x-text="'To date: week ' + (cropWeeks[0] || 1) + ' to week ' + filters.week_no"></p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
+                            <i class="fas fa-cart-shopping text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week Bought
+                        </label>
+                        <select x-model="filters.bought_week" :disabled="!filters.crop_year" class="kp-input w-full disabled:opacity-50">
+                            <option value="" x-text="filters.crop_year ? 'All Week Bought' : 'Select crop year first'"></option>
+                            <template x-for="wk in boughtWeekOptions" :key="wk.week_no">
+                                <option :value="wk.week_no" x-text="wk.label"></option>
+                            </template>
+                        </select>
+                        <p class="text-[11px] mt-1 text-[#52705F] dark:text-[#8AA895]" x-show="filters.bought_week">
+                            Only quedans and molasses bought that week, same as Week Bought on the Registry.
+                        </p>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
@@ -91,6 +105,7 @@
                 <li><b>Mill deductions:</b> liens, service charge, insurance and tax; fuel issuance; Net Proceeds.</li>
                 <li><b>Accounts applied:</b> Loan Payment, Cash Advance, Others and Fuel A/C; then Net Paid, the check amount.</li>
                 <li><b>Per Planter:</b> each planter has a <b>This Week</b> line and a <b>To Date</b> line. To date adds up each week's Check Voucher, with totals at the end.</li>
+                <li><b>Week Bought</b> (optional): counts only the quedans and molasses bought in that week, the same rule as Week Bought on the Quedan &amp; Molasses Registry, so the two tally. Planters with nothing bought that week are left out.</li>
                 <li><b>Consolidated:</b> the grand totals of the selected week on one page — sugar and molasses volumes, gross proceeds, liens and charges, trucking allowance, fuel, grand total net proceeds and net paid.</li>
             </ul>
         </div>
@@ -100,20 +115,25 @@
         <script>
             function proceedsDeductions() {
                 const weeks = @json($weeks);
+                const boughtWeeks = @json($boughtWeeks);
                 const now = new Date();
                 const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
                 return {
-                    filters: { crop_year: '', week_no: '' },
+                    filters: { crop_year: '', week_no: '', bought_week: '' },
                     dateIssued: today,
                     get cropWeeks() {
                         return weeks.filter(w => w.crop_year === this.filters.crop_year).map(w => w.week_no);
+                    },
+                    get boughtWeekOptions() {
+                        return boughtWeeks[this.filters.crop_year] || [];
                     },
                     get canPreview() {
                         return this.filters.crop_year && this.filters.week_no;
                     },
                     preview(type = 'planter') {
                         if (!this.canPreview) return;
-                        const params = new URLSearchParams(this.filters);
+                        const params = new URLSearchParams({ crop_year: this.filters.crop_year, week_no: this.filters.week_no });
+                        if (this.filters.bought_week) params.append('bought_week', this.filters.bought_week);
                         if (this.dateIssued) params.append('date_issued', this.dateIssued);
                         if (type === 'consolidated') {
                             window.KusugpaPdfPreview.open('{{ route('proceeds-deductions-report.consolidated') }}?' + params.toString(), 'Consolidated Proceeds & Deductions');
@@ -122,7 +142,7 @@
                         window.KusugpaPdfPreview.open('{{ route('proceeds-deductions-report.pdf') }}?' + params.toString(), 'Proceeds & Deductions');
                     },
                     resetFilters() {
-                        this.filters = { crop_year: '', week_no: '' };
+                        this.filters = { crop_year: '', week_no: '', bought_week: '' };
                         this.dateIssued = today;
                     },
                 };

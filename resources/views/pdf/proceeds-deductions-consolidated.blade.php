@@ -97,7 +97,7 @@
                 <div style="font-weight: bold">KABANKALAN UNITED SUGAR PLANTERS ASSN., INC.</div>
                 <div>({{ $org['short_name'] }}) Kabankalan City, Neg. Occ.</div>
                 <div style="font-size: 11pt; font-weight: bold; letter-spacing: 1px; margin-top: 6px">CONSOLIDATED PROCEEDS &amp; DEDUCTIONS</div>
-                <div>CROP YEAR {{ $cropYear }} &middot; WEEK {{ $week }}{{ $weekEnding ? ' (ending ' . $weekEnding . ')' : '' }}</div>
+                <div>CROP YEAR {{ $cropYear }} &middot; WEEK {{ $week }}{{ $weekEnding ? ' (ending ' . $weekEnding . ')' : '' }}{!! !empty($boughtWeek) ? ' &middot; BOUGHT WEEK ' . e($boughtWeek) : '' !!}</div>
             </td>
             <td class="num" style="width: 30%">
                 <div>DATE ISSUED: {{ $dateIssued }}</div>
