@@ -23,9 +23,11 @@ use Illuminate\Support\Collection;
 class PlanterProceeds
 {
     /**
-     * One record per planter with the uploaded quantities, prices and the cash advance / loan payments
+     * One record per planter with the uploaded quantities, prices and the cash advance / loan payments.
+     * With $boughtWeek, only quedans and molasses bought in that week count (the "Week Bought" rule of
+     * the Registry / Buy pages) and only planters with such a quedan or molasses are listed.
      */
-    public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null): Collection
+    public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null, $boughtWeek = null): Collection
     {
         $from = min((int) $weekFrom, (int) $weekTo);
         $to = max((int) $weekFrom, (int) $weekTo);
@@ -51,6 +53,10 @@ class PlanterProceeds
         if (!empty($planterNames)) {
             $quedanQuery->whereIn('quedans.planter_code', (array) $planterNames);
         }
+        $byBoughtWeek = $boughtWeek !== null && $boughtWeek !== '';
+        if ($byBoughtWeek) {
+            $quedanQuery->boughtInWeek($cropYear, $boughtWeek);
+        }
 
         $quedans = $quedanQuery->get();
 
@@ -67,6 +73,9 @@ class PlanterProceeds
 
         if (!empty($planterNames)) {
             $molassesQuery->whereIn('molasses.planter_code', (array) $planterNames);
+        }
+        if ($byBoughtWeek) {
+            $molassesQuery->boughtInWeek($cropYear, $boughtWeek);
         }
 
         // One molasses price per week, the latest entered. A join on mol_price would repeat each
@@ -262,6 +271,12 @@ class PlanterProceeds
             }
         }
 }
+
+        // By week bought, a planter is listed only for the quedans / molasses bought that week
+        if ($byBoughtWeek) {
+            $boughtCodes = $quedans->pluck('planter_code')->merge($molasses->pluck('planter_code'))->flip();
+            $summaryData = array_filter($summaryData, fn ($data) => $boughtCodes->has($data['planter_code']));
+        }
 
         $summaryData = collect(array_values($summaryData));
 

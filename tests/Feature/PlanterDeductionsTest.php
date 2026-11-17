@@ -99,6 +99,7 @@ class PlanterDeductionsTest extends TestCase
             $table->string('tin_no')->nullable();
             $table->decimal('mol_net', 12, 3)->default(0);
             $table->string('status')->default('pending');
+            $table->timestamp('bought_at')->nullable();
             $table->timestamps();
         });
         Schema::create('mol_price', function (Blueprint $table) {
@@ -342,6 +343,44 @@ class PlanterDeductionsTest extends TestCase
             $line = $planter[$period];
             $this->assertEqualsWithDelta($line['net'] - $line['loan'] - $line['ca'] - $line['others'] - $line['fuel'], $line['net_paid'], 0.01);
         }
+    }
+
+    public function test_proceeds_and_deductions_week_bought_tallies_with_the_registry(): void
+    {
+        DB::table('week_no')->where('week_no', '4')->update(['week_start_date' => '2026-10-19']);
+        $week3 = DB::table('quedans')->where('week_no', '3')->value('id');
+        $week4 = DB::table('quedans')->where('week_no', '4')->value('id');
+        // Week 3 quedan sold at a week 10 price; week 4 quedan at a week 4 price
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [$week3], 'status' => 'bought', 'quedan_price_id' => DB::table('quedan_price')->where('week_no', '10')->value('id')])->assertOk();
+        $this->postJson(route('quedans.bulk-update'), ['ids' => [$week4], 'status' => 'bought', 'quedan_price_id' => DB::table('quedan_price')->where('week_no', '4')->value('id')])->assertOk();
+        // Another planter with only a week 4 purchase (molasses bought inside week 4) is left out of bought week 10
+        DB::table('molasses')->insert(['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00777', 'planter_name' => 'SANTOS, ANA', 'mol_net' => 5, 'status' => 'bought', 'bought_at' => '2026-10-20 08:00:00']);
+
+        $report = fn ($boughtWeek) => $this->captureView('pdf.proceeds-deductions', 'proceeds-deductions-report.pdf', [
+            'crop_year' => '20262027', 'week_no' => 4, 'bought_week' => $boughtWeek,
+        ]);
+        $registry = fn ($week, $boughtWeek) => array_column($this->getJson(route('registry.data', [
+            'type' => 'quedan', 'crop_year' => '20262027', 'week_no' => $week, 'bought_week' => $boughtWeek, 'page' => 1,
+        ]))->assertOk()->json('data'), 'id');
+
+        $data = $report(10);
+        $this->assertSame(['00123'], $data['planters']->pluck('code')->all());
+        $this->assertEqualsWithDelta(0, $data['totals']['week']['quedan'], 0.001);      // week 4 quedan was bought in week 4
+        $this->assertEqualsWithDelta(10000, $data['totals']['to_date']['quedan'], 0.001); // week 3 quedan, bought in week 10
+        $this->assertSame([], $registry('4', '10'));
+        $this->assertSame([$week3], $registry('3', '10'));
+
+        $data = $report(4);
+        $this->assertEqualsCanonicalizing(['00123', '00777'], $data['planters']->pluck('code')->all());
+        $this->assertEqualsWithDelta(10000, $data['totals']['week']['quedan'], 0.001);
+        $this->assertEqualsWithDelta(10000, $data['totals']['to_date']['quedan'], 0.001);
+        $this->assertSame([$week4], $registry('4', '4'));
+
+        // The consolidated report and the page's dropdown use the same week bought
+        $this->get(route('proceeds-deductions-report.consolidated', ['crop_year' => '20262027', 'week_no' => 4, 'bought_week' => 10]))->assertOk();
+        $registryOptions = $this->getJson(route('registry.data', ['type' => 'quedan', 'crop_year' => '20262027', 'page' => 1]))
+            ->assertOk()->json('extra.bought_weeks');
+        $this->assertEquals($registryOptions, \App\Models\WeekNo::boughtWeekOptions('20262027', true)->all());
     }
 
     public function test_consolidated_proceeds_and_deductions_adds_up_the_week(): void

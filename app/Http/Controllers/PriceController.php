@@ -302,25 +302,8 @@ private function applyBoughtWeek($query, ?string $cropYear, $boughtWeek)
         return $query;
     }
 
-    $boughtWeek = (string) $boughtWeek;
-    $week = WeekNo::where('crop_year', $cropYear)->where('week_no', $boughtWeek)->first();
-    $range = $week && $week->week_start_date && $week->week_end_date
-        ? [$week->week_start_date, $week->week_end_date]
-        : null;
-
-    if ($query->getModel() instanceof Quedan) {
-        $priceIds = QuedanPrice::select('id')->where('crop_year', $cropYear)->where('week_no', $boughtWeek);
-
-        return $query->where(function ($q) use ($priceIds, $range) {
-            $q->whereIn($q->qualifyColumn('quedan_price_id'), $priceIds);
-            if ($range) {
-                $q->orWhere(fn ($old) => $old->whereNull($old->qualifyColumn('quedan_price_id'))
-                    ->whereBetween($old->qualifyColumn('bought_at'), $range));
-            }
-        });
-    }
-
-    return $range ? $query->whereBetween('bought_at', $range) : $query->whereRaw('1 = 0');
+    // Shared with the Proceeds & Deductions report (Quedan / Molass scopeBoughtInWeek), so both tally
+    return $query->boughtInWeek($cropYear, $boughtWeek);
 }
 
 /**
@@ -342,30 +325,7 @@ private function boughtWeekColumn()
  */
 private function boughtWeekOptions(?string $cropYear, bool $withPriceWeeks = false)
 {
-    if (!$cropYear) {
-        return [];
-    }
-
-    $weeks = WeekNo::where('crop_year', $cropYear)
-        ->get(['week_no', 'week_start_date', 'week_end_date'])
-        ->keyBy(fn ($w) => (string) $w->week_no);
-
-    $weekNos = $weeks->filter(fn ($w) => $w->week_start_date && \Carbon\Carbon::parse($w->week_start_date)->lte(now()))->keys();
-    if ($withPriceWeeks) {
-        $weekNos = $weekNos->merge(QuedanPrice::where('crop_year', $cropYear)->distinct()->pluck('week_no')->map(fn ($w) => (string) $w));
-    }
-
-    return $weekNos->unique()
-        ->sortByDesc(fn ($w) => (int) $w)
-        ->map(function ($weekNo) use ($weeks) {
-            $w = $weeks->get($weekNo);
-            $dates = $w && $w->week_start_date && $w->week_end_date
-                ? ' (' . \Carbon\Carbon::parse($w->week_start_date)->format('M j') . ' – ' . \Carbon\Carbon::parse($w->week_end_date)->format('M j') . ')'
-                : '';
-
-            return ['week_no' => $weekNo, 'label' => 'Week ' . $weekNo . $dates];
-        })
-        ->values();
+    return WeekNo::boughtWeekOptions($cropYear, $withPriceWeeks);
 }
 
 public function bulkUpdateQuedan(Request $request)
