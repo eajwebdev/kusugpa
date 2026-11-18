@@ -64,17 +64,48 @@
             font-weight: bold;
         }
 
-        .grand td {
-            border: 0.6px solid #555;
-            text-align: center;
-            font-size: 7.5pt;
+        /* Sections: plain black and white, prints cleanly on any printer */
+        .sheet {
+            margin-top: 10px;
+            font-family: 'DejaVu Sans', sans-serif;
+            font-size: 8.5pt;
         }
 
-        .grand th {
-            border: 0.6px solid #555;
-            background: #eeeeee;
-            font-size: 6.8pt;
-            padding: 2px 3px;
+        .sheet th {
+            font-weight: bold;
+            text-align: left;
+            padding: 3px 6px;
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+
+        .sheet th.num {
+            text-align: right;
+        }
+
+        .sheet td {
+            padding: 2.5px 6px;
+        }
+
+        .sheet tr.title td {
+            font-weight: bold;
+            padding-top: 4px;
+        }
+
+        .sheet tr.gap td {
+            height: 4px;
+        }
+
+        .sheet tr.total td {
+            font-weight: bold;
+            border-top: 0.8px solid #000;
+        }
+
+        .sheet.grand-total td {
+            font-size: 9.5pt;
+            font-weight: bold;
+            padding-top: 6px;
+            border-top: 1px solid #000;
         }
 
         .sign td {
@@ -109,155 +140,71 @@
         </tr>
     </table>
 
-    <!-- Grand totals in one line -->
-    <p class="head" style="margin: 14px 0 4px">GRAND TOTALS</p>
-    <table class="grand">
-        <tr>
-            <th>SUGAR GROSS (LKG)</th>
-            <th>MOLASSES (MT)</th>
-            <th>GROSS PROCEEDS</th>
-            <th>QUEDAN LIENS</th>
-            <th>TOTAL DEDUCTIONS</th>
-            <th>NET PROCEEDS B4 TRKNG ALLW.</th>
-        </tr>
-        <tr>
-            <td>{{ $vol($volumes['sugar_gross']) }}</td>
-            <td>{{ $vol($volumes['molasses']) }}</td>
-            <td>{{ $money($t['gross']) }}</td>
-            <td>{{ $money($t['quedan_liens']) }}</td>
-            <td>{{ $money($t['deductions']) }}</td>
-            <td>{{ $money($t['net_before']) }}</td>
-        </tr>
-    </table>
+    @php
+        // Each section: [label, volume, amount, row kind]; kind: '' line, 'title' bold sub-heading, 'gap' blank, 'total'
+        $sections = [
+            ['QUEDAN AND MOLASSES', 'VOLUME', 'AMOUNT', [
+                ['TOTAL SUGAR GROSS (LKG)', $vol($volumes['sugar_gross']), '', ''],
+                ['TOTAL 2% LABOR (LKG)', $vol($volumes['labor']), '', ''],
+                ['TOTAL NET SUGAR (LKG)', $vol($volumes['sugar_net']), $money($t['sugar']), ''],
+                ['TOTAL MOLASSES (MT)' . (!empty($molWeek) ? ' - WEEK ' . $molWeek : ''), $vol($volumes['molasses']), $money($t['molasses']), ''],
+                ['TOTAL', '', $money($t['gross']), 'total'],
+            ]],
+            ['DEDUCTIONS / LIENS', '', 'AMOUNT', [
+                ['DEDUCTIONS/LIENS:', '', '', 'title'],
+                ['STATUTORY QUEDAN LIENS', '', $money($t['liens']), ''],
+                ['INSURANCE', '', $money($t['insurance']), ''],
+                ['HANDLING FEE ' . number_format($handlingRate, 2) . '/MT', '', $money($t['handling']), ''],
+                ['', '', '', 'gap'],
+                ['OTHER CHARGES:', '', '', 'title'],
+                ['WITHHOLDING TAX', '', $money($t['tax']), ''],
+                ['SERVICE CHARGE', '', $money($t['service']), ''],
+                ['STORAGE FEE', '', $money($t['storage']), ''],
+                ['TOTAL', '', $money($t['deductions']), 'total'],
+            ]],
+            ['TRUCKING ALLOWANCE', '', 'AMOUNT', [
+                ['TOTAL NET TRUCKING ALLOWANCE', '', $money($t['trucking']), ''],
+                ['FUEL A/C (PLANTER ACCNT. APPLIED)', '', '(' . $money($t['fuel_ac']) . ')', ''],
+            ]],
+        ];
+    @endphp
 
-    <table style="margin-top: 14px">
+    @foreach ($sections as [$heading, $volHead, $amtHead, $lines])
+        <table class="sheet">
+            <colgroup>
+                <col style="width: 50%">
+                <col style="width: 22%">
+                <col style="width: 28%">
+            </colgroup>
+            <tr>
+                <th>{{ $heading }}</th>
+                <th class="num">{{ $volHead }}</th>
+                <th class="num">{{ $amtHead }}</th>
+            </tr>
+            @foreach ($lines as $i => [$label, $volume, $amount, $kind])
+                <tr class="{{ $i % 2 === 0 ? 'band' : '' }} {{ $kind }}">
+                    <td>{{ $label }}</td>
+                    <td class="num">{{ $volume }}</td>
+                    <td class="num">{{ $amount }}</td>
+                </tr>
+            @endforeach
+        </table>
+    @endforeach
+
+    <!-- Quedan & molasses total - deductions/liens & other charges + net trucking allowance - fuel A/C -->
+    <table class="sheet grand-total">
         <colgroup>
-            <col style="width: 46%">
-            <col style="width: 16%">
-            <col style="width: 19%">
-            <col style="width: 19%">
+            <col style="width: 72%">
+            <col style="width: 28%">
         </colgroup>
-
-        <!-- Breakdown -->
         <tr>
-            <td class="head">BREAKDOWN:</td>
-            <td class="num head">VOLUME</td>
-            <td></td>
-            <td class="num head">AMOUNT</td>
-        </tr>
-        <tr>
-            <td class="in1">TOTAL SUGAR GROSS (LKG)</td>
-            <td class="num">{{ $vol($volumes['sugar_gross']) }}</td>
-            <td></td>
-            <td></td>
-        </tr>
-        <tr>
-            <td class="in1">TOTAL 2% LABOR (LKG)</td>
-            <td class="num">{{ $vol($volumes['labor']) }}</td>
-            <td></td>
-            <td></td>
-        </tr>
-        <tr>
-            <td class="in1">TOTAL NET SUGAR (LKG)</td>
-            <td class="num">{{ $vol($volumes['sugar_net']) }}</td>
-            <td></td>
-            <td class="num">{{ $money($t['sugar']) }}</td>
-        </tr>
-        <tr>
-            <td class="in1">TOTAL MOLASSES (MT){{ !empty($molWeek) ? ' - WEEK ' . $molWeek : '' }}</td>
-            <td class="num">{{ $vol($volumes['molasses']) }}</td>
-            <td></td>
-            <td class="num">{{ $money($t['molasses']) }}</td>
-        </tr>
-        <tr>
-            <td class="in1" style="padding-top: 6px">TOTAL GROSS PROCEEDS</td>
-            <td></td>
-            <td></td>
-            <td class="num rule" style="padding-top: 6px">{{ $money($t['gross']) }}</td>
-        </tr>
-
-        <!-- Deductions -->
-        <tr>
-            <td class="head" colspan="4">DEDUCTIONS/LIENS:</td>
-        </tr>
-        <tr>
-            <td class="in1 head" colspan="4" style="padding-top: 3px">QUEDAN LIENS:</td>
-        </tr>
-        <tr>
-            <td class="in2">01 STATUTORY QUEDAN LIENS</td>
-            <td></td>
-            <td class="num">{{ $money($t['liens']) }}</td>
-            <td></td>
-        </tr>
-        <tr>
-            <td class="in2">02 INSURANCE</td>
-            <td></td>
-            <td class="num">{{ $money($t['insurance']) }}</td>
-            <td></td>
-        </tr>
-        <tr>
-            <td class="in2">03 HANDLING FEE {{ number_format($handlingRate, 2) }}/MT</td>
-            <td></td>
-            <td class="num">{{ $money($t['handling']) }}</td>
-            <td></td>
-        </tr>
-        <tr>
-            <td class="in1 head" colspan="4" style="padding-top: 3px">OTHER CHARGES:</td>
-        </tr>
-        <tr>
-            <td class="in2">04 WITHHOLDING TAX</td>
-            <td></td>
-            <td class="num">{{ $money($t['tax']) }}</td>
-            <td></td>
-        </tr>
-        <tr>
-            <td class="in2">05 SERVICE CHARGE</td>
-            <td></td>
-            <td class="num">{{ $money($t['service']) }}</td>
-            <td></td>
-        </tr>
-        <tr>
-            <td class="in2">06 STORAGE FEE</td>
-            <td></td>
-            <td class="num">{{ $money($t['storage']) }}</td>
-            <td class="num">{{ $money($t['deductions']) }}</td>
-        </tr>
-
-        <!-- Net proceeds -->
-        <tr>
-            <td style="padding-top: 8px">NET PROCEEDS B4 TRKNG ALLW.</td>
-            <td></td>
-            <td></td>
-            <td class="num rule" style="padding-top: 8px">{{ $money($t['net_before']) }}</td>
-        </tr>
-        <tr>
-            <td>ADD: TOTAL NET TRUCKING ALLOWANCE</td>
-            <td></td>
-            <td></td>
-            <td class="num">{{ $money($t['trucking']) }}</td>
-        </tr>
-        <tr>
-            <td>LESS: TOTAL FUEL ISSUANCE (DIESEL)</td>
-            <td></td>
-            <td></td>
-            <td class="num">({{ $money($t['fuel']) }})</td>
-        </tr>
-        <tr>
-            <td>LESS: ADDL. SERVICE CHARGE 7.00/TON (TRANS CODE 06/08/25/36/38)</td>
-            <td></td>
-            <td></td>
-            <td class="num">({{ $money($t['additional']) }})</td>
-        </tr>
-        <tr>
-            <td style="padding-top: 8px; font-weight: bold">GRAND TOTAL NET PROCEEDS &gt;&gt;&gt;&gt;</td>
-            <td></td>
-            <td></td>
-            <td class="num rule" style="padding-top: 8px"><span class="double">{{ $money($t['net']) }}</span></td>
+            <td>GRAND TOTAL NET PROCEEDS</td>
+            <td class="num"><span class="double">{{ $money($t['net']) }}</span></td>
         </tr>
     </table>
 
     <!-- Rates used -->
-    <table style="margin-top: 18px; width: 70%">
+    <table style="margin-top: 12px; width: 70%">
         <tr>
             <td colspan="3" style="font-weight: bold">COMPUTATION OF INSURANCE &amp; SERVICE CHARGE</td>
         </tr>
@@ -293,7 +240,7 @@
     </table>
 
     <!-- Signatories -->
-    <table class="sign" style="margin-top: 24px">
+    <table class="sign" style="margin-top: 10px">
         <tr>
             <td style="width: 33%">Prepared by:<div class="line"></div></td>
             <td style="width: 33%">Certified Correct:<div class="line"></div></td>
