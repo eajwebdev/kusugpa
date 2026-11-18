@@ -427,8 +427,8 @@ class PlanterDeductionsTest extends TestCase
         $this->assertEqualsWithDelta($planter['quedan'], $t['sugar'], 0.01);
         $this->assertEqualsWithDelta($planter['molasses'], $t['molasses'], 0.01);
         $this->assertEqualsWithDelta(200, $t['fuel_ac'], 0.001);
-        // Quedan & molasses total - deductions/liens & other charges + net trucking allowance - fuel A/C
-        $this->assertEqualsWithDelta($t['gross'] - $t['deductions'] + $t['trucking'] - $t['fuel_ac'], $t['net'], 0.01);
+        // Quedan & molasses total - deductions/liens & other charges + net trucking allowance - fuel A/C - transloading S.C
+        $this->assertEqualsWithDelta($t['gross'] - $t['deductions'] + $t['trucking'] - $t['fuel_ac'] - $t['additional'], $t['net'], 0.01);
         $this->assertEqualsWithDelta($data['volumes']['sugar_gross'] - $data['volumes']['labor'], $data['volumes']['sugar_net'], 0.001);
     }
 

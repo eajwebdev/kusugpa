@@ -66,7 +66,7 @@
 
         /* Sections: plain black and white, prints cleanly on any printer */
         .sheet {
-            margin-top: 10px;
+            margin-top: 8px;
             font-family: 'DejaVu Sans', sans-serif;
             font-size: 8.5pt;
         }
@@ -84,7 +84,7 @@
         }
 
         .sheet td {
-            padding: 2.5px 6px;
+            padding: 2px 6px;
         }
 
         .sheet tr.title td {
@@ -165,6 +165,7 @@
             ['TRUCKING ALLOWANCE', '', 'AMOUNT', [
                 ['TOTAL NET TRUCKING ALLOWANCE', '', $money($t['trucking']), ''],
                 ['FUEL A/C (PLANTER ACCNT. APPLIED)', '', '(' . $money($t['fuel_ac']) . ')', ''],
+                ['TOTAL TRANSLOADING S.C', '', '(' . $money($t['additional']) . ')', ''],
             ]],
         ];
     @endphp

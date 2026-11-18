@@ -258,7 +258,8 @@ class ProceedsDeductionsController extends Controller
         $t['net_before'] = round($t['gross'] - $t['deductions'], 2);
         // Grand total net proceeds = quedan & molasses total - deductions/liens & other charges
         // + total net trucking allowance (Trucking Allowance Report) - total Fuel A/C (Planter Accnt. Applied)
-        $t['net'] = round($t['gross'] - $t['deductions'] + $t['trucking'] - $t['fuel_ac'], 2);
+        // - total transloading service charge (7.00/ton on trans codes 06/08/25/36/38, of the Week No.)
+        $t['net'] = round($t['gross'] - $t['deductions'] + $t['trucking'] - $t['fuel_ac'] - $t['additional'], 2);
         $t['accounts'] = round($t['loan'] + $t['ca'] + $t['others'] + $t['fuel_ac'], 2);
         $t['net_paid'] = round($t['net'] - $t['accounts'], 2);
 
