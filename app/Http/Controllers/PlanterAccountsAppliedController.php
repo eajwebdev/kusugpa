@@ -17,7 +17,48 @@ use Illuminate\Http\Request;
  */
 class PlanterAccountsAppliedController extends Controller
 {
-    private const ROWS_PER_PAGE = 25;
+    /** Room on one page, in single-line rows */
+    public const PAGE_UNITS = 25.0;
+
+    /** Characters of a planter name that fit on one line of its column */
+    private const NAME_CHARS = 22;
+
+    /** Each extra line of a wrapped planter name, as part of a single-line row */
+    private const EXTRA_LINE_UNITS = 0.55;
+
+    /**
+     * Pages filled by the room the rows take, not a fixed count: a planter name that wraps to two
+     * lines makes a taller row, and a fixed 25 rows then spilled a row or two onto a short extra page.
+     * The last page keeps room for the totals row.
+     */
+    public static function paginate($rows)
+    {
+        $pages = [];
+        $page = [];
+        $used = 0.0;
+        foreach ($rows as $row) {
+            $lines = count(explode("\n", wordwrap(trim((string) $row['name']), self::NAME_CHARS, "\n", true)));
+            $units = 1 + max(0, $lines - 1) * self::EXTRA_LINE_UNITS;
+            if ($page && $used + $units > self::PAGE_UNITS) {
+                $pages[] = $page;
+                $page = [];
+                $used = 0.0;
+            }
+            $page[] = $row;
+            $used += $units;
+        }
+        // Totals row (taller, with its rule) must fit under the last page's rows
+        if ($page && $used + 1.5 > self::PAGE_UNITS && count($page) > 1) {
+            $moved = array_pop($page);
+            $pages[] = $page;
+            $page = [$moved];
+        }
+        if ($page) {
+            $pages[] = $page;
+        }
+
+        return collect($pages)->map(fn ($p) => collect($p))->values();
+    }
 
     public function index()
     {
@@ -69,7 +110,7 @@ class PlanterAccountsAppliedController extends Controller
         ]);
 
         $pdf = Pdf::loadView('pdf.planter-accounts', [
-            'pages' => $rows->chunk(self::ROWS_PER_PAGE)->values(),
+            'pages' => self::paginate($rows),
             'rows' => $rows,
             'cropYear' => $data['crop_year'],
             'weekLabel' => $weekLabel,

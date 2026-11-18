@@ -16,6 +16,7 @@ class Molass extends Model
     protected $fillable = [
         'crop_year', 'week_no', 'planter_code', 'planter_name',
         'tin_no', 'mc_no', 'mol_net', 'user_id','status', 'bought_at', 'bought_by',
+        'sold_price', 'molasses_price_id',
     ];
 
     /**
@@ -27,15 +28,21 @@ class Molass extends Model
     }
 
     /**
-     * "Week Bought": molasses whose bought_at falls inside the week (week_start_date .. week_end_date).
-     * Used by the Registry / Buy pages and the Proceeds & Deductions report, so both tally.
+     * "Week Bought", like quedans: the week of the molasses price picked when it was marked bought
+     * (mol_price.week_no). Molasses bought before sold prices were recorded have no price; their own
+     * week is their bought week. Used by the Registry / Buy pages and the Proceeds & Deductions report.
      */
     public function scopeBoughtInWeek($query, $cropYear, $boughtWeek)
     {
-        $range = WeekNo::dateRange($cropYear, $boughtWeek);
+        $boughtWeek = (string) (int) $boughtWeek;
+        $weekValues = array_values(array_unique([$boughtWeek, str_pad($boughtWeek, 2, '0', STR_PAD_LEFT)]));
+        $priceIds = MolassesPrice::select('id')->where('crop_year', $cropYear)->whereIn('week_no', $weekValues);
 
-        return $range
-            ? $query->whereBetween($query->qualifyColumn('bought_at'), $range)
-            : $query->whereRaw('1 = 0');
+        return $query->where(function ($q) use ($priceIds, $weekValues) {
+            $q->whereIn($q->qualifyColumn('molasses_price_id'), $priceIds)
+                ->orWhere(fn ($old) => $old->whereNull($old->qualifyColumn('molasses_price_id'))
+                    ->where($old->qualifyColumn('status'), 'bought')
+                    ->whereIn($old->qualifyColumn('week_no'), $weekValues));
+        });
     }
 }

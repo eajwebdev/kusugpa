@@ -49,7 +49,7 @@ class WeekNo extends Model
      * plus, for quedans, any week with a quedan price (a quedan's bought week is its price's week).
      * Shared by the Registry / Buy pages and the Proceeds & Deductions report.
      */
-    public static function boughtWeekOptions(?string $cropYear, bool $withPriceWeeks = false)
+    public static function boughtWeekOptions(?string $cropYear, bool $withPriceWeeks = false, string $priceModel = QuedanPrice::class)
     {
         if (!$cropYear) {
             return collect();
@@ -61,7 +61,7 @@ class WeekNo extends Model
 
         $weekNos = $weeks->filter(fn ($w) => $w->week_start_date && \Carbon\Carbon::parse($w->week_start_date)->lte(now()))->keys();
         if ($withPriceWeeks) {
-            $weekNos = $weekNos->merge(QuedanPrice::where('crop_year', $cropYear)->distinct()->pluck('week_no')->map(fn ($w) => (string) $w));
+            $weekNos = $weekNos->merge($priceModel::where('crop_year', $cropYear)->distinct()->pluck('week_no')->map(fn ($w) => (string) (int) $w));
         }
 
         return $weekNos->unique()

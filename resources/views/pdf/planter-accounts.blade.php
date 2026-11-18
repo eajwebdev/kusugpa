@@ -24,12 +24,9 @@
             margin: 0;
         }
 
-        .page {
-            page-break-after: always;
-        }
-
-        .page:last-child {
-            page-break-after: auto;
+        /* Break before each page after the first: a break after the last page left a blank page at the end */
+        .page + .page {
+            page-break-before: always;
         }
 
         table {

@@ -233,10 +233,10 @@ private function registryFeed(Request $request, string $type, ?string $cropYear,
 
     $query = $filtered()->select($isQuedan
         ? ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'qdn_no', 'tin_no', 'total_liens', 'sugar_lkg', 'labor_lkg', 'status', 'sold_price', 'sold_price_type']
-        : ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'tin_no', 'mc_no', 'mol_net', 'status']);
-    // Table rows show each quedan's bought week (not needed when only the IDs are asked for)
-    if ($isQuedan && !$request->boolean('all_ids')) {
-        $query->selectRaw('(' . $this->boughtWeekColumn() . ') AS bought_week');
+        : ['id', 'crop_year', 'week_no', 'planter_code', 'planter_name', 'tin_no', 'mc_no', 'mol_net', 'status', 'sold_price']);
+    // Table rows show each record's bought week (not needed when only the IDs are asked for)
+    if (!$request->boolean('all_ids')) {
+        $query->selectRaw('(' . ($isQuedan ? $this->boughtWeekColumn() : $this->molassesBoughtWeekColumn()) . ') AS bought_week');
     }
     if ($status = $request->get('status')) {
         $query->where('status', $status);
@@ -320,12 +320,23 @@ private function boughtWeekColumn()
 }
 
 /**
- * Weeks for the "Week bought" dropdown, newest first: the crop year's weeks that have started,
- * plus, for quedans, any week with a quedan price (a quedan's bought week is its price's week).
+ * A molasses record's bought week, the same rule as Molass::scopeBoughtInWeek(): the sold price's
+ * week, or for molasses bought before sold prices were recorded, its own week
  */
-private function boughtWeekOptions(?string $cropYear, bool $withPriceWeeks = false)
+private function molassesBoughtWeekColumn()
 {
-    return WeekNo::boughtWeekOptions($cropYear, $withPriceWeeks);
+    return "CASE WHEN molasses.status <> 'bought' THEN NULL ELSE COALESCE("
+        . '(SELECT CAST(mp.week_no AS UNSIGNED) FROM mol_price mp WHERE mp.id = molasses.molasses_price_id), '
+        . 'CAST(molasses.week_no AS UNSIGNED)) END';
+}
+
+/**
+ * Weeks for the "Week bought" dropdown, newest first: the crop year's weeks that have started,
+ * plus any week with a quedan price (quedans) or molasses price (molasses): a bought week is its price's week.
+ */
+private function boughtWeekOptions(?string $cropYear, bool $isQuedan = true)
+{
+    return WeekNo::boughtWeekOptions($cropYear, true, $isQuedan ? QuedanPrice::class : MolassesPrice::class);
 }
 
 public function bulkUpdateQuedan(Request $request)
@@ -378,17 +389,91 @@ public function bulkUpdateMolasses(Request $request)
     $request->validate([
         'ids' => 'required|array',
         'status' => 'required|in:bought,rejected,pending',
+        // Like quedans, molasses are bought at a price picked from Price Management; its week is the Week Bought
+        'molasses_price_id' => 'required_if:status,bought|nullable|integer|exists:mol_price,id',
+    ], [
+        'molasses_price_id.required_if' => 'Select the price the molasses are sold at.',
     ]);
+
+    $price = null;
+    if ($request->status === 'bought') {
+        $price = MolassesPrice::findOrFail($request->molasses_price_id);
+        if ((float) $price->mol_price <= 0) {
+            return response()->json(['message' => 'The selected price is ₱0.00. Pick a price above zero.'], 422);
+        }
+        $otherYears = Molass::whereIn('id', $request->ids)->where('crop_year', '!=', $price->crop_year)->count();
+        if ($otherYears > 0) {
+            return response()->json(['message' => "The price is for crop year {$price->crop_year}, but {$otherYears} selected molasses record(s) belong to another crop year."], 422);
+        }
+    }
 
     Molass::whereIn('id', $request->ids)->update([
         'status' => $request->status,
         'bought_at' => $request->status === 'bought' ? now() : null,
         'bought_by' => auth()->id(),
+        // Pending / rejected molasses are not sold, so they keep no price
+        'sold_price' => $price ? round((float) $price->mol_price, 2) : null,
+        'molasses_price_id' => $price?->id,
     ]);
 
-    AuditLog::log('update', 'molasses', 'Bulk updated ' . count($request->ids) . ' molasses to ' . $request->status);
+    $priceText = $price ? ' at ₱' . number_format((float) $price->mol_price, 2) . ' (Wk ' . $price->week_no . ')' : '';
+    AuditLog::log('update', 'molasses', 'Bulk updated ' . count($request->ids) . ' molasses to ' . $request->status . $priceText, $price ? [
+        'molasses_price_id' => $price->id,
+        'price' => $price->mol_price,
+        'crop_year' => $price->crop_year,
+        'week_no' => $price->week_no,
+    ] : []);
 
-    return response()->json(['message' => count($request->ids) . ' molasses updated successfully']);
+    return response()->json(['message' => count($request->ids) . ' molasses updated successfully' . $priceText . '.']);
+}
+
+/**
+ * Sold Price picker of Buy Molasses, like Buy Quedan's:
+ *  - ?crop_year=          → the crop year's weeks (with how many molasses prices each has)
+ *  - ?crop_year=&week_no= → that week's molasses prices, narrowed by ?search= (amount)
+ */
+public function molassesPriceOptions(Request $request)
+{
+    $data = $request->validate([
+        'crop_year' => 'required|string|max:20',
+        'week_no' => 'nullable|string|max:10',
+        'search' => 'nullable|string|max:50',
+    ]);
+
+    if (empty($data['week_no'])) {
+        $priced = MolassesPrice::where('crop_year', $data['crop_year'])->where('mol_price', '>', 0)
+            ->selectRaw('week_no, COUNT(*) AS n')->groupBy('week_no')->pluck('n', 'week_no')
+            ->mapWithKeys(fn ($n, $w) => [(string) (int) $w => (int) $n]);
+        $weeks = WeekNo::where('crop_year', $data['crop_year'])->pluck('week_no')
+            ->map(fn ($w) => (string) $w)
+            ->merge($priced->keys())
+            ->unique(fn ($w) => (int) $w)
+            ->sortBy(fn ($w) => (int) $w)
+            ->values()
+            ->map(fn ($w) => ['week_no' => $w, 'prices' => $priced[(string) (int) $w] ?? 0]);
+
+        return response()->json(['weeks' => $weeks]);
+    }
+
+    $week = (string) (int) $data['week_no'];
+    $query = MolassesPrice::where('crop_year', $data['crop_year'])
+        ->whereIn('week_no', array_values(array_unique([$week, str_pad($week, 2, '0', STR_PAD_LEFT)])))
+        ->where('mol_price', '>', 0);
+    $amount = str_replace([',', '₱', ' '], '', trim((string) ($data['search'] ?? '')));
+    if ($amount !== '' && is_numeric($amount)) {
+        $query->where('mol_price', 'like', $amount . '%');
+    }
+
+    $prices = $query->orderByDesc('id')->limit(50)
+        ->get(['id', 'crop_year', 'week_no', 'mol_price'])
+        ->map(fn ($p) => [
+            'id' => $p->id,
+            'crop_year' => (string) $p->crop_year,
+            'week_no' => (string) $p->week_no,
+            'price' => (float) $p->mol_price,
+        ]);
+
+    return response()->json(['prices' => $prices]);
 }
 
 public function buyQuedan()

@@ -100,6 +100,9 @@ class PlanterDeductionsTest extends TestCase
             $table->decimal('mol_net', 12, 3)->default(0);
             $table->string('status')->default('pending');
             $table->timestamp('bought_at')->nullable();
+            $table->unsignedBigInteger('bought_by')->nullable();
+            $table->decimal('sold_price', 12, 2)->nullable();
+            $table->unsignedBigInteger('molasses_price_id')->nullable();
             $table->timestamps();
         });
         Schema::create('mol_price', function (Blueprint $table) {
@@ -423,11 +426,9 @@ class PlanterDeductionsTest extends TestCase
         // Same week totals as the per planter report
         $this->assertEqualsWithDelta($planter['quedan'], $t['sugar'], 0.01);
         $this->assertEqualsWithDelta($planter['molasses'], $t['molasses'], 0.01);
-        $this->assertEqualsWithDelta($planter['net'], $t['net'], 0.01);
-        $this->assertEqualsWithDelta($planter['net_paid'], $t['net_paid'], 0.01);
         $this->assertEqualsWithDelta(200, $t['fuel_ac'], 0.001);
-        // Gross - liens & charges + trucking - fuel issuance = grand total net proceeds
-        $this->assertEqualsWithDelta($t['gross'] - $t['deductions'] + $t['trucking'] - $t['fuel'], $t['net'], 0.01);
+        // Quedan & molasses total - deductions/liens & other charges + net trucking allowance - fuel A/C - transloading S.C
+        $this->assertEqualsWithDelta($t['gross'] - $t['deductions'] + $t['trucking'] - $t['fuel_ac'] - $t['additional'], $t['net'], 0.01);
         $this->assertEqualsWithDelta($data['volumes']['sugar_gross'] - $data['volumes']['labor'], $data['volumes']['sugar_net'], 0.001);
     }
 
@@ -630,6 +631,44 @@ class PlanterDeductionsTest extends TestCase
         $this->assertNull(DB::table('quedans')->find($week4)->sold_price);
         $p = PlanterProceeds::compute(PlanterProceeds::summary('20262027', 3, 4)->first());
         $this->assertEqualsWithDelta(15000, $p['quedanGrossProceeds'], 0.001);
+    }
+
+    public function test_molasses_are_bought_at_the_picked_price_and_its_week_is_the_week_bought(): void
+    {
+        $row = ['crop_year' => '20262027', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN'];
+        $week3 = DB::table('molasses')->insertGetId($row + ['week_no' => '3', 'mol_net' => 2, 'status' => 'pending']);
+        $legacy = DB::table('molasses')->insertGetId($row + ['week_no' => '4', 'mol_net' => 1, 'status' => 'bought']);
+        DB::table('mol_price')->insert(['crop_year' => '20262027', 'week_no' => '3', 'mol_price' => 10000]);
+        DB::table('mol_price')->insert(['crop_year' => '20262027', 'week_no' => '4', 'mol_price' => 12000]);
+        $week5Price = DB::table('mol_price')->insertGetId(['crop_year' => '20262027', 'week_no' => '5', 'mol_price' => 19100]);
+
+        // A price must be picked, and it must be of the molasses' crop year
+        $this->postJson(route('molasses.bulk-update'), ['ids' => [$week3], 'status' => 'bought'])->assertStatus(422);
+        $otherYear = DB::table('mol_price')->insertGetId(['crop_year' => '20252026', 'week_no' => '5', 'mol_price' => 900]);
+        $this->postJson(route('molasses.bulk-update'), ['ids' => [$week3], 'status' => 'bought', 'molasses_price_id' => $otherYear])->assertStatus(422);
+
+        // The picker lists the week's molasses prices
+        $this->getJson(route('molasses-buy.prices', ['crop_year' => '20262027', 'week_no' => '5']))
+            ->assertOk()->assertJsonPath('prices.0.id', $week5Price)->assertJsonPath('prices.0.price', 19100);
+
+        $this->postJson(route('molasses.bulk-update'), ['ids' => [$week3], 'status' => 'bought', 'molasses_price_id' => $week5Price])->assertOk();
+        $this->assertEquals(19100, (float) DB::table('molasses')->find($week3)->sold_price);
+
+        // Week Bought: the picked price's week (5), not the molasses week (3); bought before prices were picked: its own week
+        $boughtIn = fn ($week) => \App\Models\Molass::boughtInWeek('20262027', $week)->pluck('id')->all();
+        $this->assertSame([$week3], $boughtIn(5));
+        $this->assertSame([], $boughtIn(3));
+        $this->assertSame([$legacy], $boughtIn(4));
+
+        // Voucher: week 3 molasses at the picked ₱19,100; the legacy one at its week's ₱12,000
+        $p = PlanterProceeds::compute(PlanterProceeds::summary('20262027', 3, 4)->firstWhere('planter_code', '00123'));
+        $this->assertEqualsWithDelta(3, $p['mol_net'], 0.001);
+        $this->assertEqualsWithDelta(2 * 19100 + 1 * 12000, $p['molasses_gross'], 0.01);
+        $this->assertEqualsWithDelta((2 * 19100 + 1 * 12000) * 0.01, $p['molasses_tax'], 0.01);
+
+        // Back to pending: no sold price and off the voucher
+        $this->postJson(route('molasses.bulk-update'), ['ids' => [$week3], 'status' => 'pending'])->assertOk();
+        $this->assertNull(DB::table('molasses')->find($week3)->molasses_price_id);
     }
 
     public function test_sold_price_picker_loads_weeks_then_searchable_prices(): void

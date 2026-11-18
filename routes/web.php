@@ -367,6 +367,7 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
 
     // Buy Molasses
     Route::get('/buy-molasses', [PriceController::class, 'buyMolasses'])->name('molasses-buy.index');
+    Route::get('/buy-molasses/prices', [PriceController::class, 'molassesPriceOptions'])->name('molasses-buy.prices');
     Route::post('/molasses/bulk-update', [PriceController::class, 'bulkUpdateMolasses'])->name('molasses.bulk-update');
 
     Route::post('/upload/{type}', [UploadController::class, 'uploadCSV'])

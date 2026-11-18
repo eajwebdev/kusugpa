@@ -95,8 +95,15 @@ class PlanterProceeds
             ->get()
             ->mapWithKeys(fn ($p) => [(int) $p->week_no => $p->mol_price]);
 
-        $molasses = $molassesQuery->get()->each(function ($mol) use ($molPrices) {
-            $mol->mol_price = $molPrices[(int) $mol->week_no] ?? null;
+        $molasses = $molassesQuery->get();
+        // Like quedans: the bought week's price picked on Buy Molasses (as it stands now in Price Management),
+        // else the sold price recorded, else (bought before sold prices were recorded) its week's price
+        $boughtMolPrices = MolassesPrice::whereIn('id', $molasses->pluck('molasses_price_id')->filter()->unique()->values())
+            ->pluck('mol_price', 'id');
+        $molasses->each(function ($mol) use ($molPrices, $boughtMolPrices) {
+            $mol->mol_price = ($mol->molasses_price_id && isset($boughtMolPrices[$mol->molasses_price_id]))
+                ? $boughtMolPrices[$mol->molasses_price_id]
+                : ($mol->sold_price !== null ? $mol->sold_price : ($molPrices[(int) $mol->week_no] ?? null));
         });
 
         $consolidatedQuery = ConsolidatedUpload::where('crop_year', $cropYear)
@@ -215,8 +222,13 @@ class PlanterProceeds
                 ];
             }
 
+            // Each record's amount is kept, so molasses bought at different prices add up exactly;
+            // the price shown is the average per MT
             $summaryData[$key]['mol_net'] += $mol->mol_net;
-            $summaryData[$key]['mol_price'] = $mol->mol_price;
+            $summaryData[$key]['molasses_amount'] = ($summaryData[$key]['molasses_amount'] ?? 0) + (float) $mol->mol_net * (float) $mol->mol_price;
+            $summaryData[$key]['mol_price'] = abs($summaryData[$key]['mol_net']) > 1e-9
+                ? $summaryData[$key]['molasses_amount'] / $summaryData[$key]['mol_net']
+                : (float) $mol->mol_price;
         }
 
    foreach ($consolidatedUploads as $consolidated) {
@@ -472,12 +484,12 @@ class PlanterProceeds
 
         $mol_net = $record['mol_net'] ?? 0;
         $mol_price = $record['mol_price'] ?? 0;
-        $molasses_gross = $mol_net * $mol_price;
+        $molasses_gross = $record['molasses_amount'] ?? $mol_net * $mol_price;
         $molasses_liens = $record['molasses_liens'] ?? 0;
         $molasses_service = $mol_net * 20.0;
         // 120.00 per MT + 30.00 handling, only when the planter has molasses
         $molasses_insurance = $mol_net > 0 ? $mol_net * 120.0 + 30.0 : 0.0;
-        $molasses_tax = $mol_net * $mol_price * 0.01;
+        $molasses_tax = $molasses_gross * 0.01;
         $molasses_total_deductions = $molasses_liens + $molasses_service + $molasses_insurance + $molasses_tax;
         $molasses_net = $molasses_gross - $molasses_total_deductions;
 

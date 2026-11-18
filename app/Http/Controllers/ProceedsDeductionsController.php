@@ -167,26 +167,23 @@ class ProceedsDeductionsController extends Controller
 
         // Two selections, two parts of the statement:
         //  - WEEK BOUGHT picks the quedans and molasses (gross proceeds down to NET PROCEEDS B4 TRKNG ALLW.):
-        //    quedans bought that week, of any quedan week, at the bought week's price (same as the Registry's
-        //    All Weeks + Week Bought), and the molasses of that week number at its week's molasses price.
+        //    quedans and molasses bought that week, of any week, at the price picked when they were bought
+        //    (same as the Registry's All Weeks + Week Bought). Molasses bought before sold prices were
+        //    recorded count in their own week at that week's price.
         //    With no Week Bought, the quedans and molasses of the Week No. (or of every week).
-        //  - WEEK NO. picks the trucking allowance, fuel issuance, trans-code service charge and accounts
-        //    applied, the same weeks as Week From / Week To on the Trucking Allowance Report.
-        $molWeek = $boughtWeek ? (int) $boughtWeek : $week;
-        $molWeekValues = $molWeek !== null
-            ? array_values(array_unique([(string) $molWeek, str_pad((string) $molWeek, 2, '0', STR_PAD_LEFT)]))
-            : null;
+        //  - WEEK NO. picks the trucking allowance and fuel A/C, the same weeks as Week From / Week To
+        //    on the Trucking Allowance Report and Planter Accnt. Applied.
+        $molWeek = null;
 
         // Volumes straight from the bought quedans and molasses
         $sugarQuery = Quedan::notPending()->where('crop_year', $cropYear);
         $molassesQuery = Molass::notPending()->where('crop_year', $cropYear);
         if ($boughtWeek) {
             $sugarQuery->boughtInWeek($cropYear, $boughtWeek);
+            $molassesQuery->boughtInWeek($cropYear, $boughtWeek);
         } elseif ($weekValues !== null) {
             $sugarQuery->whereIn('week_no', $weekValues);
-        }
-        if ($molWeekValues !== null) {
-            $molassesQuery->whereIn('week_no', $molWeekValues);
+            $molassesQuery->whereIn('week_no', $weekValues);
         }
         $sugar = $sugarQuery
             ->selectRaw('COALESCE(SUM(sugar_lkg), 0) AS gross, COALESCE(SUM(labor_lkg), 0) AS labor, COUNT(*) AS quedans')
@@ -198,14 +195,11 @@ class ProceedsDeductionsController extends Controller
         // Each week is computed on its own (its own prices), as on that week's vouchers, then added up
         $allWeeks = $this->allWeeks($cropYear);
         $weeksToRun = ($week !== null && !$boughtWeek) ? [$week] : $allWeeks;
-        if ($molWeek !== null && !in_array($molWeek, $weeksToRun, true)) {
-            $weeksToRun[] = $molWeek;
-        }
         $records = collect();
         $planterCodes = [];
         foreach ($weeksToRun as $w) {
-            $withMolasses = $molWeek === null || $w === $molWeek;
-            foreach (PlanterProceeds::summary($cropYear, $w, $w, null, $boughtWeek, $withMolasses) as $record) {
+            // Week Bought applies to the molasses as it does to the quedans
+            foreach (PlanterProceeds::summary($cropYear, $w, $w, null, $boughtWeek) as $record) {
                 $records->push($record);
                 $planterCodes[strtoupper(preg_replace('/\s+/', ' ', trim((string) $record['planter_code'])))] = true;
             }
@@ -262,7 +256,10 @@ class ProceedsDeductionsController extends Controller
         $t['other_charges'] = round($t['tax'] + $t['service'] + $t['storage'], 2);
         $t['deductions'] = round($t['quedan_liens'] + $t['other_charges'], 2);
         $t['net_before'] = round($t['gross'] - $t['deductions'], 2);
-        $t['net'] = round($t['net_before'] + $t['trucking'] - $t['fuel'] - $t['additional'], 2);
+        // Grand total net proceeds = quedan & molasses total - deductions/liens & other charges
+        // + total net trucking allowance (Trucking Allowance Report) - total Fuel A/C (Planter Accnt. Applied)
+        // - total transloading service charge (7.00/ton on trans codes 06/08/25/36/38, of the Week No.)
+        $t['net'] = round($t['gross'] - $t['deductions'] + $t['trucking'] - $t['fuel_ac'] - $t['additional'], 2);
         $t['accounts'] = round($t['loan'] + $t['ca'] + $t['others'] + $t['fuel_ac'], 2);
         $t['net_paid'] = round($t['net'] - $t['accounts'], 2);
 
