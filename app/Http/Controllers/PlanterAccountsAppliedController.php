@@ -64,8 +64,14 @@ class PlanterAccountsAppliedController extends Controller
     {
         $cropYear = CropYear::pluck('crop_year');
         $weeks = WeekNo::byCropYear();
+        // Quick Cash Advance form: active planters, and whether the user may create cash advances
+        $planters = \App\Models\PlanterProfile::where('status', 'active')->orderBy('planter_name')->get(['planter_code', 'planter_name']);
+        /** @var \App\Models\User|null $user */
+        $user = auth()->user();
+        // Same rule as saving it (route cash-advances.quick needs Create Cash Advances)
+        $canQuickCA = $user && \App\Support\NavigationPermissions::canOpen($user, 'create-cash-advances');
 
-        return view('reports.planter-accounts', compact('cropYear', 'weeks'));
+        return view('reports.planter-accounts', compact('cropYear', 'weeks', 'planters', 'canQuickCA'));
     }
 
     public function pdf(Request $request)

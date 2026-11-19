@@ -133,6 +133,8 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::get('/cash-advances/settings', [CashAdvanceController::class, 'settings'])->name('cash-advances.settings');
     Route::post('/cash-advances/settings', [CashAdvanceController::class, 'updateSettings'])->name('cash-advances.settings.update');
     Route::post('/cash-advances', [CashAdvanceController::class, 'store'])->name('cash-advances.store');
+    // Quick Cash Advance (shortcut on Planter Accnt. Applied): recorded directly as approved, 1% interest, one week
+    Route::post('/cash-advances/quick', [CashAdvanceController::class, 'quickStore'])->name('cash-advances.quick');
 
     // Wildcard routes AFTER static routes
     Route::get('/cash-advances/{cashAdvance}', [CashAdvanceController::class, 'show'])->name('cash-advances.show');

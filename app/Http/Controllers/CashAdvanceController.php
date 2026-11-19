@@ -289,6 +289,87 @@ class CashAdvanceController extends Controller
         return redirect()->route('cash-advances.index')->with('success', $message);
     }
 
+    /** Interest of a Quick Cash Advance, fixed */
+    public const QUICK_INTEREST_RATE = 1.0;
+
+    /**
+     * Quick Cash Advance (shortcut on Planter Accnt. Applied): a cash advance recorded directly, with no
+     * application or approval step. Planter, amount, the week it is deducted and the date it was made;
+     * 1% flat interest is added and the whole amount comes off that week's Check Voucher. It is saved as
+     * an ordinary approved cash advance, so it also shows on Cash Advances and every report.
+     */
+    public function quickStore(Request $request)
+    {
+        if (!$this->canProcessCA()) {
+            AuditLog::log('error', 'cash_advances', 'Unauthorized quick cash advance attempt');
+            return response()->json(['message' => 'You do not have permission to create cash advances.'], 403);
+        }
+
+        $data = $request->validate([
+            'crop_year' => 'required|string',
+            'planter_code' => 'required|string|max:50',
+            'planter_name' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01',
+            'week_no' => 'required|string|max:10',
+            'date_created' => 'required|date',
+            'purpose' => 'nullable|string|max:500',
+        ], [
+            'week_no.required' => 'Select the week the cash advance is deducted.',
+        ]);
+
+        $week = WeekNo::where('crop_year', $data['crop_year'])->where('week_no', $data['week_no'])->first();
+        if (!$week) {
+            throw ValidationException::withMessages([
+                'week_no' => 'Week ' . $data['week_no'] . ' is not set up for crop year ' . $data['crop_year'] . ' in Crop & Week Management.',
+            ]);
+        }
+
+        $ca = new CashAdvance([
+            'planter_code' => $data['planter_code'],
+            'planter_name' => trim($data['planter_name']),
+            'amount' => round((float) $data['amount'], 2),
+            'interest_rate' => self::QUICK_INTEREST_RATE,
+            'term_weeks' => 1,
+            'term_months' => 1,
+            'crop_year' => $data['crop_year'],
+            'purpose' => $data['purpose'] ?? null,
+            'remarks' => 'Quick Cash Advance (Planter Accnt. Applied)',
+        ]);
+        $ca->ca_number = CashAdvance::generateCANumber();
+        $ca->application_date = Carbon::parse($data['date_created'])->toDateString();
+        $ca->status = 'pending';
+        $ca->created_by = auth()->id();
+        $ca->calculateAmortization(); // 1% interest; total and balance = amount + interest
+
+        DB::transaction(function () use ($ca, $week, $data) {
+            $ca->save();
+            // One week: the advance plus its interest
+            $ca->deductions()->create([
+                'crop_year' => $ca->crop_year,
+                'week_no' => (string) $week->week_no,
+                'due_date' => $week->week_end_date ? Carbon::parse($week->week_end_date)->toDateString() : null,
+                'amount' => $ca->repayable(),
+            ]);
+            // No approval step: recorded as approved from the date it was made
+            $this->markApproved($ca, Carbon::parse($data['date_created'])->toDateString());
+        });
+
+        AuditLog::log('create', 'cash_advances', 'Created quick cash advance #' . $ca->ca_number, [
+            'planter' => $ca->planter_name . ' (' . $ca->planter_code . ')',
+            'amount' => $ca->amount,
+            'interest' => $ca->interest_amount . ' (' . self::QUICK_INTEREST_RATE . '%)',
+            'deducted' => 'Wk ' . $week->week_no . ' = ' . $ca->repayable(),
+            'date_created' => $ca->application_date->toDateString(),
+            'approval' => 'quick entry, recorded as approved',
+        ]);
+
+        return response()->json([
+            'message' => 'Cash advance #' . $ca->ca_number . ' saved: ₱' . number_format($ca->repayable(), 2)
+                . ' (₱' . number_format($ca->amount, 2) . ' + 1% interest) comes off ' . $ca->planter_name . '\'s Week ' . $week->week_no . ' voucher.',
+            'cash_advance' => $ca->only(['id', 'ca_number', 'planter_code', 'planter_name', 'amount', 'interest_amount', 'total_amount']),
+        ], 201);
+    }
+
     /**
      * Approve: weekly advances take their end date from the schedule; monthly ones get
      * their installments from the start date

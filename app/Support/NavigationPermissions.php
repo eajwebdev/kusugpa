@@ -178,7 +178,7 @@ class NavigationPermissions
         if (in_array($name, ['cash-advances.index', 'cash-advances.show', 'cash-advances.receipt.pdf'], true)) {
             return 'view-cash-advances';
         }
-        if (in_array($name, ['cash-advances.create', 'cash-advances.store', 'cash-advances.schedule.update',
+        if (in_array($name, ['cash-advances.create', 'cash-advances.store', 'cash-advances.quick', 'cash-advances.schedule.update',
             'cash-advances.destroy', 'cash-advances.receipt.update'], true)) {
             return 'create-cash-advances';
         }

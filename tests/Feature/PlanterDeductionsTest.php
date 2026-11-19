@@ -141,6 +141,8 @@ class PlanterDeductionsTest extends TestCase
             '2026_05_30_151501_create_cash_advances_table.php',
             '2026_10_20_000003_add_receipt_fields_and_deductions_to_cash_advances.php',
             '2026_10_22_000000_add_weekly_schedule_to_cash_advances.php',
+            '2026_10_22_000002_create_cash_advance_payments_table.php',
+            '2026_10_24_000001_add_interest_amount_to_cash_advances.php',
             '2026_10_24_000002_create_planter_deductions_tables.php',
             '2026_11_09_000000_add_liters_to_fuel_deductions.php',
             '2026_11_09_000001_add_sold_price_to_quedans.php',
@@ -256,6 +258,33 @@ class PlanterDeductionsTest extends TestCase
         // Confirmed by the user: saved
         $this->postJson(route('planter-deductions.store'), $second + ['confirm_duplicate' => true])->assertCreated();
         $this->assertSame(4, DB::table('planter_deductions')->count());
+    }
+
+    public function test_quick_cash_advance_is_approved_with_one_percent_and_comes_off_the_week(): void
+    {
+        $quick = ['crop_year' => '20262027', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN',
+            'amount' => 5000, 'week_no' => '4', 'date_created' => '2026-10-20'];
+
+        // The week must be set up for the crop year
+        $this->postJson(route('cash-advances.quick'), ['week_no' => '9'] + $quick)->assertStatus(422)->assertJsonValidationErrors('week_no');
+
+        $this->postJson(route('cash-advances.quick'), $quick)->assertCreated();
+
+        // Saved as an ordinary approved cash advance: 1% interest, the whole amount on week 4
+        $ca = DB::table('cash_advances')->first();
+        $this->assertSame('approved', $ca->status);
+        $this->assertEquals(1, (float) $ca->interest_rate);
+        $this->assertEquals(50, (float) $ca->interest_amount);
+        $this->assertEquals(5050, (float) $ca->total_amount);
+        $this->assertSame('2026-10-20', substr((string) $ca->application_date, 0, 10));
+        $this->assertSame([['week_no' => '4', 'amount' => 5050.0]], DB::table('cash_advance_deductions')->get()
+            ->map(fn ($d) => ['week_no' => (string) $d->week_no, 'amount' => (float) $d->amount])->all());
+
+        // On the week 4 voucher and Planter Accnt. Applied, not week 3's
+        $this->assertEqualsWithDelta(5050, PlanterProceeds::summary('20262027', 4, 4)->firstWhere('planter_code', '00123')['ca_deduction'], 0.001);
+        $this->assertEqualsWithDelta(0, PlanterProceeds::summary('20262027', 3, 3)->firstWhere('planter_code', '00123')['ca_deduction'], 0.001);
+        $rows = $this->captureView('pdf.planter-accounts', 'planter-accounts-report.pdf', ['crop_year' => '20262027', 'week_from' => 4, 'week_to' => 4])['rows'];
+        $this->assertEqualsWithDelta(5050, $rows->firstWhere('code', '00123')['ca'], 0.001);
     }
 
     public function test_voucher_deducts_fuel_and_others_of_its_weeks(): void
