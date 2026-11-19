@@ -41,7 +41,7 @@
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
                             <i class="fas fa-calendar-alt text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Crop Year <span class="text-rose-600">*</span>
                         </label>
-                        <select x-model="filters.crop_year" @change="onFilterChange()"
+                        <select x-model="filters.crop_year" @change="filters.bought_week = ''; onFilterChange()"
                             class="kp-input w-full">
                             <option value="">Select Crop Year</option>
                             @foreach ($cropYear as $year)
@@ -50,32 +50,21 @@
                         </select>
                     </div>
 
-                    <!-- Week From -->
-                    <div>
+                    <!-- Week Bought: the quedans / molasses bought that week, with their weeks' trucking allowance -->
+                    <div class="sm:col-span-1 lg:col-span-2">
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
-                            <i class="fas fa-play-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week From <span class="text-rose-600">*</span>
+                            <i class="fas fa-cart-shopping text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week Bought <span class="text-rose-600">*</span>
                         </label>
-                        <select x-model="filters.week_from" @change="onFilterChange()"
-                            class="kp-input w-full">
-                            <option value="">Select Week</option>
-                            @foreach ($weekNos as $week)
-                                <option value="{{ $week }}">Week {{ $week }}</option>
-                            @endforeach
+                        <select x-model="filters.bought_week" @change="onFilterChange()" :disabled="!filters.crop_year"
+                            class="kp-input w-full disabled:opacity-50">
+                            <option value="" x-text="filters.crop_year ? 'Select Week Bought' : 'Select crop year first'"></option>
+                            <template x-for="wk in boughtWeekOptions" :key="wk.week_no">
+                                <option :value="wk.week_no" :selected="wk.week_no === filters.bought_week" x-text="wk.label"></option>
+                            </template>
                         </select>
-                    </div>
-
-                    <!-- Week To -->
-                    <div>
-                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">
-                            <i class="fas fa-stop-circle text-[#087A3D] dark:text-[#52C97E] mr-1" aria-hidden="true"></i> Week To <span class="text-rose-600">*</span>
-                        </label>
-                        <select x-model="filters.week_to" @change="onFilterChange()"
-                            class="kp-input w-full">
-                            <option value="">Select Week</option>
-                            @foreach ($weekNos as $week)
-                                <option value="{{ $week }}">Week {{ $week }}</option>
-                            @endforeach
-                        </select>
+                        <p class="text-[11px] mt-1 text-[#52705F] dark:text-[#8AA895]">
+                            Quedans and molasses bought that week (any week, as on the Registry), with the trucking allowance of their own weeks.
+                        </p>
                     </div>
 
                     <!-- Planter Selection -->
@@ -148,7 +137,7 @@
                 <div class="flex items-center justify-between pt-4 border-t border-[#E3EBE5] dark:border-[#203A2B]">
                     <div class="text-xs text-[#52705F] dark:text-[#8AA895] flex items-center gap-1.5">
                         <i class="fas fa-info-circle text-[#087A3D]" aria-hidden="true"></i>
-                        <span>Generate saves a group below with the planters not yet generated for these weeks.</span>
+                        <span>Generate saves a group below with the planters not yet generated for this Week Bought.</span>
                     </div>
                     <div class="flex items-center gap-2.5">
                         <button type="button" @click="resetFilters()"
@@ -157,7 +146,7 @@
                         </button>
                         <button type="submit"
                             class="kp-btn kp-btn-primary shadow-sm"
-                            :disabled="!filters.crop_year || !filters.week_from || !filters.week_to || generating">
+                            :disabled="!filters.crop_year || !filters.bought_week || generating">
                             <i class="fas mr-1.5" :class="generating ? 'fa-circle-notch fa-spin' : 'fa-file-pdf'" aria-hidden="true"></i> Generate Voucher
                         </button>
                     </div>
@@ -204,7 +193,9 @@
                             <th class="py-2 pr-3 font-semibold">Generated</th>
                             <th class="py-2 pr-3 font-semibold">Crop Year</th>
                             <th class="py-2 pr-3 font-semibold">Week</th>
-                            <th class="py-2 pr-3 font-semibold text-right">Planters</th>
+                            <th class="py-2 pr-3 font-semibold text-right">Vouchers</th>
+                            <th class="py-2 pr-3 font-semibold text-right" title="Quedans on the vouchers: matches the Registry's count for the Week Bought">Quedans</th>
+                            <th class="py-2 pr-3 font-semibold text-right" title="Molasses records on the vouchers: matches the Registry's count for the Week Bought">Molasses</th>
                             <th class="py-2 pr-3 font-semibold text-right">Net Paid</th>
                             <th class="py-2 pr-3 font-semibold">Generated By</th>
                             <th class="py-2 font-semibold text-right">Actions</th>
@@ -217,10 +208,12 @@
                                 <td class="py-2 pr-3 whitespace-nowrap" x-text="b.crop_year"></td>
                                 <td class="py-2 pr-3 whitespace-nowrap" x-text="weekLabel(b)"></td>
                                 <td class="py-2 pr-3 text-right whitespace-nowrap">
-                                    <span x-text="b.planters"></span>
+                                    <span x-text="b.vouchers"></span>
                                     <span x-show="b.receivers > 0" class="block text-[11px] text-[#087A3D] dark:text-[#52C97E]"
                                         x-text="b.receivers + ' authorized'"></span>
                                 </td>
+                                <td class="py-2 pr-3 text-right whitespace-nowrap" x-text="b.bought_week ? b.quedans : '-'"></td>
+                                <td class="py-2 pr-3 text-right whitespace-nowrap" x-text="b.bought_week ? b.molasses : '-'"></td>
                                 <td class="py-2 pr-3 text-right whitespace-nowrap font-semibold" x-text="money(b.net_paid)"></td>
                                 <td class="py-2 pr-3 whitespace-nowrap text-[#52705F] dark:text-[#8AA895]" x-text="b.generated_by || '-'"></td>
                                 <td class="py-2 text-right whitespace-nowrap">
@@ -254,7 +247,7 @@
                     <div>
                         <h2 class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Voucher Group</h2>
                         <p class="text-xs text-[#52705F] dark:text-[#8AA895]" x-show="current"
-                            x-text="current ? current.generated_at + ' · Crop Year ' + current.crop_year + ' · ' + weekLabel(current) + ' · ' + items.length + ' planter(s)' : ''"></p>
+                            x-text="current ? current.generated_at + ' · Crop Year ' + current.crop_year + ' · ' + weekLabel(current) + ' · ' + (current.bought_week ? items.length + ' voucher(s), ' + current.quedans + ' quedan(s), ' + current.molasses + ' molasses' : items.length + ' planter(s)') : ''"></p>
                     </div>
                     <div class="flex items-center gap-2">
                         <div class="relative">
@@ -279,6 +272,8 @@
                             <tr class="text-left text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider border-b border-[#E3EBE5] dark:border-[#203A2B]">
                                 <th class="py-2 pr-3 font-semibold">Code</th>
                                 <th class="py-2 pr-3 font-semibold">Planter</th>
+                                <th x-show="current && current.bought_week" class="py-2 pr-3 font-semibold text-center">Week</th>
+                                <th x-show="current && current.bought_week" class="py-2 pr-3 font-semibold">QDN No.</th>
                                 <th class="py-2 pr-3 font-semibold text-right">Net Paid</th>
                                 <th class="py-2 pr-3 font-semibold">Authorized to Receive</th>
                                 <th class="py-2 font-semibold text-right">Voucher</th>
@@ -293,6 +288,11 @@
                                         <span x-show="v.receiver_name" class="block text-[11px] text-[#087A3D] dark:text-[#52C97E]">
                                             <i class="fas fa-user-check mr-1" aria-hidden="true"></i>Voucher prints <b x-text="v.receiver_name"></b>
                                         </span>
+                                    </td>
+                                    <td x-show="current && current.bought_week" class="py-2 pr-3 text-center whitespace-nowrap" x-text="v.quedan_week ? 'Wk ' + v.quedan_week : '-'"></td>
+                                    <td x-show="current && current.bought_week" class="py-2 pr-3 whitespace-nowrap text-[#52705F] dark:text-[#8AA895]">
+                                        <span x-text="v.qdn_no || (v.molasses_count ? 'Molasses only' : '-')"></span>
+                                        <span x-show="v.quedan_count && v.molasses_count" class="text-[11px]" x-text="' + molasses'"></span>
                                     </td>
                                     <td class="py-2 pr-3 text-right whitespace-nowrap font-semibold"
                                         :class="v.net_paid < 0 ? 'text-rose-600' : 'text-[#172B20] dark:text-[#EAF5ED]'"
@@ -341,8 +341,7 @@
                     // Main filters
                     filters: {
                         crop_year: '{{ $selectedCropYear ?? '' }}',
-                        week_from: '{{ $weekFrom ?? '' }}',
-                        week_to: '{{ $weekTo ?? '' }}',
+                        bought_week: '',
                         planter_names: []
                     },
                     generating: false,
@@ -362,6 +361,12 @@
                     items: [],
                     itemsLoading: false,
                     itemSearch: '',
+
+                    boughtWeeks: @json($boughtWeeks),
+
+                    get boughtWeekOptions() {
+                        return this.boughtWeeks[this.filters.crop_year] || [];
+                    },
 
                     init() {
                         this.fetchBatches();
@@ -387,7 +392,7 @@
                     },
 
                     get canLoadPlanters() {
-                        return this.filters.crop_year && this.filters.week_from && this.filters.week_to;
+                        return this.filters.crop_year && this.filters.bought_week;
                     },
 
                     get planterSelectedText() {
@@ -403,6 +408,7 @@
                     },
 
                     weekLabel(b) {
+                        if (b.bought_week) return 'Week Bought ' + b.bought_week;
                         return b.week_from == b.week_to ? 'Week ' + b.week_from : 'Week ' + b.week_from + ' - ' + b.week_to;
                     },
 
@@ -439,9 +445,8 @@
                         try {
                             const params = new URLSearchParams({
                                 crop_year: this.filters.crop_year,
-                                week_from: this.filters.week_from,
-                                week_to: this.filters.week_to,
-                                // Only planters not yet in a generated group for these weeks
+                                bought_week: this.filters.bought_week,
+                                // Only planters not yet in a generated group for this Week Bought
                                 exclude_generated: 1,
                             });
 
@@ -489,11 +494,11 @@
 
                     // Generate saves a group of the planters not yet generated for these weeks
                     async loadVoucher() {
-                        if (!this.filters.crop_year || !this.filters.week_from || !this.filters.week_to) {
+                        if (!this.filters.crop_year || !this.filters.bought_week) {
                             Swal.fire({
                                 icon: 'warning',
                                 title: 'Incomplete Filters',
-                                text: 'Please select crop year and week range.',
+                                text: 'Please select the crop year and the week bought.',
                                 confirmButtonColor: '#005B2A'
                             });
                             return;
@@ -507,8 +512,7 @@
                                 headers: jsonHeaders(),
                                 body: JSON.stringify({
                                     crop_year: this.filters.crop_year,
-                                    week_from: this.filters.week_from,
-                                    week_to: this.filters.week_to,
+                                    bought_week: this.filters.bought_week,
                                     planter_name: this.filters.planter_names,
                                 }),
                             });
@@ -552,8 +556,7 @@
                     },
 
                     printOne(v) {
-                        const params = new URLSearchParams({ batch_id: this.current.id });
-                        params.append('planter_name[]', v.planter_code);
+                        const params = new URLSearchParams({ batch_id: this.current.id, item_id: v.id });
                         window.KusugpaPdfPreview.open('{{ route('voucher.pdf') }}?' + params.toString(), 'Voucher - ' + (v.receiver_name || v.planter_name));
                     },
 
@@ -587,7 +590,7 @@
                         const confirm = await Swal.fire({
                             icon: 'warning',
                             title: 'Delete this group?',
-                            html: 'Group of <b>' + b.generated_at + '</b> (' + this.weekLabel(b) + ', ' + b.planters + ' planter(s)).<br>'
+                            html: 'Group of <b>' + b.generated_at + '</b> (' + this.weekLabel(b) + ', ' + b.vouchers + ' voucher(s)).<br>'
                                 + 'Its planters can then be generated again, and their authorized receivers are removed.',
                             showCancelButton: true,
                             confirmButtonText: 'Delete',
@@ -610,8 +613,7 @@
                     resetFilters() {
                         this.filters = {
                             crop_year: '',
-                            week_from: '',
-                            week_to: '',
+                            bought_week: '',
                             planter_names: []
                         };
                         this.planters = [];

@@ -27,7 +27,7 @@ class PlanterProceeds
      * With $boughtWeek, only quedans and molasses bought in that week count (the "Week Bought" rule of
      * the Registry / Buy pages) and only planters with such a quedan or molasses are listed.
      */
-    public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null, $boughtWeek = null, ?bool $includeMolasses = null): Collection
+    public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null, $boughtWeek = null, ?bool $includeMolasses = null, bool $perQuedan = false): Collection
     {
         // $includeMolasses: null = molasses follow the Week Bought rule like quedans (default);
         // true = all bought molasses of the weeks, regardless of Week Bought; false = no molasses
@@ -60,7 +60,10 @@ class PlanterProceeds
             $quedanQuery->boughtInWeek($cropYear, $boughtWeek);
         }
 
-        $quedans = $quedanQuery->get();
+        $quedans = $quedanQuery->orderBy('quedans.id')->get();
+        // $perQuedan: one record (voucher) per quedan. The planter's molasses and trucking allowance of the
+        // weeks go on its first quedan's record; molasses without a quedan make their own record.
+        $firstKey = [];
 
         // The bought week's price each quedan was bought at (Price Management), as it stands now
         $boughtPrices = QuedanPrice::whereIn('id', $quedans->pluck('quedan_price_id')->filter()->unique()->values())
@@ -128,7 +131,9 @@ class PlanterProceeds
 
         foreach ($quedans as $quedan) {
             // One record per planter: codes that differ only in leading zeros or spaces (9997 = 09997) are the same planter
-            $key = PlanterProfileSync::key($quedan->planter_code);
+            $planterKey = PlanterProfileSync::key($quedan->planter_code);
+            $key = $perQuedan ? $planterKey . '#q' . $quedan->id : $planterKey;
+            $firstKey[$planterKey] ??= $key;
 
             if (!isset($summaryData[$key])) {
                 $summaryData[$key] = [
@@ -169,6 +174,9 @@ class PlanterProceeds
                 ];
             }
 
+            $summaryData[$key]['quedan_count'] = ($summaryData[$key]['quedan_count'] ?? 0) + 1;
+            $summaryData[$key]['qdn_nos'][] = (string) $quedan->qdn_no;
+
             $boughtPrice = $quedan->quedan_price_id ? $boughtPrices->get($quedan->quedan_price_id) : null;
             if ($boughtPrice) {
                 // Priced at its bought week's price, so a price corrected in Price Management carries over
@@ -197,7 +205,7 @@ class PlanterProceeds
 
         foreach ($molasses as $mol) {
             // One record per planter: codes that differ only in leading zeros or spaces (9997 = 09997) are the same planter
-            $key = PlanterProfileSync::key($mol->planter_code);
+            $key = $firstKey[PlanterProfileSync::key($mol->planter_code)] ?? PlanterProfileSync::key($mol->planter_code);
 
             if (!isset($summaryData[$key])) {
                 $summaryData[$key] = [
@@ -225,6 +233,7 @@ class PlanterProceeds
             // Each record's amount is kept, so molasses bought at different prices add up exactly;
             // the price shown is the average per MT
             $summaryData[$key]['mol_net'] += $mol->mol_net;
+            $summaryData[$key]['molasses_count'] = ($summaryData[$key]['molasses_count'] ?? 0) + 1;
             $summaryData[$key]['molasses_amount'] = ($summaryData[$key]['molasses_amount'] ?? 0) + (float) $mol->mol_net * (float) $mol->mol_price;
             $summaryData[$key]['mol_price'] = abs($summaryData[$key]['mol_net']) > 1e-9
                 ? $summaryData[$key]['molasses_amount'] / $summaryData[$key]['mol_net']
@@ -233,7 +242,7 @@ class PlanterProceeds
 
    foreach ($consolidatedUploads as $consolidated) {
         // One record per planter: codes that differ only in leading zeros or spaces (9997 = 09997) are the same planter
-        $key = PlanterProfileSync::key($consolidated->planter_code);
+        $key = $firstKey[PlanterProfileSync::key($consolidated->planter_code)] ?? PlanterProfileSync::key($consolidated->planter_code);
 
         if (!isset($summaryData[$key])) {
             $summaryData[$key] = [
@@ -266,7 +275,7 @@ class PlanterProceeds
 
         foreach ($truckingAllowances as $trucking) {
         // One record per planter: codes that differ only in leading zeros or spaces (9997 = 09997) are the same planter
-        $key = PlanterProfileSync::key($trucking->planter_code);
+        $key = $firstKey[PlanterProfileSync::key($trucking->planter_code)] ?? PlanterProfileSync::key($trucking->planter_code);
 
         if (!isset($summaryData[$key])) {
             $summaryData[$key] = [
@@ -311,7 +320,66 @@ class PlanterProceeds
             $summaryData = array_filter($summaryData, fn ($data) => $boughtCodes->has(PlanterProfileSync::key($data['planter_code'])));
         }
 
+        foreach ($summaryData as $recordKey => $data) {
+            $summaryData[$recordKey]['voucher_key'] = (string) $recordKey;
+        }
         $summaryData = collect(array_values($summaryData));
+
+        return self::attachAccounts($summaryData, $cropYear, $weekFrom, $weekTo);
+    }
+
+    /**
+     * A Check Voucher of one Week Bought: every quedan and molasses record bought that week, whatever its
+     * own week, at its bought price, plus the trucking allowance of those same weeks (a week-2 quedan bought
+     * in week 6 brings the planter's week-2 trucking allowance). One voucher per quedan, with the planter's
+     * molasses and trucking of that week on its first quedan; molasses without a quedan in the week make
+     * their own voucher.
+     * The accounts applied (loan, cash advance, fuel, others) follow their schedule: each voucher takes the
+     * deductions scheduled for its quedan's week (on the planter's first voucher of that week), and they are
+     * deducted when the quedan is bought. A week-2 cash advance installment comes off the week-2 quedan's voucher.
+     */
+    public static function summaryByBoughtWeek($cropYear, $boughtWeek, $planterNames = null): Collection
+    {
+        $boughtWeek = (int) $boughtWeek;
+        // The weeks of the quedans and molasses bought in the week
+        $weeks = Quedan::notPending()->where('crop_year', $cropYear)->boughtInWeek($cropYear, $boughtWeek)
+            ->distinct()->pluck('week_no')
+            ->merge(Molass::notPending()->where('crop_year', $cropYear)->boughtInWeek($cropYear, $boughtWeek)->distinct()->pluck('week_no'))
+            ->map(fn ($w) => (int) $w)->filter(fn ($w) => $w > 0)->unique()->sort()->values();
+
+        $weekEnd = WeekNo::where('crop_year', $cropYear)
+            ->whereIn('week_no', [(string) $boughtWeek, str_pad((string) $boughtWeek, 2, '0', STR_PAD_LEFT)])
+            ->value('week_end_date');
+        $records = collect();
+        foreach ($weeks as $week) {
+            // Each week on its own (its prices, its trucking, its scheduled deductions), one record per quedan
+            // bought in the week
+            foreach (self::summary($cropYear, $week, $week, $planterNames, $boughtWeek, null, true) as $record) {
+                // Molasses without a quedan are keyed by planter: the week keeps them apart
+                if (!str_contains($record['voucher_key'], '#q')) {
+                    $record['voucher_key'] .= '#w' . $week;
+                }
+                $record['week_no'] = 'WK ' . $week . ' / BOUGHT WK ' . $boughtWeek;
+                $record['quedan_week'] = $week;
+                $record['week_end_date'] = $weekEnd ?? '';
+                $record['bought_week'] = $boughtWeek;
+                $records->push($record);
+            }
+        }
+        return $records->sortBy(fn ($r) => sprintf('%s|%03d|%s', mb_strtoupper(trim((string) $r['planter_name'])), $r['quedan_week'], $r['voucher_key']))->values();
+    }
+
+    /**
+     * The accounts applied on the voucher of the weeks: cash advance, fuel, others and loan payments
+     */
+    private static function attachAccounts(Collection $summaryData, $cropYear, $weekFrom, $weekTo): Collection
+    {
+        $from = min((int) $weekFrom, (int) $weekTo);
+        $to = max((int) $weekFrom, (int) $weekTo);
+        $weekValues = collect(range($from, $to))
+            ->flatMap(fn ($week) => [(string) $week, str_pad((string) $week, 2, '0', STR_PAD_LEFT)])
+            ->uniqueStrict()->values()->all();
+        $weekEndDates = WeekNo::where('crop_year', $cropYear)->whereIn('week_no', $weekValues)->pluck('week_end_date', 'week_no');
 
         // Cash Advance Payment: the planter's cash advance weeks that fall in the voucher's weeks
         // (the same weekly schedule Hauling Liquidity deducts), from approved / active / completed advances
@@ -403,7 +471,18 @@ class PlanterProceeds
             return $data;
         });
 
-        return $summaryData;
+        // A planter with several vouchers (one per quedan) has its accounts taken on the first one only
+        $seen = [];
+        return $summaryData->map(function ($data) use (&$seen) {
+            $planterKey = PlanterProfileSync::key($data['planter_code']);
+            if (isset($seen[$planterKey])) {
+                foreach (['ca_deduction', 'fuel_deduction', 'others_deduction', 'loan_deduction'] as $field) {
+                    $data[$field] = 0;
+                }
+            }
+            $seen[$planterKey] = true;
+            return $data;
+        });
     }
 
     /** Sold price types are A, B or D; anything else is computed as B */

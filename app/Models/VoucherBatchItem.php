@@ -13,13 +13,18 @@ class VoucherBatchItem extends Model
 
     protected $fillable = [
         'voucher_batch_id', 'crop_year', 'week_from', 'week_to',
-        'planter_code', 'planter_name', 'net_paid', 'receiver_name',
+        'planter_code', 'planter_name', 'net_paid', 'receiver_name', 'bought_week',
+        'voucher_key', 'quedan_week', 'qdn_no', 'quedan_count', 'molasses_count',
     ];
 
     protected $casts = [
         'voucher_batch_id' => 'integer',
         'week_from' => 'integer',
         'week_to' => 'integer',
+        'bought_week' => 'integer',
+        'quedan_week' => 'integer',
+        'quedan_count' => 'integer',
+        'molasses_count' => 'integer',
         'net_paid' => 'float',
     ];
 

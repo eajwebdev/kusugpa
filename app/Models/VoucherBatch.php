@@ -10,11 +10,12 @@ use Illuminate\Database\Eloquent\Model;
  */
 class VoucherBatch extends Model
 {
-    protected $fillable = ['crop_year', 'week_from', 'week_to', 'user_id', 'generated_by'];
+    protected $fillable = ['crop_year', 'week_from', 'week_to', 'bought_week', 'user_id', 'generated_by'];
 
     protected $casts = [
         'week_from' => 'integer',
         'week_to' => 'integer',
+        'bought_week' => 'integer',
     ];
 
     public function items()
