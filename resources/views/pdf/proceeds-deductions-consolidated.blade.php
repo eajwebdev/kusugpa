@@ -154,7 +154,7 @@
                 ['DEDUCTIONS/LIENS:', '', '', 'title'],
                 ['STATUTORY QUEDAN LIENS', '', $money($t['liens']), ''],
                 ['INSURANCE', '', $money($t['insurance']), ''],
-                ['HANDLING FEE ' . number_format($handlingRate, 2) . '/MT', '', $money($t['handling']), ''],
+                ['HANDLING FEE ' . number_format($handlingRate, 2) . '/MT + ' . number_format($docStamp, 2) . ' DOC STAMP', '', $money($t['handling']), ''],
                 ['', '', '', 'gap'],
                 ['OTHER CHARGES:', '', '', 'title'],
                 ['WITHHOLDING TAX', '', $money($t['tax']), ''],
@@ -215,14 +215,9 @@
             <td>3.00/LKG</td>
         </tr>
         <tr>
-            <td></td>
-            <td>&nbsp; MOLASSES</td>
-            <td>30.00 PER PLANTER</td>
-        </tr>
-        <tr>
             <td class="in1">HANDLING FEE</td>
             <td>: MOLASSES</td>
-            <td>{{ number_format($handlingRate, 2) }}/MT</td>
+            <td>{{ number_format($handlingRate, 2) }}/MT + {{ number_format($docStamp, 2) }} DOC STAMP</td>
         </tr>
         <tr>
             <td class="in1">SERVICE CHARGE</td>

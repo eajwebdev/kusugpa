@@ -228,8 +228,20 @@ class TableFeedTest extends TestCase
             $table->string('mc_no')->nullable();
             $table->decimal('mol_net', 12, 3)->default(0);
             $table->string('status')->default('pending');
+            // Sold price picked on Buy Molasses; its week is the Week Bought
+            $table->decimal('sold_price', 12, 2)->nullable();
+            $table->unsignedBigInteger('molasses_price_id')->nullable();
             $table->timestamps();
         });
+        if (!Schema::hasTable('mol_price')) {
+            Schema::create('mol_price', function (Blueprint $table) {
+                $table->id();
+                $table->string('crop_year');
+                $table->string('week_no');
+                $table->decimal('mol_price', 12, 2);
+                $table->timestamps();
+            });
+        }
         $row = ['crop_year' => '20262027', 'week_no' => '1', 'planter_code' => '1', 'planter_name' => 'A'];
         DB::table('molasses')->insert([$row + ['mol_net' => 1.25], $row + ['mol_net' => 2.5]]);
 

@@ -25,8 +25,8 @@ class ProceedsDeductionsController extends Controller
     private const PLANTERS_PER_PAGE = 18;
 
     /** Consolidated statement: molasses handling fee per MT, and the flat insurance per planter with molasses (as on the voucher) */
-    public const MOLASSES_HANDLING_PER_MT = 120.0;
-    public const MOLASSES_INSURANCE_PER_PLANTER = 30.0;
+    public const MOLASSES_HANDLING_PER_MT = PlanterProceeds::MOLASSES_HANDLING_PER_MT;
+    public const MOLASSES_DOC_STAMP = PlanterProceeds::MOLASSES_DOC_STAMP;
 
     /** Amount columns of the report, in print order */
     public const COLUMNS = [
@@ -205,8 +205,8 @@ class ProceedsDeductionsController extends Controller
             }
         }
         // Laid out like the mill's consolidated statement. Each amount is rounded per voucher, as printed,
-        // then added up. The voucher's molasses "Insurance / Handling" (120.00/MT + 30.00) is split:
-        // the 30.00 per planter with molasses goes to INSURANCE, the 120.00/MT to HANDLING FEE.
+        // then added up. INSURANCE is the sugar's (3.00/LKG); HANDLING FEE is the voucher's molasses
+        // "Insurance / Handling" exactly: 200.00/MT + 30.00 doc stamp per voucher with molasses.
         // The 7.00/ton additional service charge (trans codes 06/08/25/36/38) is kept off the mill
         // deductions and taken off with the trucking allowance, so the grand total still equals the vouchers.
         $sum['handling'] = 0.0;
@@ -221,8 +221,9 @@ class ProceedsDeductionsController extends Controller
             $sum['sugar'] += round($p['quedanGrossProceeds'], 2);
             $sum['molasses'] += round($p['molasses_gross'], 2);
             $sum['liens'] += round($p['quedanTotalLiens'] + $p['molasses_liens'], 2);
-            $sum['insurance'] += round($p['quedanTotalInsurance'], 2) + ($hasMolasses ? self::MOLASSES_INSURANCE_PER_PLANTER : 0);
-            $sum['handling'] += $hasMolasses ? round($p['mol_net'] * self::MOLASSES_HANDLING_PER_MT, 2) : 0;
+            $sum['insurance'] += round($p['quedanTotalInsurance'], 2);
+            // Same as the voucher's M row: MT x 200.00 + 30.00 doc stamp
+            $sum['handling'] += $hasMolasses ? round($p['molasses_insurance'], 2) : 0;
             $sum['tax'] += round($p['quedanTotalTax'], 2) + round($p['molasses_tax'], 2);
             $sum['service'] += round($p['quedanTotalServiceCharge'] - $additional, 2) + round($p['molasses_service'], 2);
         }
@@ -290,6 +291,7 @@ class ProceedsDeductionsController extends Controller
             'boughtWeek' => $boughtWeek,
             'molWeek' => $molWeek,
             'handlingRate' => self::MOLASSES_HANDLING_PER_MT,
+            'docStamp' => self::MOLASSES_DOC_STAMP,
             'cropYear' => $cropYear,
             'week' => $week,
             'weekEnding' => $weekEnd ? Carbon::parse($weekEnd)->format('m-d-Y') : '',

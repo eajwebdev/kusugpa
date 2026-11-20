@@ -23,6 +23,13 @@ use Illuminate\Support\Collection;
 class PlanterProceeds
 {
     /**
+     * Molasses insurance / handling on the voucher: 200.00 per MT plus a 30.00 doc stamp per voucher with
+     * molasses. The Consolidated Proceeds & Deductions shows the same amount as HANDLING FEE.
+     */
+    public const MOLASSES_HANDLING_PER_MT = 200.0;
+    public const MOLASSES_DOC_STAMP = 30.0;
+
+    /**
      * One record per planter with the uploaded quantities, prices and the cash advance / loan payments.
      * With $boughtWeek, only quedans and molasses bought in that week count (the "Week Bought" rule of
      * the Registry / Buy pages) and only planters with such a quedan or molasses are listed.
@@ -566,8 +573,8 @@ class PlanterProceeds
         $molasses_gross = $record['molasses_amount'] ?? $mol_net * $mol_price;
         $molasses_liens = $record['molasses_liens'] ?? 0;
         $molasses_service = $mol_net * 20.0;
-        // 120.00 per MT + 30.00 handling, only when the planter has molasses
-        $molasses_insurance = $mol_net > 0 ? $mol_net * 120.0 + 30.0 : 0.0;
+        // Insurance / handling: 200.00 per MT + 30.00, only when the planter has molasses
+        $molasses_insurance = $mol_net > 0 ? $mol_net * self::MOLASSES_HANDLING_PER_MT + self::MOLASSES_DOC_STAMP : 0.0;
         $molasses_tax = $molasses_gross * 0.01;
         $molasses_total_deductions = $molasses_liens + $molasses_service + $molasses_insurance + $molasses_tax;
         $molasses_net = $molasses_gross - $molasses_total_deductions;
