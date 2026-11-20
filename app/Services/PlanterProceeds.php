@@ -402,7 +402,7 @@ class PlanterProceeds
         if (LoanSetting::get('ca_auto_deduct', false) && $weekEndDates->isNotEmpty()) {
             $periodStart = WeekNo::where('crop_year', $cropYear)->where('week_no', $weekFrom)->value('week_start_date') ?? $weekEndDates->min();
             $caMonthly = CashAdvanceAmortization::whereIn('status', ['pending', 'partial', 'overdue'])
-                ->whereBetween('due_date', [substr((string) $periodStart, 0, 10), substr((string) $weekEndDates->max(), 0, 10)])
+                ->whereBetween('due_date', [substr((string) $periodStart, 0, 10), substr((string) $weekEndDates->max(), 0, 10) . ' 23:59:59'])
                 ->whereHas('cashAdvance', fn ($q) => $q->where('crop_year', $cropYear)->where('status', 'active'))
                 ->with('cashAdvance:id,planter_code,planter_name')
                 ->get()
@@ -465,7 +465,7 @@ class PlanterProceeds
         $loanDue = collect();
         if (LoanSetting::get('auto_deduct', true) && $weekEndDates->isNotEmpty()) {
             $periodStart = WeekNo::where('crop_year', $cropYear)->where('week_no', $weekFrom)->value('week_start_date') ?? $weekEndDates->min();
-            $loanDue = LoanAmortization::whereBetween('due_date', [substr((string) $periodStart, 0, 10), substr((string) $weekEndDates->max(), 0, 10)])
+            $loanDue = LoanAmortization::whereBetween('due_date', [substr((string) $periodStart, 0, 10), substr((string) $weekEndDates->max(), 0, 10) . ' 23:59:59'])
                 ->whereHas('loan', fn ($q) => $q->where('crop_year', $cropYear)->whereIn('status', ['approved', 'active', 'completed']))
                 ->with('loan:id,planter_code')
                 ->get()

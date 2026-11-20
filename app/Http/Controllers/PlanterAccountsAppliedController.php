@@ -70,8 +70,11 @@ class PlanterAccountsAppliedController extends Controller
         $user = auth()->user();
         // Same rule as saving it (route cash-advances.quick needs Create Cash Advances)
         $canQuickCA = $user && \App\Support\NavigationPermissions::canOpen($user, 'create-cash-advances');
+        // Quick Loan: a loan balance entered directly (route loans.quick needs Create Loans)
+        $canQuickLoan = $user && \App\Support\NavigationPermissions::canOpen($user, 'create-loans');
+        $loanTypes = \App\Models\LoanType::orderBy('id')->get(['id', 'name']);
 
-        return view('reports.planter-accounts', compact('cropYear', 'weeks', 'planters', 'canQuickCA'));
+        return view('reports.planter-accounts', compact('cropYear', 'weeks', 'planters', 'canQuickCA', 'canQuickLoan', 'loanTypes'));
     }
 
     public function pdf(Request $request)

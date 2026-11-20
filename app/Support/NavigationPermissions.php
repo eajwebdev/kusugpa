@@ -162,7 +162,7 @@ class NavigationPermissions
             'loans.attachment.view', 'loans.attachment.download'], true)) {
             return 'view-loans';
         }
-        if (in_array($name, ['loans.create', 'loans.store', 'loans.attachments.store',
+        if (in_array($name, ['loans.create', 'loans.store', 'loans.quick', 'loans.attachments.store',
             'loans.attachments.destroy', 'loans.schedule.update', 'loans.destroy'], true)) {
             return 'create-loans';
         }

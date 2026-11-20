@@ -10,6 +10,8 @@ use App\Models\LoanPayment;
 use App\Models\LoanSetting;
 use App\Models\Summary;
 use App\Models\CropYear;
+use App\Models\WeekNo;
+use Carbon\Carbon;
 use App\Models\User;
 use App\Models\AuditLog;
 use App\Models\PlanterProfile;
@@ -231,6 +233,87 @@ class LoanController extends Controller
         }
 
         return redirect()->route('loans.index')->with('success', $message);
+    }
+
+    /**
+     * Quick Loan (shortcut on Planter Accnt. Applied): a planter's loan balance entered directly, e.g. a
+     * previous loan's balance carried over to reconcile accounts. No application or approval step and no
+     * interest: the balance is one installment due at the end of the chosen week, so it comes off that week's
+     * Check Voucher (LOAN PAYMENT) like any loan. Saved as an ordinary approved loan, so it shows on Loans too.
+     */
+    public function quickStore(Request $request)
+    {
+        if (!$this->canProcessLoans()) {
+            AuditLog::log('error', 'loans', 'Unauthorized quick loan attempt');
+            return response()->json(['message' => 'You do not have permission to create loans.'], 403);
+        }
+
+        $data = $request->validate([
+            'crop_year' => 'required|string',
+            'planter_code' => 'required|string|max:50',
+            'planter_name' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01',
+            'week_no' => 'required|string|max:10',
+            'date_created' => 'required|date',
+            'loan_type_id' => 'nullable|exists:loan_types,id',
+            'remarks' => 'nullable|string|max:500',
+        ], [
+            'amount.required' => 'Enter the loan balance.',
+            'week_no.required' => 'Select the week the loan balance is deducted.',
+        ]);
+
+        $week = WeekNo::where('crop_year', $data['crop_year'])->where('week_no', $data['week_no'])->first();
+        if (!$week || !$week->week_end_date) {
+            throw ValidationException::withMessages([
+                'week_no' => 'Week ' . $data['week_no'] . ' has no dates set up for crop year ' . $data['crop_year'] . ' in Crop & Week Management.',
+            ]);
+        }
+        $dueDate = Carbon::parse($week->week_end_date)->toDateString();
+        $amount = round((float) $data['amount'], 2);
+
+        $loan = new Loan([
+            'planter_code' => $data['planter_code'],
+            'planter_name' => trim($data['planter_name']),
+            'loan_type_id' => $data['loan_type_id'] ?? LoanType::orderBy('id')->value('id'),
+            'principal_amount' => $amount,
+            'interest_rate' => 0,
+            'term_months' => 1,
+            'crop_year' => $data['crop_year'],
+            'purpose' => 'Loan balance (Quick Loan)',
+            'remarks' => trim('Quick Loan (Planter Accnt. Applied): loan balance entered to reconcile. ' . ($data['remarks'] ?? '')),
+        ]);
+        $loan->loan_number = Loan::generateLoanNumber();
+        $loan->application_date = Carbon::parse($data['date_created'])->toDateString();
+        $loan->status = 'pending';
+        $loan->created_by = auth()->id();
+        $loan->total_amount = $amount;
+        $loan->monthly_amortization = $amount;
+        $loan->balance = $amount;
+
+        // One installment: the whole balance, due at the end of the week it is deducted
+        $schedule = collect([['month' => substr($dueDate, 0, 7), 'due_date' => $dueDate, 'amount' => $amount]]);
+        LoanSchedule::validate($loan, $schedule);
+
+        DB::transaction(function () use ($loan, $schedule, $data) {
+            $loan->save();
+            LoanSchedule::apply($loan, $schedule);
+            $this->markApproved($loan, Carbon::parse($data['date_created'])->toDateString());
+        });
+
+        AuditLog::log('create', 'loans', 'Created quick loan #' . $loan->loan_number, [
+            'planter' => $loan->planter_name . ' (' . $loan->planter_code . ')',
+            'loan_balance' => $amount,
+            'deducted' => 'Wk ' . $week->week_no . ' (due ' . $dueDate . ')',
+            'date_created' => Carbon::parse($data['date_created'])->toDateString(),
+            'remarks' => $data['remarks'] ?? null,
+            'approval' => 'quick entry, recorded as approved',
+        ]);
+
+        return response()->json([
+            'message' => 'Loan #' . $loan->loan_number . ' saved: the balance of ₱' . number_format($amount, 2)
+                . ' comes off ' . $loan->planter_name . '\'s Week ' . $week->week_no . ' voucher (Loan Payment).',
+            'loan' => $loan->only(['id', 'loan_number', 'planter_code', 'planter_name', 'principal_amount', 'balance']),
+        ], 201);
     }
 
     /**

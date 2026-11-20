@@ -91,9 +91,16 @@
                 <p class="kp-kpi-label"><i class="fas fa-hand-holding-dollar" aria-hidden="true"></i> Advance Amount</p>
                 <p class="kp-kpi-value kp-num">₱{{ number_format($cashAdvance->amount, 2) }}</p>
                 <p class="kp-kpi-sub">
-                    {{ $cashAdvance->interest_rate }}% interest
                     @if ((float) $cashAdvance->interest_amount > 0)
-                        · ₱{{ number_format($cashAdvance->interest_amount, 2) }} · Total ₱{{ number_format($cashAdvance->repayable(), 2) }}
+                        {{ $cashAdvance->interest_rate }}% interest · ₱{{ number_format($cashAdvance->interest_amount, 2) }}
+                    @else
+                        Interest waived
+                    @endif
+                    @if ((float) $cashAdvance->adjustment_amount != 0)
+                        · Late charges / adj. {{ (float) $cashAdvance->adjustment_amount < 0 ? '-' : '' }}₱{{ number_format(abs((float) $cashAdvance->adjustment_amount), 2) }}
+                    @endif
+                    @if ((float) $cashAdvance->interest_amount > 0 || (float) $cashAdvance->adjustment_amount != 0)
+                        · Total ₱{{ number_format($cashAdvance->repayable(), 2) }}
                     @endif
                 </p>
             </div>
@@ -156,8 +163,20 @@
                         </div>
                         <div>
                             <span class="text-[#52705F] dark:text-[#8AA895] block mb-0.5">Interest Charge</span>
-                            <span class="font-bold text-[#172B20] dark:text-[#EAF5ED]">{{ $cashAdvance->interest_rate }}%</span>
+                            <span class="font-bold text-[#172B20] dark:text-[#EAF5ED]">
+                                @if ((float) $cashAdvance->interest_amount > 0)
+                                    {{ $cashAdvance->interest_rate }}% · ₱{{ number_format($cashAdvance->interest_amount, 2) }}
+                                @else
+                                    Waived
+                                @endif
+                            </span>
                         </div>
+                        @if ((float) $cashAdvance->adjustment_amount != 0)
+                            <div>
+                                <span class="text-[#52705F] dark:text-[#8AA895] block mb-0.5">Late Charges / Adjustments</span>
+                                <span class="font-bold kp-num text-amber-700 dark:text-amber-300">{{ (float) $cashAdvance->adjustment_amount < 0 ? '-' : '+' }}₱{{ number_format(abs((float) $cashAdvance->adjustment_amount), 2) }}</span>
+                            </div>
+                        @endif
                         <div>
                             <span class="text-[#52705F] dark:text-[#8AA895] block mb-0.5">Total Repayable</span>
                             <span class="font-bold text-[#172B20] dark:text-[#EAF5ED] kp-num">₱{{ number_format($isWeekly ? $scheduledTotal : $cashAdvance->total_amount, 2) }}</span>
@@ -231,7 +250,16 @@
                             <tbody>
                                 @forelse ($weeklyRows as $row)
                                     <tr class="hover:bg-[#EAF5ED]/50 dark:hover:bg-[#1A3324]/50 transition-colors">
-                                        <td class="text-xs font-semibold">Week {{ $row['week_no'] }}</td>
+                                        <td class="text-xs font-semibold">
+                                            Week {{ $row['week_no'] }}
+                                            {{-- A late week carried into this one, with its late charge --}}
+                                            @foreach ($adjustments->where('type', 'late_charge')->where('to_week', $row['week_no']) as $late)
+                                                <span class="block font-normal text-[11px] text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                                                    <i class="fas fa-arrow-turn-down mr-0.5" aria-hidden="true"></i>
+                                                    Wk {{ $late->from_week }} unpaid ₱{{ number_format($late->unpaid_amount, 2) }} + late ₱{{ number_format($late->charge_amount, 2) }}
+                                                </span>
+                                            @endforeach
+                                        </td>
                                         <td class="text-xs font-medium">{{ $row['due_date'] ? \Carbon\Carbon::parse($row['due_date'])->format('M d, Y') : '—' }}</td>
                                         <td class="text-xs text-right kp-num font-medium">₱{{ number_format($row['amount'], 2) }}</td>
                                         <td class="text-xs text-right kp-num font-bold text-[#005B2A] dark:text-[#52C97E]">₱{{ number_format($row['paid'], 2) }}</td>
@@ -250,6 +278,12 @@
                                                         title="Partial payment, another date or a reference no.">
                                                         Pay…
                                                     </button>
+                                                    @if ($userPermissions['canEditSchedule'] && $row['due_date'] && $row['due_date'] < now()->toDateString())
+                                                        <button type="button" @click="lateCharge('{{ $row['week_no'] }}')" class="kp-btn kp-btn-secondary text-xs py-1 px-2.5 text-rose-700 dark:text-rose-400"
+                                                            title="Not paid on its week: move the ₱{{ number_format($row['remaining'], 2) }} to the current week with 1% for each week late">
+                                                            <i class="fas fa-percent mr-1" aria-hidden="true"></i> Late Charge
+                                                        </button>
+                                                    @endif
                                                 @else
                                                     <span class="text-xs text-[#52705F]"><i class="fas fa-check text-emerald-600"></i> Settled</span>
                                                 @endif
@@ -276,6 +310,61 @@
                         </table>
                     </div>
                 </div>
+
+                @if ($adjustments->isNotEmpty())
+                    <!-- Late Payments & Adjustments: weeks not paid on time moved with their late charge, interest changes -->
+                    <div class="kp-card overflow-hidden">
+                        <div class="px-5 py-3.5 border-b border-[#E3EBE5] dark:border-[#203A2B] bg-amber-50 dark:bg-amber-950/30 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-percent text-amber-700 dark:text-amber-300"></i>
+                                <h3 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Late Payments &amp; Adjustments</h3>
+                            </div>
+                            <span class="text-xs text-[#52705F] dark:text-[#8AA895]">
+                                Total added ₱{{ number_format($adjustments->where('type', 'late_charge')->sum('charge_amount'), 2) }} late charges
+                            </span>
+                        </div>
+                        <div class="kp-table-wrap overflow-x-auto">
+                            <table class="kp-table w-full">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>What happened</th>
+                                        <th class="text-right">Unpaid</th>
+                                        <th class="text-right">Late Charge</th>
+                                        <th class="text-right">Balance</th>
+                                        <th>By</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($adjustments as $adj)
+                                        <tr>
+                                            <td class="text-xs whitespace-nowrap">{{ $adj->created_at->format('M d, Y') }}</td>
+                                            <td class="text-xs">
+                                                @if ($adj->type === 'late_charge')
+                                                    <span class="font-semibold">Week {{ $adj->from_week }} not paid</span> · moved to Week {{ $adj->to_week }}
+                                                    with 1% × {{ $adj->weeks_late }} week{{ $adj->weeks_late === 1 ? '' : 's' }}
+                                                @elseif ($adj->type === 'interest')
+                                                    <span class="font-semibold">{{ str_starts_with((string) $adj->reason, 'Interest waived') ? 'Interest waived' : 'Interest changed' }}</span>
+                                                @else
+                                                    <span class="font-semibold">Balance adjusted</span>
+                                                @endif
+                                                @if ($adj->reason)
+                                                    <span class="block text-[11px] text-[#52705F] dark:text-[#8AA895]">{{ $adj->reason }}</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-xs text-right kp-num">{{ $adj->type === 'late_charge' ? '₱' . number_format($adj->unpaid_amount, 2) : '—' }}</td>
+                                            <td class="text-xs text-right kp-num font-semibold {{ $adj->charge_amount < 0 ? 'text-[#005B2A] dark:text-[#52C97E]' : 'text-amber-700 dark:text-amber-300' }}">
+                                                {{ $adj->charge_amount < 0 ? '-' : '+' }}₱{{ number_format(abs($adj->charge_amount), 2) }}
+                                            </td>
+                                            <td class="text-xs text-right kp-num whitespace-nowrap">₱{{ number_format($adj->repayable_before, 2) }} → <b>₱{{ number_format($adj->repayable_after, 2) }}</b></td>
+                                            <td class="text-xs whitespace-nowrap">{{ $adj->createdByUser ? trim($adj->createdByUser->fname . ' ' . $adj->createdByUser->lname) : '—' }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
 
                 <!-- Payment History -->
                 <div class="kp-card overflow-hidden">
@@ -452,10 +541,8 @@
                         <div>
                             <h3 id="schedule-editor-title" class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">{{ $isWeekly ? 'Edit Weekly Schedule' : 'Set Up Weekly Schedule' }}</h3>
                             <p class="text-[11px] text-[#52705F] dark:text-[#8AA895]">
-                                Crop year {{ $cashAdvance->crop_year }} · Advance ₱{{ number_format($cashAdvance->amount, 2) }}
-                                @if ((float) $cashAdvance->interest_amount > 0)
-                                    + interest ₱{{ number_format($cashAdvance->interest_amount, 2) }} = ₱{{ number_format($cashAdvance->repayable(), 2) }} to repay
-                                @endif
+                                Crop year {{ $cashAdvance->crop_year }} · Amount to repay now ₱{{ number_format($cashAdvance->repayable(), 2) }}.
+                                The weeks' total is what is repaid: change any week to change the balance.
                             </p>
                         </div>
                         <button type="button" @click="scheduleModal = false" class="text-[#52705F] hover:text-[#172B20] dark:text-[#8AA895]">
@@ -515,11 +602,33 @@
                         </table>
                     </div>
 
-                    <div class="flex items-center justify-between mt-3 px-3 py-2 rounded-lg text-xs"
-                        :class="scheduleBalanced() ? 'bg-[#EAF5ED] dark:bg-[#1A3324]' : 'bg-rose-50 dark:bg-rose-950/30'">
-                        <span class="font-bold uppercase tracking-wider">Total</span>
-                        <span class="font-bold kp-num" :class="scheduleBalanced() ? 'text-[#005B2A] dark:text-[#52C97E]' : 'text-rose-700 dark:text-rose-400'"
-                            x-text="'₱' + money(scheduleTotal()) + ' of ₱' + money(advanceAmount)"></span>
+                    <!-- Balance: advance + interest (can be changed or waived) + late charges / adjustments = the weeks' total -->
+                    <div x-show="lateNote" class="mt-3 px-3 py-2 rounded-lg text-xs bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                        <i class="fas fa-percent mr-1" aria-hidden="true"></i> <span x-text="lateNote"></span> Change any amount before saving.
+                    </div>
+                    <div class="mt-3 px-3 py-2 rounded-lg text-xs bg-[#F7FAF8] dark:bg-[#1A3324] border border-[#E3EBE5] dark:border-[#203A2B] space-y-1.5">
+                        <div class="flex justify-between"><span>Advance</span><span class="kp-num" x-text="'₱' + money(baseAmount)"></span></div>
+                        <div class="flex items-center justify-between gap-2">
+                            <span>Interest <span class="text-[#52705F] dark:text-[#8AA895]" x-text="interestValue() === 0 ? '(waived)' : ''"></span></span>
+                            <span class="flex items-center gap-1.5">
+                                <button type="button" x-show="interestValue() > 0" @click="setInterest(0)" class="text-[11px] font-semibold text-rose-600 hover:underline">Waive</button>
+                                <button type="button" x-show="interestValue() !== origInterest" @click="setInterest(origInterest)" class="text-[11px] font-semibold text-[#005B2A] dark:text-[#52C97E] hover:underline">Undo</button>
+                                <input type="number" step="0.01" min="0" :value="interest" @input="setInterest($event.target.value, true)"
+                                    class="kp-input py-0.5 px-2 text-xs text-right kp-num w-28" aria-label="Interest amount">
+                            </span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Late charges / adjustments</span>
+                            <span class="kp-num" :class="adjustmentValue() !== 0 ? 'font-semibold text-amber-700 dark:text-amber-300' : ''"
+                                x-text="(adjustmentValue() < 0 ? '-₱' : '₱') + money(Math.abs(adjustmentValue()))"></span>
+                        </div>
+                        <div class="flex justify-between pt-1.5 border-t border-[#E3EBE5] dark:border-[#203A2B] font-bold uppercase tracking-wider">
+                            <span>Total to repay</span>
+                            <span class="kp-num text-[#005B2A] dark:text-[#52C97E]" x-text="'₱' + money(scheduleTotal())"></span>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <input type="text" x-model="reason" maxlength="255" class="kp-input w-full py-1.5 text-xs" placeholder="Reason for the change (optional, kept in the audit trail)">
                     </div>
                     <p x-show="scheduleProblem()" class="text-xs mt-2 text-rose-700 dark:text-rose-400">
                         <i class="fas fa-circle-xmark mr-1" aria-hidden="true"></i> <span x-text="scheduleProblem()"></span>
@@ -706,8 +815,14 @@
                 return {
                     weeks: @json($weeklyRows),
                     cropWeeks: @json($cropWeeks),
-                    // What the weeks must add up to: the advance plus its interest
+                    // Amount to repay now: advance + interest + late charges / adjustments
                     advanceAmount: {{ $cashAdvance->repayable() }},
+                    baseAmount: {{ (float) $cashAdvance->amount }},
+                    origInterest: {{ (float) $cashAdvance->interest_amount }},
+                    interest: '{{ number_format((float) $cashAdvance->interest_amount, 2, '.', '') }}',
+                    reason: '',
+                    lateNote: '',
+                    lateInfo: null,
                     payModal: false,
                     scheduleModal: false,
                     saving: false,
@@ -747,7 +862,66 @@
                     weekEnd(weekNo) {
                         return this.cropWeeks.find(w => w.week_no === weekNo)?.week_end || '';
                     },
+                    // ---------- balance: interest can be changed or waived; the weeks' total is what is repaid ----------
+                    interestValue() {
+                        return Math.max(0, Math.round((parseFloat(this.interest) || 0) * 100) / 100);
+                    },
+                    // Changing the interest changes the total: the difference goes on the last unpaid week
+                    setInterest(value, typed = false) {
+                        const before = this.interestValue();
+                        this.interest = typed ? value : Number(value).toFixed(2);
+                        const diff = Math.round((this.interestValue() - before) * 100);
+                        const row = [...this.schedule].reverse().find(r => !(r.paid > 0)) || this.schedule[this.schedule.length - 1];
+                        if (row && diff !== 0) {
+                            row.amount = Math.max(0, (Math.round((parseFloat(row.amount) || 0) * 100) + diff) / 100).toFixed(2);
+                        }
+                    },
+                    adjustmentValue() {
+                        return Math.round((this.scheduleTotal() - this.baseAmount - this.interestValue()) * 100) / 100;
+                    },
+
+                    // A week not paid on time: its unpaid amount moves to the current week with 1% for each week late
+                    lateCharge(weekNo) {
+                        this.openSchedule();
+                        const row = this.schedule.find(r => r.week_no === weekNo);
+                        const remaining = Math.round(((parseFloat(row?.amount) || 0) - (row?.paid || 0)) * 100) / 100;
+                        if (!row || remaining <= 0) return;
+                        const idx = w => this.cropWeeks.findIndex(c => c.week_no === w);
+                        const today = this.today();
+                        let target = this.cropWeeks.find(w => w.week_end && w.week_end >= today);
+                        if (!target || idx(target.week_no) <= idx(weekNo)) target = this.cropWeeks[idx(weekNo) + 1];
+                        if (!target) {
+                            Swal.fire({ icon: 'warning', title: 'No later week', text: 'There is no week after Week ' + weekNo + ' in this crop year to move it to.' });
+                            this.scheduleModal = false;
+                            return;
+                        }
+                        const weeksLate = Math.max(1, idx(target.week_no) - idx(weekNo));
+                        const charge = Math.round(remaining * weeksLate) / 100; // 1% per week late, in centavos
+                        // The late week keeps only what was paid on it
+                        if (row.paid > 0) {
+                            row.amount = Number(row.paid).toFixed(2);
+                        } else {
+                            this.schedule = this.schedule.filter(r => r.uid !== row.uid);
+                        }
+                        const add = Math.round((remaining + charge) * 100);
+                        const existing = this.schedule.find(r => r.week_no === target.week_no);
+                        if (existing) {
+                            existing.amount = ((Math.round((parseFloat(existing.amount) || 0) * 100) + add) / 100).toFixed(2);
+                        } else {
+                            this.schedule.push({ uid: ++this.rowUid, week_no: target.week_no, due_date: target.week_end || '', amount: (add / 100).toFixed(2), paid: 0 });
+                            this.schedule.sort((a, b) => idx(a.week_no) - idx(b.week_no));
+                        }
+                        this.lateInfo = { from_week: weekNo, to_week: target.week_no, unpaid: remaining, weeks_late: weeksLate, charge: charge };
+                        this.lateNote = 'Week ' + weekNo + ' unpaid ₱' + this.money(remaining) + ' moved to Week ' + target.week_no
+                            + ' with a late charge of ₱' + this.money(charge) + ' (1% × ' + weeksLate + ' week' + (weeksLate > 1 ? 's' : '') + ').';
+                        this.reason = 'Late charge: Week ' + weekNo + ' unpaid ₱' + this.money(remaining) + ', 1% x ' + weeksLate + ' week(s) = ₱' + this.money(charge);
+                    },
+
                     openSchedule() {
+                        this.interest = Number(this.origInterest).toFixed(2);
+                        this.reason = '';
+                        this.lateNote = '';
+                        this.lateInfo = null;
                         this.schedule = this.weeks.map(w => ({ uid: ++this.rowUid, week_no: w.week_no, due_date: w.due_date || this.weekEnd(w.week_no), amount: Number(w.amount).toFixed(2), paid: w.paid }));
                         if (!this.schedule.length && this.cropWeeks.length) {
                             // Start from the current week of the crop year
@@ -763,10 +937,10 @@
                         const next = this.cropWeeks.slice(last + 1).find(w => !used.includes(w.week_no)) || this.cropWeeks.find(w => !used.includes(w.week_no)) || this.cropWeeks[0];
                         this.schedule.push({ uid: ++this.rowUid, week_no: next.week_no, due_date: next.week_end || '', amount: '', paid: 0 });
                     },
-                    // Split evenly in centavos; the last week takes the remainder
+                    // Split the current total evenly in centavos; the last week takes the remainder
                     splitEvenly() {
                         const n = this.schedule.length;
-                        const cents = Math.round(this.advanceAmount * 100);
+                        const cents = Math.round(this.scheduleTotal() * 100) || Math.round(this.advanceAmount * 100);
                         const each = Math.floor(cents / n);
                         this.schedule.forEach((r, i) => r.amount = ((i === n - 1 ? cents - each * (n - 1) : each) / 100).toFixed(2));
                     },
@@ -790,10 +964,7 @@
                         if (this.schedule.some(r => !(parseFloat(r.amount) > 0))) return 'Each week needs an amount.';
                         const low = this.schedule.find(r => this.belowPaid(r));
                         if (low) return 'Week ' + low.week_no + ' already has ₱' + this.money(low.paid) + ' paid; its amount cannot be lower.';
-                        if (!this.scheduleBalanced()) {
-                            const diff = this.advanceAmount - this.scheduleTotal();
-                            return 'Weeks are ' + (diff > 0 ? 'short' : 'over') + ' by ₱' + this.money(Math.abs(diff)) + '. They must equal the amount to repay.';
-                        }
+                        // The total is free: it becomes the amount to repay
                         return '';
                     },
                     async saveSchedule() {
@@ -801,6 +972,10 @@
                         try {
                             const d = await this.request('{{ route('cash-advances.schedule.update', $cashAdvance) }}', 'POST', {
                                 schedule: this.schedule.map(r => ({ week_no: r.week_no, due_date: r.due_date || null, amount: Math.round((parseFloat(r.amount) || 0) * 100) / 100 })),
+                                interest_amount: this.interestValue(),
+                                reason: this.reason,
+                                // Recorded in Late Payments & Adjustments
+                                ...(this.lateInfo ? { late: this.lateInfo } : {}),
                             });
                             this.scheduleModal = false;
                             await Swal.fire({ icon: 'success', title: 'Saved', text: d.message, timer: 1800, showConfirmButton: false });

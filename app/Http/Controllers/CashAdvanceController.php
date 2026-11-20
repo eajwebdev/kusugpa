@@ -313,6 +313,8 @@ class CashAdvanceController extends Controller
             'week_no' => 'required|string|max:10',
             'date_created' => 'required|date',
             'purpose' => 'nullable|string|max:500',
+            // 1% by default; the user may change it or waive it (0)
+            'interest_amount' => 'nullable|numeric|min:0',
         ], [
             'week_no.required' => 'Select the week the cash advance is deducted.',
         ]);
@@ -340,6 +342,14 @@ class CashAdvanceController extends Controller
         $ca->status = 'pending';
         $ca->created_by = auth()->id();
         $ca->calculateAmortization(); // 1% interest; total and balance = amount + interest
+        // Interest changed or waived on the form: the amount deducted follows it
+        if (isset($data['interest_amount']) && $data['interest_amount'] !== '') {
+            $ca->interest_amount = round((float) $data['interest_amount'], 2);
+            $ca->interest_rate = round((float) $ca->interest_amount / (float) $ca->amount * 100, 2);
+            $ca->total_amount = $ca->repayable();
+            $ca->monthly_amortization = $ca->total_amount;
+            $ca->balance = $ca->total_amount;
+        }
 
         DB::transaction(function () use ($ca, $week, $data) {
             $ca->save();
@@ -357,15 +367,15 @@ class CashAdvanceController extends Controller
         AuditLog::log('create', 'cash_advances', 'Created quick cash advance #' . $ca->ca_number, [
             'planter' => $ca->planter_name . ' (' . $ca->planter_code . ')',
             'amount' => $ca->amount,
-            'interest' => $ca->interest_amount . ' (' . self::QUICK_INTEREST_RATE . '%)',
+            'interest' => $ca->interest_amount . ' (' . $ca->interest_rate . '%' . ((float) $ca->interest_amount == 0.0 ? ', waived' : '') . ')',
             'deducted' => 'Wk ' . $week->week_no . ' = ' . $ca->repayable(),
-            'date_created' => $ca->application_date->toDateString(),
+            'date_created' => Carbon::parse($data['date_created'])->toDateString(),
             'approval' => 'quick entry, recorded as approved',
         ]);
 
         return response()->json([
             'message' => 'Cash advance #' . $ca->ca_number . ' saved: ₱' . number_format($ca->repayable(), 2)
-                . ' (₱' . number_format($ca->amount, 2) . ' + 1% interest) comes off ' . $ca->planter_name . '\'s Week ' . $week->week_no . ' voucher.',
+                . ' (₱' . number_format($ca->amount, 2) . ' + ₱' . number_format($ca->interest_amount, 2) . ' interest) comes off ' . $ca->planter_name . '\'s Week ' . $week->week_no . ' voucher.',
             'cash_advance' => $ca->only(['id', 'ca_number', 'planter_code', 'planter_name', 'amount', 'interest_amount', 'total_amount']),
         ], 201);
     }
@@ -448,7 +458,10 @@ class CashAdvanceController extends Controller
                 'week_end' => $w->week_end_date ? Carbon::parse($w->week_end_date)->toDateString() : null,
             ]);
 
-        return view('cash-advances.show', compact('cashAdvance', 'userPermissions', 'isWeekly', 'weeklyRows', 'payments', 'canSwitchToWeekly', 'cropWeeks'));
+        // Late charges, interest changes and adjustments, for the history and the schedule notes
+        $adjustments = $cashAdvance->adjustments()->with('createdByUser:id,fname,lname')->get();
+
+        return view('cash-advances.show', compact('cashAdvance', 'userPermissions', 'isWeekly', 'weeklyRows', 'payments', 'canSwitchToWeekly', 'cropWeeks', 'adjustments'));
     }
 
     public function approve(Request $request, CashAdvance $cashAdvance)
@@ -649,6 +662,16 @@ class CashAdvanceController extends Controller
             'schedule.*.week_no' => 'required|string|distinct',
             'schedule.*.due_date' => 'nullable|date',
             'schedule.*.amount' => 'required|numeric|min:0.01',
+            // Interest can be changed or waived (0)
+            'interest_amount' => 'nullable|numeric|min:0',
+            'reason' => 'nullable|string|max:255',
+            // A week not paid on time, moved to a later week with its late charge (from the Late Charge button)
+            'late' => 'nullable|array',
+            'late.from_week' => 'required_with:late|string|max:10',
+            'late.to_week' => 'required_with:late|string|max:10',
+            'late.unpaid' => 'required_with:late|numeric|min:0',
+            'late.weeks_late' => 'required_with:late|integer|min:0|max:60',
+            'late.charge' => 'required_with:late|numeric|min:0',
         ], [
             'schedule.*.week_no.distinct' => 'Each week can only be listed once.',
             'schedule.*.amount.min' => 'Each week needs an amount.',
@@ -656,14 +679,73 @@ class CashAdvanceController extends Controller
 
         $rows = collect($data['schedule']);
         $wasWeekly = $cashAdvance->isWeekly();
-        CashAdvanceSchedule::validate($cashAdvance, $rows);
-        DB::transaction(fn () => CashAdvanceSchedule::apply($cashAdvance, $rows));
+        $before = [
+            'interest' => (float) $cashAdvance->interest_amount,
+            'adjustment' => (float) $cashAdvance->adjustment_amount,
+            'repayable' => $cashAdvance->repayable(),
+        ];
 
+        // The user may change the balance freely: the weeks' total is what is repaid. Beyond the advance and
+        // its interest, the difference is kept as late charges / adjustments (1% per week unpaid, or any change).
+        if (array_key_exists('interest_amount', $data) && $data['interest_amount'] !== null) {
+            $cashAdvance->interest_amount = round((float) $data['interest_amount'], 2);
+            $cashAdvance->interest_rate = (float) $cashAdvance->amount > 0
+                ? round((float) $cashAdvance->interest_amount / (float) $cashAdvance->amount * 100, 2)
+                : 0;
+        }
+        $scheduledCents = (int) $rows->sum(fn ($r) => (int) round((float) $r['amount'] * 100));
+        $baseCents = (int) round(((float) $cashAdvance->amount + (float) $cashAdvance->interest_amount) * 100);
+        $cashAdvance->adjustment_amount = ($scheduledCents - $baseCents) / 100;
+
+        CashAdvanceSchedule::validate($cashAdvance, $rows);
+        $changed = $before['interest'] != (float) $cashAdvance->interest_amount || $before['adjustment'] != (float) $cashAdvance->adjustment_amount;
+        DB::transaction(function () use ($cashAdvance, $rows, $data, $before, $changed) {
+            $cashAdvance->save();
+            CashAdvanceSchedule::apply($cashAdvance, $rows);
+
+            // History shown on the cash advance page: the late week moved with its charge, or the change made
+            $history = [
+                'repayable_before' => $before['repayable'],
+                'repayable_after' => $cashAdvance->repayable(),
+                'reason' => $data['reason'] ?? null,
+                'created_by' => auth()->id(),
+            ];
+            if (!empty($data['late'])) {
+                $cashAdvance->adjustments()->create($history + [
+                    'type' => 'late_charge',
+                    'from_week' => (string) $data['late']['from_week'],
+                    'to_week' => (string) $data['late']['to_week'],
+                    'unpaid_amount' => round((float) $data['late']['unpaid'], 2),
+                    'weeks_late' => (int) $data['late']['weeks_late'],
+                    // What was actually added (the user may have changed the suggested charge before saving)
+                    'charge_amount' => $before['interest'] == (float) $cashAdvance->interest_amount
+                        ? round($cashAdvance->repayable() - $before['repayable'], 2)
+                        : round((float) $data['late']['charge'], 2),
+                ]);
+            } elseif ($changed) {
+                $interestChanged = $before['interest'] != (float) $cashAdvance->interest_amount;
+                $what = $interestChanged
+                    ? ((float) $cashAdvance->interest_amount == 0.0 ? 'Interest waived' : 'Interest changed')
+                        . ': ₱' . number_format($before['interest'], 2) . ' → ₱' . number_format((float) $cashAdvance->interest_amount, 2)
+                    : null;
+                $cashAdvance->adjustments()->create(array_merge($history, [
+                    'type' => $interestChanged ? 'interest' : 'adjustment',
+                    'charge_amount' => round($cashAdvance->repayable() - $before['repayable'], 2),
+                    'reason' => trim(implode(' · ', array_filter([$what, $data['reason'] ?? null]))) ?: null,
+                ]));
+            }
+        });
         AuditLog::log('update', 'cash_advances', ($wasWeekly ? 'Updated weekly schedule of' : 'Switched to weekly schedule:') . ' cash advance #' . $cashAdvance->ca_number, [
             'weekly_schedule' => $rows->map(fn ($r) => 'Wk ' . $r['week_no'] . ' = ' . $r['amount'])->implode(', '),
-        ]);
+        ] + ($changed ? [
+            'interest' => $before['interest'] . ' -> ' . $cashAdvance->interest_amount . ((float) $cashAdvance->interest_amount == 0.0 ? ' (waived)' : ''),
+            'late_charges_adjustments' => $before['adjustment'] . ' -> ' . $cashAdvance->adjustment_amount,
+            'amount_to_repay' => $before['repayable'] . ' -> ' . $cashAdvance->repayable(),
+            'reason' => $data['reason'] ?? null,
+        ] : []));
 
-        return response()->json(['message' => $wasWeekly ? 'Weekly schedule saved.' : 'Switched to a weekly schedule.']);
+        return response()->json(['message' => ($wasWeekly ? 'Weekly schedule saved.' : 'Switched to a weekly schedule.')
+            . ($changed ? ' Amount to repay is now ₱' . number_format($cashAdvance->repayable(), 2) . '.' : '')]);
     }
 
     /**

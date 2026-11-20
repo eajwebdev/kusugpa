@@ -73,6 +73,8 @@ class CashAdvanceDeleteTest extends TestCase
             '2026_10_22_000001_add_receipt_signatories_to_cash_advances.php',
             '2026_10_22_000002_create_cash_advance_payments_table.php',
             '2026_10_24_000001_add_interest_amount_to_cash_advances.php',
+            '2026_11_20_000000_add_adjustment_amount_to_cash_advances.php',
+            '2026_11_20_000001_create_cash_advance_adjustments_table.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }

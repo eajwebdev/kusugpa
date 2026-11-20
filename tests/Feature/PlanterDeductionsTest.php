@@ -138,11 +138,14 @@ class PlanterDeductionsTest extends TestCase
 
         foreach ([
             '2026_05_10_093216_create_loans_table.php',
+            '2026_10_22_000003_create_loan_payments_table.php',
             '2026_05_30_151501_create_cash_advances_table.php',
             '2026_10_20_000003_add_receipt_fields_and_deductions_to_cash_advances.php',
             '2026_10_22_000000_add_weekly_schedule_to_cash_advances.php',
             '2026_10_22_000002_create_cash_advance_payments_table.php',
             '2026_10_24_000001_add_interest_amount_to_cash_advances.php',
+            '2026_11_20_000000_add_adjustment_amount_to_cash_advances.php',
+            '2026_11_20_000001_create_cash_advance_adjustments_table.php',
             '2026_10_24_000002_create_planter_deductions_tables.php',
             '2026_11_09_000000_add_liters_to_fuel_deductions.php',
             '2026_11_09_000001_add_sold_price_to_quedans.php',
@@ -285,6 +288,105 @@ class PlanterDeductionsTest extends TestCase
         $this->assertEqualsWithDelta(0, PlanterProceeds::summary('20262027', 3, 3)->firstWhere('planter_code', '00123')['ca_deduction'], 0.001);
         $rows = $this->captureView('pdf.planter-accounts', 'planter-accounts-report.pdf', ['crop_year' => '20262027', 'week_from' => 4, 'week_to' => 4])['rows'];
         $this->assertEqualsWithDelta(5050, $rows->firstWhere('code', '00123')['ca'], 0.001);
+    }
+
+    public function test_cash_advance_balance_can_be_changed_with_late_charges_and_waived_interest(): void
+    {
+        $base = ['crop_year' => '20262027', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'week_no' => '3', 'date_created' => '2026-10-12'];
+
+        // Quick Cash Advance: interest waived, so ₱10,000 comes off week 3
+        $this->postJson(route('cash-advances.quick'), $base + ['amount' => 10000, 'interest_amount' => 0])->assertCreated();
+        $ca = \App\Models\CashAdvance::first();
+        $this->assertEquals(0, (float) $ca->interest_amount);
+        $this->assertEquals(10000, (float) $ca->deductions()->sum('amount'));
+
+        // Week 3 not paid: moved to week 4 with a 1% late charge (₱100); the schedule total is the new balance
+        $this->postJson(route('cash-advances.schedule.update', $ca), [
+            'schedule' => [['week_no' => '4', 'amount' => 10100]],
+            'reason' => 'Late charge: Week 3 unpaid',
+        ])->assertOk();
+        $ca->refresh();
+        $this->assertEquals(100, (float) $ca->adjustment_amount);
+        $this->assertEquals(10100, $ca->repayable());
+        $this->assertEquals(10100, (float) $ca->balance);
+        $this->assertSame(['4'], $ca->deductions()->pluck('week_no')->map(fn ($w) => (string) $w)->all());
+        $this->assertEqualsWithDelta(10100, PlanterProceeds::summary('20262027', 4, 4)->firstWhere('planter_code', '00123')['ca_deduction'], 0.001);
+
+        // A regular advance: interest changed and late charge kept; the balance can also go down
+        $this->postJson(route('cash-advances.schedule.update', $ca), [
+            'schedule' => [['week_no' => '4', 'amount' => 10050]],
+            'interest_amount' => 25,
+        ])->assertOk();
+        $ca->refresh();
+        $this->assertEquals(25, (float) $ca->interest_amount);
+        $this->assertEquals(25, (float) $ca->adjustment_amount);
+        $this->assertEquals(10050, $ca->repayable());
+    }
+
+    public function test_late_charge_is_recorded_and_shown_on_the_cash_advance(): void
+    {
+        $this->postJson(route('cash-advances.quick'), ['crop_year' => '20262027', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN',
+            'amount' => 10000, 'week_no' => '3', 'date_created' => '2026-10-12'])->assertCreated();
+        $ca = \App\Models\CashAdvance::first();
+
+        // Week 3 (₱10,100) not paid: moved to week 4 with 1% x 1 week = ₱101, suggested, and saved as ₱101
+        $this->postJson(route('cash-advances.schedule.update', $ca), [
+            'schedule' => [['week_no' => '4', 'amount' => 10201]],
+            'reason' => 'Late charge: Week 3 unpaid',
+            'late' => ['from_week' => '3', 'to_week' => '4', 'unpaid' => 10100, 'weeks_late' => 1, 'charge' => 101],
+        ])->assertOk();
+
+        $late = $ca->adjustments()->first();
+        $this->assertSame('late_charge', $late->type);
+        $this->assertSame(['3', '4', 10100.0, 1, 101.0, 10100.0, 10201.0],
+            [$late->from_week, $late->to_week, $late->unpaid_amount, $late->weeks_late, $late->charge_amount, $late->repayable_before, $late->repayable_after]);
+        $this->assertEquals(10201, $ca->fresh()->repayable());
+
+        // Interest waived later: recorded as such, and the page shows both
+        $this->postJson(route('cash-advances.schedule.update', $ca), [
+            'schedule' => [['week_no' => '4', 'amount' => 10101]],
+            'interest_amount' => 0,
+        ])->assertOk();
+        $this->assertSame('interest', $ca->adjustments()->first()->type);
+        $this->assertStringStartsWith('Interest waived', $ca->adjustments()->first()->reason);
+
+        // The page layout lists the crop years
+        if (!Schema::hasTable('crop_year')) {
+            Schema::create('crop_year', function (Blueprint $table) {
+                $table->id();
+                $table->string('crop_year');
+                $table->timestamps();
+            });
+        }
+        $html = $this->get(route('cash-advances.show', $ca))->assertOk()->getContent();
+        $this->assertStringContainsString('Late Payments &amp; Adjustments', $html);
+        $this->assertStringContainsString('Week 3 not paid', $html);
+        $this->assertStringContainsString('Wk 3 unpaid ₱10,100.00 + late ₱101.00', $html);
+        $this->assertStringContainsString('Interest waived', $html);
+    }
+
+    public function test_quick_loan_enters_a_balance_that_comes_off_the_week(): void
+    {
+        DB::table('loan_types')->insert(['name' => 'Crop Production Loan']);
+        $quick = ['crop_year' => '20262027', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN',
+            'amount' => 7500, 'week_no' => '4', 'date_created' => '2026-10-20', 'remarks' => 'Balance from 2025-2026'];
+
+        $this->postJson(route('loans.quick'), ['week_no' => '9'] + $quick)->assertStatus(422)->assertJsonValidationErrors('week_no');
+        $this->postJson(route('loans.quick'), $quick)->assertCreated();
+
+        // An approved loan, no interest, one installment due at the end of week 4
+        $loan = DB::table('loans')->first();
+        $this->assertSame('approved', $loan->status);
+        $this->assertEquals(0, (float) $loan->interest_rate);
+        $this->assertEquals(7500, (float) $loan->total_amount);
+        $this->assertSame([['2026-10-25', 7500.0]], DB::table('loan_amortizations')->get()
+            ->map(fn ($a) => [substr((string) $a->due_date, 0, 10), (float) $a->amount_due])->all());
+
+        // LOAN PAYMENT on the week 4 voucher and Planter Accnt. Applied, not week 3
+        $this->assertEqualsWithDelta(7500, PlanterProceeds::summary('20262027', 4, 4)->firstWhere('planter_code', '00123')['loan_deduction'], 0.001);
+        $this->assertEqualsWithDelta(0, PlanterProceeds::summary('20262027', 3, 3)->firstWhere('planter_code', '00123')['loan_deduction'], 0.001);
+        $rows = $this->captureView('pdf.planter-accounts', 'planter-accounts-report.pdf', ['crop_year' => '20262027', 'week_from' => 4, 'week_to' => 4])['rows'];
+        $this->assertEqualsWithDelta(7500, $rows->firstWhere('code', '00123')['loan'], 0.001);
     }
 
     public function test_voucher_deducts_fuel_and_others_of_its_weeks(): void

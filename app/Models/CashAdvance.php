@@ -17,7 +17,7 @@ class CashAdvance extends Model
 
     protected $fillable = [
         'ca_number', 'planter_code', 'planter_name',
-        'amount', 'interest_rate', 'interest_amount', 'term_months', 'term_weeks',
+        'amount', 'interest_rate', 'interest_amount', 'adjustment_amount', 'term_months', 'term_weeks',
         'monthly_amortization', 'total_amount', 'balance',
         'status', 'application_date', 'approved_date', 'approved_by',
         'start_date', 'end_date', 'purpose', 'remarks',
@@ -45,6 +45,12 @@ class CashAdvance extends Model
     public function amortizations()
     {
         return $this->hasMany(CashAdvanceAmortization::class, 'cash_advance_id');
+    }
+
+    /** Late charges, interest changes and balance adjustments, latest first */
+    public function adjustments()
+    {
+        return $this->hasMany(CashAdvanceAdjustment::class)->latest('id');
     }
 
     public function deductions()
@@ -145,11 +151,12 @@ class CashAdvance extends Model
     }
 
     /**
-     * What the weekly schedule must add up to: the advance plus its interest
+     * What the weekly schedule must add up to: the advance plus its interest, plus any late charges
+     * (1% per week unpaid) and balance adjustments made on the cash advance page
      */
     public function repayable(): float
     {
-        return round((float) $this->amount + (float) $this->interest_amount, 2);
+        return round((float) $this->amount + (float) $this->interest_amount + (float) ($this->adjustment_amount ?? 0), 2);
     }
 
     /**

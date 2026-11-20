@@ -15,8 +15,13 @@
                 </div>
                 <div class="flex items-center gap-2">
                     @if ($canQuickCA)
-                        <button type="button" @click="openQuick()" class="kp-btn kp-btn-primary text-xs">
+                        <button type="button" @click="openQuick('ca')" class="kp-btn kp-btn-primary text-xs">
                             <i class="fas fa-hand-holding-dollar mr-1.5" aria-hidden="true"></i> Quick Cash Advance
+                        </button>
+                    @endif
+                    @if ($canQuickLoan)
+                        <button type="button" @click="openQuick('loan')" class="kp-btn kp-btn-primary text-xs">
+                            <i class="fas fa-landmark mr-1.5" aria-hidden="true"></i> Quick Loan
                         </button>
                     @endif
                     <button type="button" @click="resetFilters()" class="kp-btn kp-btn-secondary text-xs">
@@ -100,22 +105,27 @@
                 <li>One line per planter with an account applied, sorted by name: P-No., Planter Name, Loan Payment, Cash Advance, Others, Fuel A/C and Total.</li>
                 <li>Others and Fuel A/C come from Fuel &amp; Others Deduction; Loan and Cash Advance from their schedules, exactly as on the Check Voucher.</li>
                 <li>The last row of the form totals every column.</li>
+                @if ($canQuickLoan)
+                    <li><b>Quick Loan</b>: enters a planter's loan balance (for example a previous loan's balance, to reconcile), with no interest. It comes off the selected week's voucher as LOAN PAYMENT and also appears on the Loans page.</li>
+                @endif
                 @if ($canQuickCA)
                     <li><b>Quick Cash Advance</b>: records a cash advance directly (no application or approval step) with 1% interest, deducted in full on the week you pick. It also appears on the Cash Advances page.</li>
                 @endif
             </ul>
         </div>
 
-        @if ($canQuickCA)
-            <!-- Quick Cash Advance: planter, amount, deduction week, 1% interest, date created -->
+        @if ($canQuickCA || $canQuickLoan)
+            <!-- Quick Cash Advance (planter, amount, week, 1% interest that can be changed or waived) or Quick Loan (a loan balance deducted on one week) -->
             <div x-show="quick.open" x-cloak class="fixed inset-0 z-50 overflow-y-auto" @keydown.escape.window="quick.open = false">
                 <div class="kp-viewport-modal-layout flex items-center justify-center">
                     <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="quick.open = false"></div>
                     <div class="kp-modal kp-viewport-modal-panel relative max-w-xl w-full p-4 sm:p-6 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="quick-ca-title">
                         <div class="flex items-start justify-between pb-3 mb-4 border-b border-[#E3EBE5] dark:border-[#203A2B]">
                             <div>
-                                <h3 id="quick-ca-title" class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Quick Cash Advance</h3>
-                                <p class="text-xs mt-1 text-[#52705F] dark:text-[#8AA895]">Recorded as approved, with 1% interest, and deducted in full on the selected week's Check Voucher.</p>
+                                <h3 id="quick-ca-title" class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider"><span x-text="quick.kind === 'loan' ? 'Quick Loan' : 'Quick Cash Advance'"></span></h3>
+                                <p class="text-xs mt-1 text-[#52705F] dark:text-[#8AA895]" x-text="quick.kind === 'loan'
+                                    ? 'Enter the planter\'s loan balance (e.g. a previous loan) to reconcile. Recorded as approved, no interest, and deducted in full on the selected week\'s Check Voucher as Loan Payment.'
+                                    : 'Recorded as approved and deducted in full on the selected week\'s Check Voucher. Interest is 1% unless you change or waive it.'"></p>
                             </div>
                             <button type="button" @click="quick.open = false" class="text-[#52705F] hover:text-rose-600" aria-label="Close"><i class="fas fa-times"></i></button>
                         </div>
@@ -156,7 +166,7 @@
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Advance Amount (₱) <span class="text-rose-600">*</span></label>
+                                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5"><span x-text="quick.kind === 'loan' ? 'Loan Balance (₱)' : 'Advance Amount (₱)'"></span> <span class="text-rose-600">*</span></label>
                                     <input type="number" step="0.01" min="0.01" x-model="quick.amount" class="kp-input w-full text-right" placeholder="0.00" required>
                                 </div>
                                 <div>
@@ -170,10 +180,41 @@
                                 </div>
                             </div>
 
-                            <!-- 1% interest, worked out automatically -->
-                            <div class="rounded-lg bg-[#F7FAF8] dark:bg-[#1A3324] border border-[#E3EBE5] dark:border-[#203A2B] p-3 text-xs space-y-1">
+                            <!-- Quick Loan: loan type and what comes off the voucher -->
+                            <template x-if="quick.kind === 'loan'">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Loan Type</label>
+                                        <select x-model="quick.loan_type_id" class="kp-input w-full">
+                                            @foreach ($loanTypes ?? [] as $type)
+                                                <option value="{{ $type->id }}">{{ $type->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="rounded-lg bg-[#F7FAF8] dark:bg-[#1A3324] border border-[#E3EBE5] dark:border-[#203A2B] p-3 text-xs">
+                                        <div class="flex justify-between font-bold text-[#172B20] dark:text-[#EAF5ED]">
+                                            <span x-text="'Loan Payment on Week ' + (quick.week_no || '—')"></span>
+                                            <span class="font-mono" x-text="'₱' + money(quickAmount)"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Cash advance: 1% interest, worked out automatically, can be changed or waived -->
+                            <div x-show="quick.kind !== 'loan'" class="rounded-lg bg-[#F7FAF8] dark:bg-[#1A3324] border border-[#E3EBE5] dark:border-[#203A2B] p-3 text-xs space-y-1">
                                 <div class="flex justify-between"><span>Advance</span><span class="font-mono" x-text="'₱' + money(quickAmount)"></span></div>
-                                <div class="flex justify-between"><span>Interest (1%)</span><span class="font-mono" x-text="'₱' + money(quickInterest)"></span></div>
+                                <div class="flex items-center justify-between gap-2">
+                                    <span>Interest <span class="text-[#52705F] dark:text-[#8AA895]" x-text="quick.interestEdited ? '(changed)' : '(1%)'"></span></span>
+                                    <span class="flex items-center gap-1.5">
+                                        <button type="button" x-show="quickInterest > 0" @click="quick.interest = '0'; quick.interestEdited = true"
+                                            class="text-[11px] font-semibold text-rose-600 hover:underline">Waive</button>
+                                        <button type="button" x-show="quick.interestEdited" @click="quick.interest = ''; quick.interestEdited = false"
+                                            class="text-[11px] font-semibold text-[#005B2A] dark:text-[#52C97E] hover:underline">Use 1%</button>
+                                        <input type="number" step="0.01" min="0" :value="quick.interestEdited ? quick.interest : quickInterest.toFixed(2)"
+                                            @input="quick.interest = $event.target.value; quick.interestEdited = true"
+                                            class="kp-input py-0.5 px-2 text-xs text-right font-mono w-28" aria-label="Interest amount">
+                                    </span>
+                                </div>
                                 <div class="flex justify-between font-bold text-[#172B20] dark:text-[#EAF5ED] pt-1 border-t border-[#E3EBE5] dark:border-[#203A2B]">
                                     <span x-text="'Deducted on Week ' + (quick.week_no || '—')"></span>
                                     <span class="font-mono" x-text="'₱' + money(quickAmount + quickInterest)"></span>
@@ -181,7 +222,7 @@
                             </div>
 
                             <div>
-                                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Purpose / Notes</label>
+                                <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5" x-text="quick.kind === 'loan' ? 'Remarks' : 'Purpose / Notes'"></label>
                                 <input type="text" x-model="quick.purpose" maxlength="500" class="kp-input w-full" placeholder="Optional">
                             </div>
 
@@ -189,7 +230,7 @@
                                 <button type="button" @click="quick.open = false" class="kp-btn kp-btn-secondary text-xs">Cancel</button>
                                 <button type="submit" :disabled="!canSaveQuick || quick.saving" class="kp-btn kp-btn-primary text-xs disabled:opacity-40">
                                     <i class="fas mr-1.5" :class="quick.saving ? 'fa-circle-notch fa-spin' : 'fa-check'" aria-hidden="true"></i>
-                                    <span x-text="quick.saving ? 'Saving…' : 'Save Cash Advance'"></span>
+                                    <span x-text="quick.saving ? 'Saving…' : (quick.kind === 'loan' ? 'Save Loan' : 'Save Cash Advance')"></span>
                                 </button>
                             </div>
                         </form>
@@ -228,7 +269,7 @@
 
                     // Quick Cash Advance
                     planters: @json($planters ?? []),
-                    quick: { open: false, crop_year: '', planter: null, search: '', listOpen: false, amount: '', week_no: '', date_created: today, purpose: '', saving: false },
+                    quick: { open: false, crop_year: '', planter: null, search: '', listOpen: false, amount: '', week_no: '', date_created: today, purpose: '', saving: false, interest: '', interestEdited: false, kind: 'ca', loan_type_id: '{{ optional($loanTypes->first())->id }}' },
                     get quickWeeks() {
                         return weeks.filter(w => w.crop_year === this.quick.crop_year).map(w => w.week_no);
                     },
@@ -238,16 +279,19 @@
                         return this.planters.filter(p => String(p.planter_name).toLowerCase().includes(term) || String(p.planter_code).toLowerCase().includes(term)).slice(0, 50);
                     },
                     get quickAmount() { return Math.round((parseFloat(this.quick.amount) || 0) * 100) / 100; },
-                    // 1% flat interest, rounded to centavos like the Cash Advance page
-                    get quickInterest() { return Math.round(this.quickAmount * 1) / 100; },
+                    // 1% flat interest (rounded to centavos like the Cash Advance page), unless changed or waived
+                    get quickInterest() {
+                        if (this.quick.interestEdited) return Math.max(0, Math.round((parseFloat(this.quick.interest) || 0) * 100) / 100);
+                        return Math.round(this.quickAmount * 1) / 100;
+                    },
                     get canSaveQuick() {
                         return this.quick.crop_year && this.quick.planter && this.quickAmount > 0 && this.quick.week_no && this.quick.date_created;
                     },
                     money(v) {
                         return Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     },
-                    openQuick() {
-                        this.quick = { ...this.quick, open: true, crop_year: this.filters.crop_year || this.quick.crop_year, planter: null, search: '', amount: '', week_no: '', date_created: today, purpose: '', saving: false };
+                    openQuick(kind = 'ca') {
+                        this.quick = { ...this.quick, kind, open: true, crop_year: this.filters.crop_year || this.quick.crop_year, planter: null, search: '', amount: '', week_no: '', date_created: today, purpose: '', saving: false, interest: '', interestEdited: false };
                     },
                     pickPlanter(p) {
                         this.quick.planter = p;
@@ -258,26 +302,30 @@
                         if (!this.canSaveQuick || this.quick.saving) return;
                         this.quick.saving = true;
                         try {
-                            const r = await fetch('{{ route('cash-advances.quick') }}', {
+                            const isLoan = this.quick.kind === 'loan';
+                            const common = {
+                                crop_year: this.quick.crop_year,
+                                planter_code: this.quick.planter.planter_code,
+                                planter_name: this.quick.planter.planter_name,
+                                amount: this.quickAmount,
+                                week_no: this.quick.week_no,
+                                date_created: this.quick.date_created,
+                            };
+                            const body = isLoan
+                                ? { ...common, loan_type_id: this.quick.loan_type_id || null, remarks: this.quick.purpose }
+                                : { ...common, purpose: this.quick.purpose, interest_amount: this.quickInterest };
+                            const r = await fetch(isLoan ? '{{ $canQuickLoan ? route('loans.quick') : '' }}' : '{{ $canQuickCA ? route('cash-advances.quick') : '' }}', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
-                                body: JSON.stringify({
-                                    crop_year: this.quick.crop_year,
-                                    planter_code: this.quick.planter.planter_code,
-                                    planter_name: this.quick.planter.planter_name,
-                                    amount: this.quickAmount,
-                                    week_no: this.quick.week_no,
-                                    date_created: this.quick.date_created,
-                                    purpose: this.quick.purpose,
-                                }),
+                                body: JSON.stringify(body),
                             });
                             const d = await r.json().catch(() => ({}));
                             if (!r.ok) {
                                 const first = d.errors ? Object.values(d.errors)[0][0] : null;
-                                throw new Error(first || d.message || 'The cash advance was not saved.');
+                                throw new Error(first || d.message || 'Not saved.');
                             }
                             this.quick.open = false;
-                            Swal.fire({ icon: 'success', title: 'Cash Advance Saved', text: d.message, confirmButtonColor: '#005B2A' });
+                            Swal.fire({ icon: 'success', title: this.quick.kind === 'loan' ? 'Loan Saved' : 'Cash Advance Saved', text: d.message, confirmButtonColor: '#005B2A' });
                         } catch (e) {
                             Swal.fire({ icon: 'error', title: 'Not Saved', text: e.message, confirmButtonColor: '#005B2A' });
                         } finally {

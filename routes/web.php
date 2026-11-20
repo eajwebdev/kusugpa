@@ -107,6 +107,8 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     // Loan Create (static)
     Route::get('/loans/create', [LoanController::class, 'create'])->name('loans.create');
     Route::post('/loans', [LoanController::class, 'store'])->name('loans.store');
+    // Quick Loan (shortcut on Planter Accnt. Applied): a loan balance entered directly, deducted on one week
+    Route::post('/loans/quick', [LoanController::class, 'quickStore'])->name('loans.quick');
     
     // Individual Loan PDF Reports (with {loan} parameter)
     Route::get('/loans/{loan}/amortization-pdf', [LoanReportController::class, 'amortizationPDF'])->name('loans.amortization-pdf');
