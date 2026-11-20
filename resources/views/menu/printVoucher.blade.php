@@ -63,7 +63,7 @@
                             </template>
                         </select>
                         <p class="text-[11px] mt-1 text-[#52705F] dark:text-[#8AA895]">
-                            Quedans and molasses bought that week (any week, as on the Registry), with the trucking allowance of their own weeks.
+                            One voucher per planter: the quedans and molasses bought that week (any week, as on the Registry) and the trucking allowance of that week.
                         </p>
                     </div>
 
@@ -272,7 +272,7 @@
                             <tr class="text-left text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider border-b border-[#E3EBE5] dark:border-[#203A2B]">
                                 <th class="py-2 pr-3 font-semibold">Code</th>
                                 <th class="py-2 pr-3 font-semibold">Planter</th>
-                                <th x-show="current && current.bought_week" class="py-2 pr-3 font-semibold text-center">Week</th>
+                                <th x-show="current && current.bought_week" class="py-2 pr-3 font-semibold text-center">Quedans</th>
                                 <th x-show="current && current.bought_week" class="py-2 pr-3 font-semibold">QDN No.</th>
                                 <th class="py-2 pr-3 font-semibold text-right">Net Paid</th>
                                 <th class="py-2 pr-3 font-semibold">Authorized to Receive</th>
@@ -289,9 +289,9 @@
                                             <i class="fas fa-user-check mr-1" aria-hidden="true"></i>Voucher prints <b x-text="v.receiver_name"></b>
                                         </span>
                                     </td>
-                                    <td x-show="current && current.bought_week" class="py-2 pr-3 text-center whitespace-nowrap" x-text="v.quedan_week ? 'Wk ' + v.quedan_week : '-'"></td>
-                                    <td x-show="current && current.bought_week" class="py-2 pr-3 whitespace-nowrap text-[#52705F] dark:text-[#8AA895]">
-                                        <span x-text="v.qdn_no || (v.molasses_count ? 'Molasses only' : '-')"></span>
+                                    <td x-show="current && current.bought_week" class="py-2 pr-3 text-center whitespace-nowrap" x-text="v.quedan_count || '-'"></td>
+                                    <td x-show="current && current.bought_week" class="py-2 pr-3 text-[#52705F] dark:text-[#8AA895]">
+                                        <span x-text="v.qdn_no || (v.molasses_count ? 'Molasses only' : 'Trucking only')"></span>
                                         <span x-show="v.quedan_count && v.molasses_count" class="text-[11px]" x-text="' + molasses'"></span>
                                     </td>
                                     <td class="py-2 pr-3 text-right whitespace-nowrap font-semibold"

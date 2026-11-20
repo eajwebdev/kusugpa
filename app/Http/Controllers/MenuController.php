@@ -273,6 +273,13 @@ class MenuController extends Controller
             ->select('planter_code', 'planter_name')->distinct()->get()
             ->concat(Molass::notPending()->where('crop_year', $cropYear)->boughtInWeek($cropYear, $boughtWeek)
                 ->select('planter_code', 'planter_name')->distinct()->get())
+            // Planters with only a trucking allowance that week get a voucher too
+            ->concat(ConsolidatedUpload::where('crop_year', $cropYear)
+                ->whereIn('week_no', [(string) $boughtWeek, str_pad((string) $boughtWeek, 2, '0', STR_PAD_LEFT)])
+                ->select('planter_code', 'planter_name')->distinct()->get())
+            ->concat(TruckingAllowance::where('crop_year', $cropYear)
+                ->whereIn('week_no', [(string) $boughtWeek, str_pad((string) $boughtWeek, 2, '0', STR_PAD_LEFT)])
+                ->select('planter_code', 'planter_name')->distinct()->get())
             ->unique(fn ($p) => PlanterProfileSync::key($p->planter_code))
             ->sortBy('planter_name')
             ->values();
@@ -421,9 +428,10 @@ public function voucherPDF(Request $request)
         $weekFrom = $batch->week_from;
         $weekTo = $batch->week_to;
         $planterNames = $items->pluck('planter_code')->unique()->values()->all() ?: ['__none__'];
-        // Week Bought groups have one voucher per quedan, so the receiver belongs to the voucher;
-        // rows without a voucher key (older groups) are one per planter
-        $receivers = $items->whereNotNull('receiver_name')->whereNotNull('voucher_key')->pluck('receiver_name', 'voucher_key')
+        // Week Bought groups: the receiver belongs to the voucher (one per planter; per-quedan rows of earlier
+        // groups count for their planter). Rows without a voucher key (older groups) are one per planter.
+        $receivers = $items->whereNotNull('receiver_name')->whereNotNull('voucher_key')
+            ->mapWithKeys(fn ($i) => [strtok((string) $i->voucher_key, '#') => $i->receiver_name])
             ->union($items->whereNotNull('receiver_name')->whereNull('voucher_key')->pluck('receiver_name', 'planter_code'));
     }
 
@@ -433,10 +441,14 @@ public function voucherPDF(Request $request)
     $summaryData = $boughtWeek
         ? PlanterProceeds::summaryByBoughtWeek($cropYear, $boughtWeek, $planterNames)
         : PlanterProceeds::summary($cropYear, $weekFrom, $weekTo, $planterNames);
-    $keys = isset($batch) ? $items->pluck('voucher_key')->filter()->flip() : collect();
+    // Week Bought vouchers are one per planter (voucher key = planter key). Groups generated earlier with one
+    // row per quedan ("123#q45") print their planter's voucher once.
+    $keys = isset($batch)
+        ? $items->pluck('voucher_key')->filter()->map(fn ($k) => strtok((string) $k, '#'))->unique()->flip()
+        : collect();
     if (isset($batch) && $batch->bought_week && $keys->isNotEmpty()) {
-        // Exactly the group's vouchers (a Week Bought group generated per planter prints all of its planters' vouchers)
-        $summaryData = $summaryData->filter(fn ($r) => $keys->has((string) ($r['voucher_key'] ?? '')))->values();
+        // Exactly the group's vouchers
+        $summaryData = $summaryData->filter(fn ($r) => $keys->has(strtok((string) ($r['voucher_key'] ?? ''), '#')))->values();
     } elseif (isset($batch) && !$batch->bought_week) {
         $summaryData = $summaryData->sortBy(fn ($r) => mb_strtoupper(trim((string) $r['planter_name'])))->values();
     }

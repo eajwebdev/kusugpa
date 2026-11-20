@@ -34,8 +34,11 @@ class PlanterProceeds
      * With $boughtWeek, only quedans and molasses bought in that week count (the "Week Bought" rule of
      * the Registry / Buy pages) and only planters with such a quedan or molasses are listed.
      */
-    public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null, $boughtWeek = null, ?bool $includeMolasses = null, bool $perQuedan = false): Collection
+    public static function summary($cropYear, $weekFrom, $weekTo, $planterNames = null, $boughtWeek = null, ?bool $includeMolasses = null, bool $perQuedan = false, bool $boughtAnyWeek = false): Collection
     {
+        // $boughtAnyWeek (Print Vouchers by Week Bought): the quedans and molasses bought in $boughtWeek whatever
+        // their own week, with the trucking allowance and accounts of the week ($weekFrom..$weekTo) only, and
+        // every planter of the week listed, including those with only a trucking allowance
         // $includeMolasses: null = molasses follow the Week Bought rule like quedans (default);
         // true = all bought molasses of the weeks, regardless of Week Bought; false = no molasses
         $from = min((int) $weekFrom, (int) $weekTo);
@@ -55,14 +58,15 @@ class PlanterProceeds
             ->pluck('week_end_date', 'week_no');
 
         // Pending quedans and molasses are not yet bought, so they are left off the voucher
+        $byBoughtWeek = $boughtWeek !== null && $boughtWeek !== '';
+        $anyWeek = $boughtAnyWeek && $byBoughtWeek;
         $quedanQuery = Quedan::notPending()
             ->where('quedans.crop_year', $cropYear)
-            ->whereIn('quedans.week_no', $weekValues);
+            ->when(!$anyWeek, fn ($q) => $q->whereIn('quedans.week_no', $weekValues));
 
         if (!empty($planterNames)) {
             $quedanQuery->whereIn('quedans.planter_code', (array) $planterNames);
         }
-        $byBoughtWeek = $boughtWeek !== null && $boughtWeek !== '';
         if ($byBoughtWeek) {
             $quedanQuery->boughtInWeek($cropYear, $boughtWeek);
         }
@@ -86,7 +90,7 @@ class PlanterProceeds
 
         $molassesQuery = Molass::notPending()
             ->where('molasses.crop_year', $cropYear)
-            ->whereIn('molasses.week_no', $weekValues);
+            ->when(!$anyWeek, fn ($q) => $q->whereIn('molasses.week_no', $weekValues));
 
         if (!empty($planterNames)) {
             $molassesQuery->whereIn('molasses.planter_code', (array) $planterNames);
@@ -321,7 +325,8 @@ class PlanterProceeds
 }
 
         // By week bought, a planter is listed only for the quedans / molasses bought that week
-        if ($byBoughtWeek) {
+        // (Print Vouchers keeps every planter of the week: one with only a trucking allowance gets a voucher too)
+        if ($byBoughtWeek && !$anyWeek) {
             $boughtCodes = $quedans->pluck('planter_code')->merge($molasses->pluck('planter_code'))
                 ->map(fn ($code) => PlanterProfileSync::key($code))->flip();
             $summaryData = array_filter($summaryData, fn ($data) => $boughtCodes->has(PlanterProfileSync::key($data['planter_code'])));
@@ -336,44 +341,28 @@ class PlanterProceeds
     }
 
     /**
-     * A Check Voucher of one Week Bought: every quedan and molasses record bought that week, whatever its
-     * own week, at its bought price, plus the trucking allowance of those same weeks (a week-2 quedan bought
-     * in week 6 brings the planter's week-2 trucking allowance). One voucher per quedan, with the planter's
-     * molasses and trucking of that week on its first quedan; molasses without a quedan in the week make
-     * their own voucher.
-     * The accounts applied (loan, cash advance, fuel, others) follow their schedule: each voucher takes the
-     * deductions scheduled for its quedan's week (on the planter's first voucher of that week), and they are
-     * deducted when the quedan is bought. A week-2 cash advance installment comes off the week-2 quedan's voucher.
+     * Check Vouchers of one Week Bought, one per planter:
+     *  - every quedan and molasses record the planter had bought in the week, whatever its own week
+     *    (a week-5 quedan bought in week 6 is on the week-6 voucher), at its bought price;
+     *  - the trucking allowance of the bought week only (earlier weeks' trucking is not carried in);
+     *  - the loan, cash advance, fuel and others scheduled for the bought week.
+     * A planter with only a trucking allowance that week (nothing sold) gets a voucher for it.
      */
     public static function summaryByBoughtWeek($cropYear, $boughtWeek, $planterNames = null): Collection
     {
         $boughtWeek = (int) $boughtWeek;
-        // The weeks of the quedans and molasses bought in the week
-        $weeks = Quedan::notPending()->where('crop_year', $cropYear)->boughtInWeek($cropYear, $boughtWeek)
-            ->distinct()->pluck('week_no')
-            ->merge(Molass::notPending()->where('crop_year', $cropYear)->boughtInWeek($cropYear, $boughtWeek)->distinct()->pluck('week_no'))
-            ->map(fn ($w) => (int) $w)->filter(fn ($w) => $w > 0)->unique()->sort()->values();
 
-        $weekEnd = WeekNo::where('crop_year', $cropYear)
-            ->whereIn('week_no', [(string) $boughtWeek, str_pad((string) $boughtWeek, 2, '0', STR_PAD_LEFT)])
-            ->value('week_end_date');
-        $records = collect();
-        foreach ($weeks as $week) {
-            // Each week on its own (its prices, its trucking, its scheduled deductions), one record per quedan
-            // bought in the week
-            foreach (self::summary($cropYear, $week, $week, $planterNames, $boughtWeek, null, true) as $record) {
-                // Molasses without a quedan are keyed by planter: the week keeps them apart
-                if (!str_contains($record['voucher_key'], '#q')) {
-                    $record['voucher_key'] .= '#w' . $week;
-                }
-                $record['week_no'] = 'WK ' . $week . ' / BOUGHT WK ' . $boughtWeek;
-                $record['quedan_week'] = $week;
-                $record['week_end_date'] = $weekEnd ?? '';
+        return self::summary($cropYear, $boughtWeek, $boughtWeek, $planterNames, $boughtWeek, null, false, true)
+            ->map(function ($record) use ($boughtWeek) {
+                $record['week_no'] = 'BOUGHT WK ' . $boughtWeek;
+                $record['quedan_week'] = $boughtWeek;
                 $record['bought_week'] = $boughtWeek;
-                $records->push($record);
-            }
-        }
-        return $records->sortBy(fn ($r) => sprintf('%s|%03d|%s', mb_strtoupper(trim((string) $r['planter_name'])), $r['quedan_week'], $r['voucher_key']))->values();
+                $record['quedan_count'] = (int) ($record['quedan_count'] ?? 0);
+                $record['molasses_count'] = (int) ($record['molasses_count'] ?? 0);
+                return $record;
+            })
+            ->sortBy(fn ($r) => mb_strtoupper(trim((string) $r['planter_name'])))
+            ->values();
     }
 
     /**

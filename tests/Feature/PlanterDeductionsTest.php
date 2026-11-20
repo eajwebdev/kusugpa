@@ -583,51 +583,55 @@ class PlanterDeductionsTest extends TestCase
         ]);
         // DELA CRUZ's week 3 and week 4 quedans and ABATAYO's week 4 quedan are all bought in week 4
         $this->buyAtWeek('4');
-        DB::table('consolidated_uploads')->insert(['crop_year' => '20262027', 'week_no' => '3', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'ta_amount' => 300, 'total_summary' => 300]);
-        DB::table('consolidated_uploads')->insert(['crop_year' => '20262027', 'week_no' => '10', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'ta_amount' => 999, 'total_summary' => 999]);
+        foreach (['3' => 300, '4' => 400, '10' => 999] as $week => $ta) {
+            DB::table('consolidated_uploads')->insert(['crop_year' => '20262027', 'week_no' => $week, 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'ta_amount' => $ta, 'total_summary' => $ta]);
+        }
+        // SANTOS sold nothing but has a week 4 trucking allowance: a voucher with only that
+        DB::table('consolidated_uploads')->insert(['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00789', 'planter_name' => 'SANTOS, ANA', 'ta_amount' => 50, 'total_summary' => 50]);
         $week4 = ['crop_year' => '20262027', 'bought_week' => 4];
 
-        // Week Bought 4: one voucher per quedan. The week 3 quedan's voucher has the week 3 trucking allowance
-        // (not week 10's); the week 4 quedan's voucher has none.
-        // Deductions follow their schedule: fuel set for week 3 comes off the week 3 quedan's voucher and fuel set
-        // for week 4 off the week 4 one, both deducted now that the quedans are bought (week 4); week 10's is not yet.
+        // Week Bought 4: one voucher per planter. DELA CRUZ's has both quedans (weeks 3 and 4) and only the
+        // week 4 trucking allowance (not weeks 3 or 10), and the fuel set for week 4.
         $this->createDeduction('fuel', 350, [3 => 100, 4 => 200, 10 => 50])->assertCreated();
-        $vouchers = PlanterProceeds::summaryByBoughtWeek('20262027', 4)->where('planter_code', '00123')->values();
-        $this->assertCount(2, $vouchers);
-        $this->assertSame([3, 4], $vouchers->pluck('quedan_week')->all());
-        $this->assertSame([1, 1], $vouchers->pluck('quedan_count')->all());
-        $this->assertEqualsWithDelta(10, $vouchers[0]['sugar_lkg'], 0.001);
-        $this->assertEqualsWithDelta(300, $vouchers[0]['consolidated_total'], 0.001);
-        $this->assertEqualsWithDelta(0, $vouchers[1]['consolidated_total'], 0.001);
-        $this->assertEqualsWithDelta(100, $vouchers[0]['fuel_deduction'], 0.001);
-        $this->assertEqualsWithDelta(200, $vouchers[1]['fuel_deduction'], 0.001);
+        $vouchers = PlanterProceeds::summaryByBoughtWeek('20262027', 4);
+        $delaCruz = $vouchers->where('planter_code', '00123')->values();
+        $this->assertCount(1, $delaCruz);
+        $this->assertSame(2, $delaCruz[0]['quedan_count']);
+        $this->assertEqualsWithDelta(20, $delaCruz[0]['sugar_lkg'], 0.001);
+        $this->assertEqualsWithDelta(400, $delaCruz[0]['consolidated_total'], 0.001);
+        $this->assertEqualsWithDelta(200, $delaCruz[0]['fuel_deduction'], 0.001);
+        $santos = $vouchers->firstWhere('planter_code', '00789');
+        $this->assertSame(0, $santos['quedan_count']);
+        $this->assertEqualsWithDelta(50, $santos['consolidated_total'], 0.001);
 
         // Only DELA CRUZ first
         $first = $this->postJson(route('voucher.batches.store'), $week4 + ['planter_name' => ['00123']])
-            ->assertCreated()->assertJsonPath('batch.vouchers', 2)->assertJsonPath('batch.quedans', 2)->assertJsonPath('batch.bought_week', 4)->json('batch.id');
+            ->assertCreated()->assertJsonPath('batch.vouchers', 1)->assertJsonPath('batch.quedans', 2)->assertJsonPath('batch.bought_week', 4)->json('batch.id');
 
-        // Then all of Week Bought 4: DELA CRUZ is already in a group, so only ABATAYO is generated
+        // Then all of Week Bought 4: DELA CRUZ is already in a group, so ABATAYO and SANTOS (trucking only) are generated
         $second = $this->postJson(route('voucher.batches.store'), $week4)
-            ->assertCreated()->assertJsonPath('batch.vouchers', 1)->assertJsonPath('skipped', 1)->json('batch.id');
-        $this->assertSame(['ABATAYO, EDDIE'], $this->getJson(route('voucher.batches.show', $second))->json('items.*.planter_name'));
+            ->assertCreated()->assertJsonPath('batch.vouchers', 2)->assertJsonPath('skipped', 1)->json('batch.id');
+        $this->assertSame(['ABATAYO, EDDIE', 'SANTOS, ANA'], $this->getJson(route('voucher.batches.show', $second))->json('items.*.planter_name'));
 
         // Print Vouchers' planter list leaves out generated planters
         $names = fn ($extra) => $this->getJson(route('get.planter.names', $week4 + $extra))->assertOk()->json('*.planter_code');
         $this->assertSame([], $names(['exclude_generated' => 1]));
-        $this->assertEqualsCanonicalizing(['00123', '00456'], $names([]));
+        $this->assertEqualsCanonicalizing(['00123', '00456', '00789'], $names([]));
 
-        // Nothing left in Week Bought 4, and nothing was bought in week 3
+        // Nothing left in Week Bought 4. Nothing was bought in week 3, but DELA CRUZ has a week 3 trucking
+        // allowance: that week has its own voucher, with only the trucking allowance
         $this->postJson(route('voucher.batches.store'), $week4)->assertStatus(422);
-        $this->postJson(route('voucher.batches.store'), ['crop_year' => '20262027', 'bought_week' => 3])->assertStatus(422);
-        $this->getJson(route('voucher.batches.index', ['crop_year' => '20262027']))->assertOk()->assertJsonCount(2);
+        $this->postJson(route('voucher.batches.store'), ['crop_year' => '20262027', 'bought_week' => 3])
+            ->assertCreated()->assertJsonPath('batch.vouchers', 1)->assertJsonPath('batch.quedans', 0);
+        $this->getJson(route('voucher.batches.index', ['crop_year' => '20262027']))->assertOk()->assertJsonCount(3);
 
         // Deleting a group lets its planters be generated again
         $this->deleteJson(route('voucher.batches.destroy', $first))->assertOk();
         $this->assertSame(0, DB::table('voucher_batch_items')->where('voucher_batch_id', $first)->count());
         $this->assertSame(['00123'], $names(['exclude_generated' => 1]));
         $this->postJson(route('voucher.batches.store'), $week4)
-            ->assertCreated()->assertJsonPath('batch.vouchers', 2);
-        $this->assertSame(3, DB::table('voucher_batch_items')->count());
+            ->assertCreated()->assertJsonPath('batch.vouchers', 1);
+        $this->assertSame(4, DB::table('voucher_batch_items')->count());
 
         // A planter in an older group (by week range) covering week 4 is not generated again by Week Bought 4
         DB::table('voucher_batch_items')->delete();
@@ -650,17 +654,16 @@ class PlanterDeductionsTest extends TestCase
             ->assertOk()->assertJsonPath('receiver_name', 'Edwin Abril');
         $this->getJson(route('voucher.batches.index'))->assertJsonPath('0.receivers', 1);
 
-        // The receiver prints on that voucher (week 3 quedan) only; the week 4 quedan's voucher keeps the planter
+        // One voucher for the planter, with both quedans, printed with the receiver
         $all = $this->captureView('pdf.voucher', 'voucher.pdf', ['batch_id' => $batch]);
-        $this->assertCount(2, $all['summaryData']);
+        $this->assertCount(1, $all['summaryData']);
         $html = view('pdf.voucher', $all)->render();
         $this->assertSame(1, substr_count($html, 'Edwin Abril'));
-        $this->assertStringContainsString('DELA CRUZ, JUAN', $html);
 
         // One voucher of the group prints alone
         $one = $this->captureView('pdf.voucher', 'voucher.pdf', ['batch_id' => $batch, 'item_id' => $item]);
         $this->assertCount(1, $one['summaryData']);
-        $this->assertEqualsWithDelta(10, $one['summaryData'][0]['sugar_lkg'], 0.001);
+        $this->assertEqualsWithDelta(20, $one['summaryData'][0]['sugar_lkg'], 0.001);
         $html = view('pdf.voucher', $one)->render();
         $this->assertStringContainsString('Edwin Abril', $html);
         $this->assertStringNotContainsString('DELA CRUZ, JUAN', $html);
