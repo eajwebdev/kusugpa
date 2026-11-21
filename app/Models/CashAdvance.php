@@ -98,7 +98,7 @@ class CashAdvance extends Model
             $status = match (true) {
                 $remaining <= 0 => 'paid',
                 $paidCents > 0 => 'partial',
-                $due && $due < $today && $this->status === 'active' => 'overdue',
+                $due && $due < $today && in_array($this->status, ['approved', 'active'], true) => 'overdue',
                 default => 'upcoming',
             };
 

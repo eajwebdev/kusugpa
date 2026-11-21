@@ -12,6 +12,8 @@ class LoanPayment extends Model
         'loan_id',
         'month',
         'amount',
+        'payment_method',
+        'receipt_no',
         'paid_date',
         'reference',
         'remarks',

@@ -179,6 +179,7 @@
                         </div>
 
                         <form @submit.prevent="save()" class="space-y-4">
+                            <!-- The essentials: crop year, week, planter, amount -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Crop Year <span class="text-rose-600">*</span></label>
@@ -189,6 +190,20 @@
                                     </select>
                                 </div>
                                 <div>
+                                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Week No. <span class="text-rose-600">*</span></label>
+                                    <template x-if="schedule.length === 1">
+                                        <select x-model="schedule[0].week_no" @change="changeWeek(schedule[0])" class="kp-input w-full">
+                                            <template x-for="w in cropYearWeeks()" :key="w.week_no">
+                                                <option :value="w.week_no" :selected="w.week_no === schedule[0].week_no"
+                                                    x-text="'Week ' + w.week_no + (w.week_start ? ' (' + formatDate(w.week_start) + ' – ' + formatDate(w.week_end) + ')' : '')"></option>
+                                            </template>
+                                        </select>
+                                    </template>
+                                    <p x-show="schedule.length > 1" class="kp-input w-full text-xs text-[#52705F] dark:text-[#8AA895]"
+                                        x-text="'Split over ' + schedule.length + ' weeks (see More options)'"></p>
+                                    <p x-show="!schedule.length" class="text-xs text-amber-700 dark:text-amber-400">No weeks are set up for this crop year.</p>
+                                </div>
+                                <div>
                                     <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Planter <span class="text-rose-600">*</span></label>
                                     <select x-model="form.planter_code" @change="form.planter_name = planterName(form.planter_code)" required class="kp-input w-full">
                                         <option value="">Select Planter</option>
@@ -197,16 +212,21 @@
                                         </template>
                                     </select>
                                 </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-4" :class="form.type === 'fuel' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'">
-                                <div x-show="form.type === 'fuel'">
-                                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Liters</label>
-                                    <input type="number" x-model="form.liters" step="any" min="0" class="kp-input w-full" placeholder="0">
-                                </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Amount (₱) <span class="text-rose-600">*</span></label>
                                     <input type="number" x-model="form.amount" @input="if (!manualSplit) autoSplit()" step="any" min="0" required class="kp-input w-full" placeholder="0.00">
+                                </div>
+                            </div>
+
+                            <button type="button" @click="showMore = !showMore" class="text-xs font-semibold text-[#005B2A] dark:text-[#52C97E] hover:underline">
+                                <i class="fas mr-1" :class="showMore ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+                                <span x-text="showMore ? 'Fewer options' : 'More options (' + (form.type === 'fuel' ? 'liters, ' : '') + 'description, split over several weeks)'"></span>
+                            </button>
+
+                            <div x-show="showMore" x-cloak class="grid grid-cols-1 gap-4" :class="form.type === 'fuel' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'">
+                                <div x-show="form.type === 'fuel'">
+                                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Liters</label>
+                                    <input type="number" x-model="form.liters" step="any" min="0" class="kp-input w-full" placeholder="0">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Term (Weeks) <span class="text-rose-600">*</span></label>
@@ -223,8 +243,8 @@
                                 </div>
                             </div>
 
-                            <!-- Weekly Deduction Schedule -->
-                            <div class="rounded-xl p-4 bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B]">
+                            <!-- Weekly Deduction Schedule (more than one week) -->
+                            <div x-show="showMore" x-cloak class="rounded-xl p-4 bg-[#F7FAF8] dark:bg-[#13231B] border border-[#E3EBE5] dark:border-[#203A2B]">
                                 <div class="flex items-center justify-between gap-2 mb-3">
                                     <h4 class="text-xs font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider">Weekly Deduction Schedule</h4>
                                     <button type="button" @click="manualSplit = false; autoSplit()" :disabled="!schedule.length"
@@ -320,6 +340,8 @@
                     saving: false,
                     form: {},
                     termWeeks: 1,
+                    // Liters, description and a schedule over several weeks stay folded until needed
+                    showMore: false,
                     schedule: [],
                     rowUid: 0,
                     manualSplit: false,
@@ -446,6 +468,7 @@
                         this.editing = null;
                         this.form = this.blankForm();
                         this.termWeeks = 1;
+                        this.showMore = false;
                         this.buildSchedule();
                         this.showModal = true;
                     },
@@ -466,6 +489,8 @@
                         });
                         this.termWeeks = this.schedule.length || 1;
                         this.manualSplit = true;
+                        // Open the extra fields when this deduction uses them
+                        this.showMore = this.schedule.length > 1 || (d.liters !== null && d.liters !== undefined && d.liters !== '') || !!d.description;
                         this.showModal = true;
                     },
                     async post(url, body = {}) {

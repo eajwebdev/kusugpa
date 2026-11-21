@@ -292,11 +292,23 @@
                                         <td class="text-xs font-medium">{{ $payment->paid_date->format('M d, Y') }}</td>
                                         <td class="text-xs">{{ $monthLabel($payment->month) }}</td>
                                         <td class="text-xs text-right kp-num font-bold text-[#005B2A] dark:text-[#52C97E]">₱{{ number_format($payment->amount, 2) }}</td>
-                                        <td class="text-xs font-mono">{{ $payment->reference ?: '—' }}</td>
+                                        <td class="text-xs font-mono">
+                                            @if ($payment->payment_method === 'cash')
+                                                <span class="kp-badge text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 font-sans">Cash · OTC</span>
+                                                <span class="block">{{ $payment->receipt_no }}</span>
+                                            @endif
+                                            {{ $payment->reference ?: ($payment->payment_method === 'cash' ? '' : '—') }}
+                                        </td>
                                         <td class="text-xs">{{ $payment->remarks ?: '—' }}</td>
                                         <td class="text-xs">{{ trim(($payment->recordedByUser->fname ?? '') . ' ' . ($payment->recordedByUser->lname ?? '')) ?: '—' }}</td>
                                         @if ($userPermissions['canUndoPayment'])
-                                            <td class="text-center">
+                                            <td class="text-center whitespace-nowrap">
+                                                @if ($payment->payment_method === 'cash')
+                                                    <button type="button" class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs text-[#005B2A] dark:text-[#52C97E]" title="Print the receipt"
+                                                        @click="window.KusugpaPdfPreview ? window.KusugpaPdfPreview.open('{{ route('loans.payments.receipt', [$loan, $payment]) }}', 'Payment Receipt') : window.open('{{ route('loans.payments.receipt', [$loan, $payment]) }}', '_blank')">
+                                                        <i class="fas fa-receipt mr-1" aria-hidden="true"></i> Receipt
+                                                    </button>
+                                                @endif
                                                 <button type="button" @click="undoPayment({{ $payment->id }}, '{{ $monthLabel($payment->month) }}', {{ (float) $payment->amount }})"
                                                     class="p-1.5 rounded-md hover:bg-[var(--kp-surface-2)] text-xs text-rose-600" title="Undo this payment">
                                                     <i class="fas fa-rotate-left mr-1" aria-hidden="true"></i> Undo
@@ -490,6 +502,25 @@
                     </button>
                 </div>
                 <form @submit.prevent="submitPayment()" class="space-y-4">
+                    <!-- How it was paid: off the Check Voucher, or cash over the counter (with a receipt) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Paid Through</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-xs"
+                                :class="form.payment_method === 'voucher' ? 'border-[#005B2A] bg-[#EAF5ED] dark:bg-[#1A3324]' : 'border-[#CFDCD3] dark:border-[#203A2B]'">
+                                <input type="radio" value="voucher" x-model="form.payment_method" class="text-[#005B2A]">
+                                <span><b>Check Voucher</b><span class="block text-[11px] text-[#52705F] dark:text-[#8AA895]">Deducted from the proceeds</span></span>
+                            </label>
+                            <label class="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-xs"
+                                :class="form.payment_method === 'cash' ? 'border-[#005B2A] bg-[#EAF5ED] dark:bg-[#1A3324]' : 'border-[#CFDCD3] dark:border-[#203A2B]'">
+                                <input type="radio" value="cash" x-model="form.payment_method" class="text-[#005B2A]">
+                                <span><b>Over the Counter (Cash)</b><span class="block text-[11px] text-[#52705F] dark:text-[#8AA895]">Proceeds not enough; prints a receipt</span></span>
+                            </label>
+                        </div>
+                        <p x-show="form.payment_method === 'cash'" class="text-[11px] mt-1 text-amber-700 dark:text-amber-300">
+                            The cash paid is no longer deducted on the Check Voucher.
+                        </p>
+                    </div>
                     <div>
                         <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Month</label>
                         <select x-model="form.month" @change="form.amount = remainingFor(form.month)" class="kp-input w-full">
@@ -650,7 +681,7 @@
                         return Math.round((parseFloat(this.form.amount) || 0) * 100) > Math.round(parseFloat(this.remainingFor(this.form.month)) * 100);
                     },
                     openPayment(month) {
-                        this.form = { month, amount: this.remainingFor(month), paid_date: this.today(), reference: '', remarks: '' };
+                        this.form = { month, amount: this.remainingFor(month), paid_date: this.today(), reference: '', remarks: '', payment_method: 'voucher' };
                         this.payModal = true;
                     },
                     // One click: pay the month's full remaining amount, dated today
@@ -676,6 +707,13 @@
                         try {
                             const d = await this.request('{{ route('loans.payments.store', $loan) }}', 'POST', payload);
                             this.payModal = false;
+                            if (d.receipt_url) {
+                                // Cash over the counter: print the receipt for the planter
+                                await Swal.fire({ icon: 'success', title: 'Payment recorded', text: d.message, confirmButtonText: 'Print Receipt', confirmButtonColor: '#005B2A' });
+                                window.KusugpaPdfPreview ? window.KusugpaPdfPreview.open(d.receipt_url, 'Payment Receipt') : window.open(d.receipt_url, '_blank');
+                                setTimeout(() => window.location.reload(), 600);
+                                return;
+                            }
                             await Swal.fire({ icon: 'success', title: 'Payment recorded', text: d.message, timer: 1800, showConfirmButton: false });
                             window.location.reload();
                         } catch (e) {

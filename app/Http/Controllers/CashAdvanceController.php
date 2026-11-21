@@ -386,7 +386,8 @@ class CashAdvanceController extends Controller
      */
     private function markApproved(CashAdvance $ca, string $startDate): void
     {
-        $ca->status = 'approved';
+        // Activated on approval, so a week that has passed shows as overdue
+        $ca->status = 'active';
         $ca->approved_by = auth()->id();
         $ca->approved_date = now();
         $ca->start_date = $startDate;
@@ -600,7 +601,10 @@ class CashAdvanceController extends Controller
             'paid_date' => 'required|date',
             'reference' => 'nullable|string|max:50',
             'remarks' => 'nullable|string|max:255',
+            // voucher: taken off the Check Voucher; cash: paid over the counter (gets a receipt)
+            'payment_method' => 'nullable|in:voucher,cash',
         ]);
+        $method = $data['payment_method'] ?? 'voucher';
 
         $week = $cashAdvance->weeklyRows()->firstWhere('week_no', (string) $data['week_no']);
         if (!$week) {
@@ -613,23 +617,32 @@ class CashAdvanceController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($cashAdvance, $data, $amount) {
+        $payment = DB::transaction(function () use ($cashAdvance, $data, $amount, $method) {
             // The first payment on an approved advance activates it
             if ($cashAdvance->status === 'approved') {
                 $cashAdvance->status = 'active';
             }
-            $cashAdvance->payments()->create([
+            $payment = $cashAdvance->payments()->create([
                 'week_no' => (string) $data['week_no'],
                 'amount' => $amount,
+                'payment_method' => $method,
                 'paid_date' => $data['paid_date'],
                 'reference' => $data['reference'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'recorded_by' => auth()->id(),
             ]);
+            // Over-the-counter payments get a receipt number
+            if ($method === 'cash') {
+                $payment->update(['receipt_no' => 'CA-OR-' . str_pad((string) $payment->id, 6, '0', STR_PAD_LEFT)]);
+            }
             $cashAdvance->syncWeeklyBalance();
+
+            return $payment;
         });
 
-        AuditLog::log('payment', 'cash_advances', 'Recorded payment for cash advance #' . $cashAdvance->ca_number, [
+        AuditLog::log('payment', 'cash_advances', 'Recorded ' . ($method === 'cash' ? 'over-the-counter cash ' : '') . 'payment for cash advance #' . $cashAdvance->ca_number, [
+            'payment_method' => $method,
+            'receipt_no' => $payment->receipt_no,
             'week_no' => $data['week_no'],
             'amount_paid' => $amount,
             'paid_date' => $data['paid_date'],
@@ -638,11 +651,36 @@ class CashAdvanceController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Payment of ₱' . number_format($amount, 2) . ' recorded for Week ' . $data['week_no'] . '.'
+            'message' => ($method === 'cash' ? 'Over-the-counter cash payment' : 'Payment') . ' of ₱' . number_format($amount, 2) . ' recorded for Week ' . $data['week_no'] . '.'
+                . ($method === 'cash' ? ' Receipt ' . $payment->receipt_no . ' is ready to print; it is no longer deducted on that week\'s voucher.' : '')
                 . ($cashAdvance->status === 'completed' ? ' The cash advance is now fully paid.' : ''),
             'balance' => $cashAdvance->balance,
             'status' => $cashAdvance->status,
+            'receipt_url' => $method === 'cash' ? route('cash-advances.payments.receipt', [$cashAdvance, $payment]) : null,
         ]);
+    }
+
+    /**
+     * Proof of payment for an over-the-counter (cash) repayment: a small receipt to hand the planter
+     */
+    public function paymentReceipt(CashAdvance $cashAdvance, CashAdvancePayment $payment)
+    {
+        abort_unless((int) $payment->cash_advance_id === (int) $cashAdvance->id && $payment->payment_method === 'cash', 404);
+
+        return \App\Support\PaymentReceipt::stream([
+            'title' => 'CASH ADVANCE PAYMENT',
+            'receipt_no' => $payment->receipt_no,
+            'paid_date' => $payment->paid_date,
+            'planter_name' => $cashAdvance->planter_name,
+            'planter_code' => $cashAdvance->planter_code,
+            'account' => 'Cash Advance #' . $cashAdvance->ca_number,
+            'applied_to' => 'Week ' . $payment->week_no . ' (crop year ' . $cashAdvance->crop_year . ')',
+            'amount' => (float) $payment->amount,
+            'balance_after' => (float) $cashAdvance->balance,
+            'reference' => $payment->reference,
+            'remarks' => $payment->remarks,
+            'received_by' => $payment->recordedByUser ? trim($payment->recordedByUser->fname . ' ' . $payment->recordedByUser->lname) : '',
+        ], 'receipt-' . $payment->receipt_no . '.pdf');
     }
 
     /**

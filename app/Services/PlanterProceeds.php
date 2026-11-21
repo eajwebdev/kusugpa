@@ -379,12 +379,21 @@ class PlanterProceeds
 
         // Cash Advance Payment: the planter's cash advance weeks that fall in the voucher's weeks
         // (the same weekly schedule Hauling Liquidity deducts), from approved / active / completed advances
-        $caWeekly = CashAdvanceDeduction::where('crop_year', $cropYear)
+        $caRows = CashAdvanceDeduction::where('crop_year', $cropYear)
             ->whereIn('week_no', $weekValues)
             ->whereHas('cashAdvance', fn ($q) => $q->whereIn('status', ['approved', 'active', 'completed']))
             ->with('cashAdvance:id,planter_code,planter_name')
-            ->get()
-            ->map(fn ($d) => ['cash_advance' => $d->cashAdvance, 'amount' => (float) $d->amount]);
+            ->get();
+        // Paid in cash over the counter: no longer taken off the voucher of that week
+        $caCash = \App\Models\CashAdvancePayment::where('payment_method', 'cash')
+            ->whereIn('cash_advance_id', $caRows->pluck('cash_advance_id')->unique()->values())
+            ->get(['cash_advance_id', 'week_no', 'amount'])
+            ->groupBy(fn ($p) => $p->cash_advance_id . '|' . (int) $p->week_no)
+            ->map(fn ($rows) => (float) $rows->sum('amount'));
+        $caWeekly = $caRows->map(fn ($d) => [
+            'cash_advance' => $d->cashAdvance,
+            'amount' => max(0, round((float) $d->amount - ($caCash[$d->cash_advance_id . '|' . (int) $d->week_no] ?? 0), 2)),
+        ]);
 
         // Older monthly cash advances: installments due within the voucher's weeks, when auto-deduct is on
         $caMonthly = collect();
@@ -454,12 +463,20 @@ class PlanterProceeds
         $loanDue = collect();
         if (LoanSetting::get('auto_deduct', true) && $weekEndDates->isNotEmpty()) {
             $periodStart = WeekNo::where('crop_year', $cropYear)->where('week_no', $weekFrom)->value('week_start_date') ?? $weekEndDates->min();
-            $loanDue = LoanAmortization::whereBetween('due_date', [substr((string) $periodStart, 0, 10), substr((string) $weekEndDates->max(), 0, 10) . ' 23:59:59'])
+            $installments = LoanAmortization::whereBetween('due_date', [substr((string) $periodStart, 0, 10), substr((string) $weekEndDates->max(), 0, 10) . ' 23:59:59'])
                 ->whereHas('loan', fn ($q) => $q->where('crop_year', $cropYear)->whereIn('status', ['approved', 'active', 'completed']))
                 ->with('loan:id,planter_code')
-                ->get()
+                ->get();
+            // Paid in cash over the counter for the installment's month: no longer taken off the voucher
+            $loanCash = \App\Models\LoanPayment::where('payment_method', 'cash')
+                ->whereIn('loan_id', $installments->pluck('loan_id')->unique()->values())
+                ->get(['loan_id', 'month', 'amount'])
+                ->groupBy(fn ($p) => $p->loan_id . '|' . $p->month)
+                ->map(fn ($rows) => (float) $rows->sum('amount'));
+            $loanDue = $installments
                 ->groupBy(fn ($a) => PlanterProfileSync::key($a->loan->planter_code))
-                ->map(fn ($rows) => round((float) $rows->sum('amount_due'), 2));
+                ->map(fn ($rows) => round((float) $rows->sum(fn ($a) => max(0,
+                    (float) $a->amount_due - ($loanCash[$a->loan_id . '|' . $a->due_date->format('Y-m')] ?? 0))), 2));
         }
 
         $summaryData = $summaryData->map(function ($data) use ($loanDue) {

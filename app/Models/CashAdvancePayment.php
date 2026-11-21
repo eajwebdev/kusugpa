@@ -12,6 +12,8 @@ class CashAdvancePayment extends Model
         'cash_advance_id',
         'week_no',
         'amount',
+        'payment_method',
+        'receipt_no',
         'paid_date',
         'reference',
         'remarks',

@@ -87,6 +87,7 @@ class ApprovalThresholdTest extends TestCase
             '2026_10_24_000001_add_interest_amount_to_cash_advances.php',
             '2026_11_20_000000_add_adjustment_amount_to_cash_advances.php',
             '2026_11_20_000001_create_cash_advance_adjustments_table.php',
+            '2026_11_21_000000_add_payment_method_to_ca_and_loan_payments.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }
@@ -139,7 +140,7 @@ class ApprovalThresholdTest extends TestCase
             ->assertJson(['auto_approved' => true]);
 
         $ca = CashAdvance::first();
-        $this->assertSame('approved', $ca->status);
+        $this->assertSame('active', $ca->status);
         $this->assertEqualsWithDelta(300, $ca->interest_amount, 0.001);
         $this->assertEqualsWithDelta(10300, $ca->total_amount, 0.001);
         $this->assertEqualsWithDelta(10300, $ca->balance, 0.001);
@@ -215,7 +216,7 @@ class ApprovalThresholdTest extends TestCase
         // Managers still need cash advance access assigned to reach the module
         $this->actingAs($this->userWith(['approve-cash-advances'], 'manager'));
         $this->post(route('cash-advances.approve', $ca))->assertRedirect();
-        $this->assertSame('approved', $ca->fresh()->status);
+        $this->assertSame('active', $ca->fresh()->status);
     }
 
     public function test_staff_can_approve_a_pending_cash_advance_below_threshold(): void
@@ -230,7 +231,7 @@ class ApprovalThresholdTest extends TestCase
 
         $this->actingAs($this->userWith(['create-cash-advances']));
         $this->post(route('cash-advances.approve', $id))->assertRedirect();
-        $this->assertSame('approved', CashAdvance::find($id)->status);
+        $this->assertSame('active', CashAdvance::find($id)->status);
     }
 
     public function test_loan_below_threshold_is_approved_on_creation(): void
@@ -240,7 +241,7 @@ class ApprovalThresholdTest extends TestCase
         $this->createLoan(49999.99)->assertCreated()->assertJson(['auto_approved' => true]);
 
         $loan = Loan::first();
-        $this->assertSame('approved', $loan->status);
+        $this->assertSame('active', $loan->status);
         $this->assertNotNull($loan->end_date);
         $this->assertSame(6, $loan->amortizations()->count());
     }
@@ -256,6 +257,6 @@ class ApprovalThresholdTest extends TestCase
 
         $this->actingAs($this->userWith([], 'Administrator'));
         $this->post(route('loans.approve', $loan))->assertRedirect();
-        $this->assertSame('approved', $loan->fresh()->status);
+        $this->assertSame('active', $loan->fresh()->status);
     }
 }

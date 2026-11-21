@@ -146,6 +146,7 @@ class PlanterDeductionsTest extends TestCase
             '2026_10_24_000001_add_interest_amount_to_cash_advances.php',
             '2026_11_20_000000_add_adjustment_amount_to_cash_advances.php',
             '2026_11_20_000001_create_cash_advance_adjustments_table.php',
+            '2026_11_21_000000_add_payment_method_to_ca_and_loan_payments.php',
             '2026_10_24_000002_create_planter_deductions_tables.php',
             '2026_11_09_000000_add_liters_to_fuel_deductions.php',
             '2026_11_09_000001_add_sold_price_to_quedans.php',
@@ -275,7 +276,7 @@ class PlanterDeductionsTest extends TestCase
 
         // Saved as an ordinary approved cash advance: 1% interest, the whole amount on week 4
         $ca = DB::table('cash_advances')->first();
-        $this->assertSame('approved', $ca->status);
+        $this->assertSame('active', $ca->status); // activated on approval
         $this->assertEquals(1, (float) $ca->interest_rate);
         $this->assertEquals(50, (float) $ca->interest_amount);
         $this->assertEquals(5050, (float) $ca->total_amount);
@@ -376,7 +377,7 @@ class PlanterDeductionsTest extends TestCase
 
         // An approved loan, no interest, one installment due at the end of week 4
         $loan = DB::table('loans')->first();
-        $this->assertSame('approved', $loan->status);
+        $this->assertSame('active', $loan->status); // activated on approval
         $this->assertEquals(0, (float) $loan->interest_rate);
         $this->assertEquals(7500, (float) $loan->total_amount);
         $this->assertSame([['2026-10-25', 7500.0]], DB::table('loan_amortizations')->get()
@@ -387,6 +388,40 @@ class PlanterDeductionsTest extends TestCase
         $this->assertEqualsWithDelta(0, PlanterProceeds::summary('20262027', 3, 3)->firstWhere('planter_code', '00123')['loan_deduction'], 0.001);
         $rows = $this->captureView('pdf.planter-accounts', 'planter-accounts-report.pdf', ['crop_year' => '20262027', 'week_from' => 4, 'week_to' => 4])['rows'];
         $this->assertEqualsWithDelta(7500, $rows->firstWhere('code', '00123')['loan'], 0.001);
+    }
+
+    public function test_over_the_counter_cash_payment_gets_a_receipt_and_is_not_deducted_again(): void
+    {
+        $planter = ['crop_year' => '20262027', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'date_created' => '2026-10-12'];
+
+        // Cash advance of ₱10,100 on week 3; the planter pays ₱4,000 in cash over the counter
+        $this->postJson(route('cash-advances.quick'), $planter + ['amount' => 10000, 'week_no' => '3'])->assertCreated();
+        $ca = \App\Models\CashAdvance::first();
+        $this->assertSame('active', $ca->status);
+        $paid = $this->postJson(route('cash-advances.weekly-payments.store', $ca), [
+            'week_no' => '3', 'amount' => 4000, 'paid_date' => '2026-10-15', 'payment_method' => 'cash',
+        ])->assertOk()->json();
+        $payment = \App\Models\CashAdvancePayment::first();
+        $this->assertSame('cash', $payment->payment_method);
+        $this->assertSame('CA-OR-' . str_pad((string) $payment->id, 6, '0', STR_PAD_LEFT), $payment->receipt_no);
+        $this->assertSame(route('cash-advances.payments.receipt', [$ca, $payment]), $paid['receipt_url']);
+        $this->assertSame('application/pdf', $this->get($paid['receipt_url'])->assertOk()->headers->get('Content-Type'));
+
+        // Only the ₱6,100 not paid in cash is taken off the week 3 voucher
+        $this->assertEqualsWithDelta(6100, PlanterProceeds::summary('20262027', 3, 3)->firstWhere('planter_code', '00123')['ca_deduction'], 0.001);
+
+        // A payment taken off the voucher has no receipt
+        $this->postJson(route('cash-advances.weekly-payments.store', $ca), ['week_no' => '3', 'amount' => 100, 'paid_date' => '2026-10-18'])
+            ->assertOk()->assertJsonPath('receipt_url', null);
+
+        // Loan balance of ₱7,500 on week 4, paid in full in cash: nothing left on the week 4 voucher
+        DB::table('loan_types')->insert(['name' => 'Crop Production Loan']);
+        $this->postJson(route('loans.quick'), $planter + ['amount' => 7500, 'week_no' => '4'])->assertCreated();
+        $loan = \App\Models\Loan::first();
+        $this->postJson(route('loans.payments.store', $loan), ['month' => '2026-10', 'amount' => 7500, 'paid_date' => '2026-10-21', 'payment_method' => 'cash'])
+            ->assertOk()->assertJsonPath('receipt_url', fn ($url) => str_contains((string) $url, '/receipt'));
+        $this->assertStringStartsWith('LN-OR-', \App\Models\LoanPayment::first()->receipt_no);
+        $this->assertEqualsWithDelta(0, PlanterProceeds::summary('20262027', 4, 4)->firstWhere('planter_code', '00123')['loan_deduction'], 0.001);
     }
 
     public function test_voucher_deducts_fuel_and_others_of_its_weeks(): void

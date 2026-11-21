@@ -158,7 +158,7 @@ class NavigationPermissions
         if (str_starts_with($name, 'loans.settings') || str_starts_with($name, 'loans.types.')) {
             return 'manage-loan-settings';
         }
-        if (in_array($name, ['loans.index', 'loans.show', 'loans.attachments.index',
+        if (in_array($name, ['loans.index', 'loans.show', 'loans.payments.receipt', 'loans.attachments.index',
             'loans.attachment.view', 'loans.attachment.download'], true)) {
             return 'view-loans';
         }
@@ -175,7 +175,7 @@ class NavigationPermissions
         if (str_starts_with($name, 'cash-advances.settings')) {
             return 'manage-cash-advance-settings';
         }
-        if (in_array($name, ['cash-advances.index', 'cash-advances.show', 'cash-advances.receipt.pdf'], true)) {
+        if (in_array($name, ['cash-advances.index', 'cash-advances.show', 'cash-advances.receipt.pdf', 'cash-advances.payments.receipt'], true)) {
             return 'view-cash-advances';
         }
         if (in_array($name, ['cash-advances.create', 'cash-advances.store', 'cash-advances.quick', 'cash-advances.schedule.update',

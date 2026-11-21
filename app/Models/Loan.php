@@ -81,7 +81,7 @@ class Loan extends Model
             $status = match (true) {
                 $remaining <= 0 => 'paid',
                 $paidCents > 0 => 'partial',
-                $due < $today && $this->status === 'active' => 'overdue',
+                $due < $today && in_array($this->status, ['approved', 'active'], true) => 'overdue',
                 default => 'upcoming',
             };
 

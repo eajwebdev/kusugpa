@@ -75,6 +75,7 @@ class CashAdvanceDeleteTest extends TestCase
             '2026_10_24_000001_add_interest_amount_to_cash_advances.php',
             '2026_11_20_000000_add_adjustment_amount_to_cash_advances.php',
             '2026_11_20_000001_create_cash_advance_adjustments_table.php',
+            '2026_11_21_000000_add_payment_method_to_ca_and_loan_payments.php',
         ] as $migration) {
             (require database_path('migrations/' . $migration))->up();
         }

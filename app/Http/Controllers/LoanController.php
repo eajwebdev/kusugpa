@@ -325,7 +325,8 @@ class LoanController extends Controller
             LoanSchedule::apply($loan, LoanSchedule::even((float) $loan->total_amount, (int) $loan->term_months));
         }
 
-        $loan->status = 'approved';
+        // Activated on approval, so a month that has passed shows as overdue
+        $loan->status = 'active';
         $loan->approved_by = auth()->id();
         $loan->approved_date = now();
         $loan->start_date = $startDate;
@@ -466,7 +467,10 @@ class LoanController extends Controller
             'paid_date' => 'required|date',
             'reference' => 'nullable|string|max:50',
             'remarks' => 'nullable|string|max:255',
+            // voucher: taken off the Check Voucher; cash: paid over the counter (gets a receipt)
+            'payment_method' => 'nullable|in:voucher,cash',
         ]);
+        $method = $data['payment_method'] ?? 'voucher';
 
         $row = $loan->monthlyRows()->firstWhere('month', $data['month']);
         if (!$row) {
@@ -479,23 +483,32 @@ class LoanController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($loan, $data, $amount) {
+        $payment = DB::transaction(function () use ($loan, $data, $amount, $method) {
             // The first payment on an approved loan activates it
             if ($loan->status === 'approved') {
                 $loan->status = 'active';
             }
-            $loan->payments()->create([
+            $payment = $loan->payments()->create([
                 'month' => $data['month'],
                 'amount' => $amount,
+                'payment_method' => $method,
                 'paid_date' => $data['paid_date'],
                 'reference' => $data['reference'] ?? null,
                 'remarks' => $data['remarks'] ?? null,
                 'recorded_by' => auth()->id(),
             ]);
+            // Over-the-counter payments get a receipt number
+            if ($method === 'cash') {
+                $payment->update(['receipt_no' => 'LN-OR-' . str_pad((string) $payment->id, 6, '0', STR_PAD_LEFT)]);
+            }
             $loan->syncBalance();
+
+            return $payment;
         });
 
-        AuditLog::log('payment', 'loans', 'Recorded payment for loan #' . $loan->loan_number, [
+        AuditLog::log('payment', 'loans', 'Recorded ' . ($method === 'cash' ? 'over-the-counter cash ' : '') . 'payment for loan #' . $loan->loan_number, [
+            'payment_method' => $method,
+            'receipt_no' => $payment->receipt_no,
             'month' => $data['month'],
             'amount_paid' => $amount,
             'paid_date' => $data['paid_date'],
@@ -504,11 +517,36 @@ class LoanController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Payment of ₱' . number_format($amount, 2) . ' recorded for ' . LoanSchedule::label($data['month']) . '.'
+            'message' => ($method === 'cash' ? 'Over-the-counter cash payment' : 'Payment') . ' of ₱' . number_format($amount, 2) . ' recorded for ' . LoanSchedule::label($data['month']) . '.'
+                . ($method === 'cash' ? ' Receipt ' . $payment->receipt_no . ' is ready to print; it is no longer deducted on the voucher.' : '')
                 . ($loan->status === 'completed' ? ' The loan is now fully paid.' : ''),
             'balance' => $loan->balance,
             'status' => $loan->status,
+            'receipt_url' => $method === 'cash' ? route('loans.payments.receipt', [$loan, $payment]) : null,
         ]);
+    }
+
+    /**
+     * Proof of payment for an over-the-counter (cash) repayment: a small receipt to hand the planter
+     */
+    public function paymentReceipt(Loan $loan, LoanPayment $payment)
+    {
+        abort_unless((int) $payment->loan_id === (int) $loan->id && $payment->payment_method === 'cash', 404);
+
+        return \App\Support\PaymentReceipt::stream([
+            'title' => 'LOAN PAYMENT',
+            'receipt_no' => $payment->receipt_no,
+            'paid_date' => $payment->paid_date,
+            'planter_name' => $loan->planter_name,
+            'planter_code' => $loan->planter_code,
+            'account' => 'Loan #' . $loan->loan_number,
+            'applied_to' => LoanSchedule::label($payment->month) . ' installment',
+            'amount' => (float) $payment->amount,
+            'balance_after' => (float) $loan->balance,
+            'reference' => $payment->reference,
+            'remarks' => $payment->remarks,
+            'received_by' => $payment->recordedByUser ? trim($payment->recordedByUser->fname . ' ' . $payment->recordedByUser->lname) : '',
+        ], 'receipt-' . $payment->receipt_no . '.pdf');
     }
 
     /**

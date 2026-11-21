@@ -121,6 +121,8 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::post('/loans/{loan}/reject', [LoanController::class, 'reject'])->name('loans.reject');
     Route::post('/loans/{loan}/payments', [LoanController::class, 'storePayment'])->name('loans.payments.store');
     Route::delete('/loans/{loan}/payments/{payment}', [LoanController::class, 'destroyPayment'])->name('loans.payments.destroy');
+    // Receipt of an over-the-counter (cash) loan payment
+    Route::get('/loans/{loan}/payments/{payment}/receipt', [LoanController::class, 'paymentReceipt'])->name('loans.payments.receipt');
     Route::post('/loans/{loan}/schedule', [LoanController::class, 'updateSchedule'])->name('loans.schedule.update');
     Route::delete('/loans/{loan}', [LoanController::class, 'destroy'])->name('loans.destroy');
     
@@ -147,6 +149,8 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::post('/cash-advances/{cashAdvance}/weekly-payments', [CashAdvanceController::class, 'storeWeeklyPayment'])->name('cash-advances.weekly-payments.store');
     Route::post('/cash-advances/{cashAdvance}/schedule', [CashAdvanceController::class, 'updateSchedule'])->name('cash-advances.schedule.update');
     Route::delete('/cash-advances/{cashAdvance}/weekly-payments/{payment}', [CashAdvanceController::class, 'destroyWeeklyPayment'])->name('cash-advances.weekly-payments.destroy');
+    // Receipt of an over-the-counter (cash) cash advance payment
+    Route::get('/cash-advances/{cashAdvance}/weekly-payments/{payment}/receipt', [CashAdvanceController::class, 'paymentReceipt'])->name('cash-advances.payments.receipt');
     Route::delete('/cash-advances/{cashAdvance}', [CashAdvanceController::class, 'destroy'])->name('cash-advances.destroy');
 
     // Fuel & Others Deduction (weekly schedule like a cash advance, no approval; feeds the Check Voucher)
