@@ -225,7 +225,7 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     Route::get('/dashboard/data', [MenuController::class, 'dashboardData'])->name('dashboard.data');
     Route::get('/dashboard/weekly', [MenuController::class, 'dashboardWeekly'])->name('dashboard.weekly');
     Route::get('/dashboard/tab/{tab}', [DashboardAnalyticsController::class, 'tab'])
-        ->where('tab', 'modules|collections|production|finance|proceeds|hauling|balance')
+        ->where('tab', 'modules|collections|trail|tls|production|finance|proceeds|hauling|balance')
         ->name('dashboard.tab');
 
     // Reports

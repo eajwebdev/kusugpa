@@ -27,6 +27,9 @@ class DashboardAnalyticsController extends Controller
             'balance' => true,
             'finance' => $access['finance'],
             'collections' => $access['finance'],
+            // Money trail: released → recovered on vouchers / in cash → still to collect
+            'trail' => $access['finance'],
+            'tls' => true,
             'proceeds' => $access['proceeds'],
             'hauling' => $access['hauling'],
         ];

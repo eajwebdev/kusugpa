@@ -196,7 +196,7 @@ class DashboardAnalyticsTest extends TestCase
     {
         $this->actingAs($this->admin());
 
-        foreach (['modules', 'production', 'finance', 'proceeds', 'hauling', 'balance'] as $tab) {
+        foreach (['modules', 'production', 'finance', 'proceeds', 'hauling', 'balance', 'trail', 'tls'] as $tab) {
             $this->getJson(route('dashboard.tab', ['tab' => $tab, 'crop_year' => self::CY]))
                 ->assertOk()
                 ->assertJsonPath('scope.crop_year', self::CY);
@@ -205,6 +205,64 @@ class DashboardAnalyticsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('stats.caneTons', 9)
             ->assertJsonPath('stats.sugarLkg', 10);
+    }
+
+    public function test_money_trail_adds_up_released_recovered_and_still_to_collect(): void
+    {
+        $this->actingAs($this->admin());
+        $t = $this->getJson(route('dashboard.tab', ['tab' => 'trail', 'crop_year' => self::CY]))->assertOk()->json();
+
+        // Per account and in total: still to collect = released + interest & charges − on vouchers − cash
+        foreach (array_merge($t['kinds'], [$t['total']]) as $k) {
+            $this->assertEqualsWithDelta($k['released'] + $k['interest'] - $k['vouchers'] - $k['cash'], $k['outstanding'], 0.01);
+        }
+        // Interest collected never exceeds the interest earned, and the analytics are there
+        $this->assertLessThanOrEqual($t['total']['interest_earned'] + 0.01, $t['total']['interest_collected']);
+        $this->assertArrayHasKey('avgWeeklyRecovery', $t['analytics']);
+        // The week-by-week trail ends at what is still to collect, and the planters add up to it too
+        if ($t['weekly']) {
+            $this->assertEqualsWithDelta($t['total']['outstanding'], end($t['weekly'])['balance'], 0.01);
+        }
+        if ($t['planterCount'] <= 20) {
+            $this->assertEqualsWithDelta($t['total']['outstanding'], array_sum(array_column($t['planters'], 'outstanding')), 0.01);
+        }
+    }
+
+    public function test_tls_deliveries_compare_each_location_with_last_crop_year(): void
+    {
+        $ticket = fn ($cy, $week, $code, $desc, $planter, $tons, $date) => [
+            'crop_year' => $cy, 'week_no' => (string) $week, 'planter_code' => $planter, 'planter_name' => 'P' . $planter,
+            'net_cane_wt' => $tons, 'trans_code' => $code, 'description' => $desc, 'date_milled' => $date,
+        ];
+        DB::table('tls_hauling_uploads')->insert([
+            // This crop year: Canlamay 10 t (one ticket with a broken trans code and date), Cauayan 4 t
+            $ticket(self::CY, 1, '06', 'CANLAMAY TRANSLOADING', '00101', 6, '10/20/2026 08:00'),
+            $ticket(self::CY, 1, '00:00.0', 'CANLAMAY TRANSLOADING', '00102', 4, '03:00.0'),
+            $ticket(self::CY, 1, '25', 'CAUAYAN TRANSLOADING', '00201', 4, '10/21/2026 09:00'),
+            // Direct to mill: not a TLS location
+            $ticket(self::CY, 1, '01', 'DIRECT', '00301', 50, '10/21/2026 09:00'),
+            // Last crop year, same week: Canlamay 8 t, Cauayan 10 t (from a planter who has not delivered yet)
+            $ticket('20252026', 1, '06', 'CANLAMAY TRANSLOADING', '00101', 8, '10/20/2025 08:00'),
+            $ticket('20252026', 1, '25', 'CAUAYAN TRANSLOADING', '00202', 10, '10/21/2025 09:00'),
+            // Last crop year, a later week: outside the same-period comparison
+            $ticket('20252026', 5, '25', 'CAUAYAN TRANSLOADING', '00202', 30, '11/21/2025 09:00'),
+        ]);
+
+        $this->actingAs($this->admin());
+        $t = $this->getJson(route('dashboard.tab', ['tab' => 'tls', 'crop_year' => self::CY]))->assertOk()->json();
+        $loc = collect($t['locations'])->keyBy('name');
+
+        $this->assertSame(['CANLAMAY', 'CAUAYAN'], $loc->keys()->sort()->values()->all());
+        $this->assertSame('06', $loc['CANLAMAY']['code']);
+        $this->assertEqualsWithDelta(10, $loc['CANLAMAY']['tons'], 0.001);
+        $this->assertEqualsWithDelta(8, $loc['CANLAMAY']['prevTons'], 0.001);
+        $this->assertEqualsWithDelta(25, $loc['CANLAMAY']['change'], 0.01);
+        $this->assertEqualsWithDelta(-60, $loc['CAUAYAN']['change'], 0.01);
+        $this->assertEqualsWithDelta(40, $loc['CAUAYAN']['prevFullTons'], 0.001);
+        $this->assertSame(1, $loc['CAUAYAN']['lostCount']);
+        $this->assertEqualsWithDelta(14, $t['totals']['tons'], 0.001);
+        // The ticket with the broken date still lands in October (its week's month)
+        $this->assertEqualsWithDelta(10, $t['monthly']['cur']['CANLAMAY']['m10']['tons'], 0.001);
     }
 
     public function test_balanced_uploads_pass_and_padded_weeks_match(): void

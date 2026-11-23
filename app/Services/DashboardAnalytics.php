@@ -254,9 +254,12 @@ class DashboardAnalytics
         $today = now()->toDateString();
         $out = ['scope' => $this->scope(), 'loans' => null, 'cashAdvances' => null, 'deductions' => null, 'upcoming' => []];
         $upcoming = collect();
+        // Balances and collections follow the Money Trail (vouchers + cash), not hand-recorded payments only
+        $trail = $this->safely('finance.trail', fn () => $this->trail(), ['kinds' => [], 'recoveredByKind' => []]);
+        $trailOutstanding = collect($trail['kinds'])->pluck('outstanding', 'key');
 
         if ($this->can('loans')) {
-            $out['loans'] = $this->safely('finance.loans', function () use ($today, &$upcoming) {
+            $out['loans'] = $this->safely('finance.loans', function () use ($today, &$upcoming, $trailOutstanding) {
                 $byStatus = Loan::selectRaw('status, COUNT(*) as n, SUM(principal_amount) as principal, SUM(balance) as balance')
                     ->groupBy('status')->get()->keyBy('status');
                 $open = Loan::whereIn('status', ['approved', 'active']);
@@ -293,7 +296,7 @@ class DashboardAnalytics
                     ])->values()->all(),
                     'openCount' => (clone $open)->count(),
                     'principal' => round((float) (clone $open)->sum('principal_amount'), 2),
-                    'balance' => round((float) (clone $open)->sum('balance'), 2),
+                    'balance' => round((float) ($trailOutstanding['loan'] ?? 0), 2),
                     'pendingCount' => (int) ($byStatus['pending']->n ?? 0),
                     'pendingAmount' => round((float) ($byStatus['pending']->principal ?? 0), 2),
                     'overdueCount' => (int) ($overdue->n ?? 0),
@@ -305,7 +308,7 @@ class DashboardAnalytics
         }
 
         if ($this->can('cash_advances')) {
-            $out['cashAdvances'] = $this->safely('finance.cash_advances', function () use ($today, &$upcoming) {
+            $out['cashAdvances'] = $this->safely('finance.cash_advances', function () use ($today, &$upcoming, $trail, $trailOutstanding) {
                 $byStatus = CashAdvance::selectRaw('status, COUNT(*) as n, SUM(amount) as amount, SUM(balance) as balance')
                     ->groupBy('status')->get()->keyBy('status');
                 $open = CashAdvance::whereIn('status', ['approved', 'active']);
@@ -314,10 +317,10 @@ class DashboardAnalytics
                 $scheduled = CashAdvanceDeduction::where('crop_year', $this->cropYear)
                     ->whereHas('cashAdvance', fn ($q) => $q->whereIn('status', ['approved', 'active', 'completed']))
                     ->selectRaw('week_no, SUM(amount) as amount')->groupBy('week_no')->get();
-                $collected = CashAdvancePayment::whereHas('cashAdvance', fn ($q) => $q->where('crop_year', $this->cropYear))
-                    ->selectRaw('week_no, SUM(amount) as amount')->groupBy('week_no')->get();
                 $schedBy = self::byWeek($scheduled, 'amount');
-                $collBy = self::byWeek($collected, 'amount');
+                // Collected = taken off the Check Vouchers + paid in cash, the same as the Money Trail
+                $collBy = $trail['recoveredByKind']['ca'] ?? [];
+                ksort($collBy);
                 $weeks = array_unique(array_merge(array_keys($schedBy), array_keys($collBy)));
                 sort($weeks);
 
@@ -348,7 +351,7 @@ class DashboardAnalytics
                     ])->values()->all(),
                     'openCount' => (clone $open)->count(),
                     'amount' => round((float) (clone $open)->sum('amount'), 2),
-                    'balance' => round((float) (clone $open)->sum('balance'), 2),
+                    'balance' => round((float) ($trailOutstanding['ca'] ?? 0), 2),
                     'pendingCount' => (int) ($byStatus['pending']->n ?? 0),
                     'pendingAmount' => round((float) ($byStatus['pending']->amount ?? 0), 2),
                     'overdueCount' => $overdue->count(),
@@ -430,6 +433,297 @@ class DashboardAnalytics
                 'cash_advance_id' => $d->cash_advance_id,
             ];
         })->filter(fn ($r) => $r['remaining'] > 0.004)->values();
+    }
+
+    // ==================== MONEY TRAIL ====================
+
+    /**
+     * Money trail of the crop year: how the association's money moves.
+     *   Released to planters (cash advances, loans, fuel, others) + interest and late charges
+     *   − recovered: cash advances and loans by their RECORDED payments (via voucher or cash over the counter,
+     *     the same as the Cash Advances / Loans pages); fuel and others by what the Check Vouchers deduct
+     *     (they have no payment records)
+     *   = still to collect.
+     * Cash advance / loan amounts a Check Voucher deducts but that are not yet recorded as payments are shown
+     * apart ("on vouchers, not yet recorded") and are NOT counted as recovered.
+     * Per account kind, week by week (as of the picked week, else every week up to now), and per planter.
+     */
+    public function trail(): array
+    {
+        $cy = $this->cropYear;
+        $today = now()->toDateString();
+        $kinds = [
+            'ca' => 'Cash Advances',
+            'loan' => 'Loans',
+            'fuel' => 'Fuel',
+            'others' => 'Others',
+        ];
+        $kinds = array_filter($kinds, fn ($k) => match ($k) {
+            'ca' => $this->can('cash_advances'),
+            'loan' => $this->can('loans'),
+            default => $this->can('deductions'),
+        }, ARRAY_FILTER_USE_KEY);
+        $blank = fn () => array_fill_keys(['released', 'interest', 'vouchers', 'cash', 'due', 'onVouchers'], 0.0);
+        $byKind = array_map(fn () => $blank(), $kinds);
+        $planters = [];
+        $planter = function ($code, $name) use (&$planters) {
+            $key = PlanterProfileSync::key($code);
+            $planters[$key] ??= ['planter_code' => (string) $code, 'planter_name' => (string) $name, 'released' => 0.0, 'recovered' => 0.0, 'ca' => 0.0, 'loan' => 0.0, 'fuel' => 0.0, 'others' => 0.0];
+            return $key;
+        };
+        // Per planter and account kind: what is owed (+) and recovered (−)
+        // Per planter and account kind: owed / interest / recovered, for the interest collected
+        $accounts = [];
+        $owe = function (string $key, string $kind, float $amount, bool $recovered = false, float $interest = 0.0) use (&$planters, &$accounts) {
+            $planters[$key][$kind] += $recovered ? -$amount : $amount;
+            $planters[$key][$recovered ? 'recovered' : 'released'] += $amount;
+            $accounts[$kind][$key] ??= ['owed' => 0.0, 'interest' => 0.0, 'recovered' => 0.0];
+            $accounts[$kind][$key][$recovered ? 'recovered' : 'owed'] += $amount;
+            $accounts[$kind][$key]['interest'] += $interest;
+        };
+        $lateCharges = 0.0;
+
+        // Crop year weeks up to the picked week (else up to the current week)
+        $weeks = WeekNo::where('crop_year', $cy)->get(['week_no', 'week_start_date', 'week_end_date'])
+            ->map(fn ($w) => ['week' => (int) $w->week_no, 'start' => $w->week_start_date ? substr((string) $w->week_start_date, 0, 10) : null, 'end' => $w->week_end_date ? substr((string) $w->week_end_date, 0, 10) : null])
+            ->filter(fn ($w) => $w['week'] > 0)->unique('week')->sortBy('week')->values();
+        $lastWeek = $this->weekNo !== null
+            ? (int) $this->weekNo
+            : (int) ($weeks->filter(fn ($w) => $w['start'] && $w['start'] <= $today)->max('week') ?? 0);
+        $weeks = $weeks->filter(fn ($w) => $w['week'] <= $lastWeek)->values();
+        $asOf = $this->weekNo !== null ? ($weeks->last()['end'] ?? $today) : $today;
+        $weekOf = function (?string $date) use ($weeks) {
+            if (!$date) {
+                return null;
+            }
+            $date = substr($date, 0, 10);
+            foreach ($weeks as $w) {
+                if ($w['start'] && $w['end'] && $date >= $w['start'] && $date <= $w['end']) {
+                    return $w['week'];
+                }
+            }
+            return $weeks->isNotEmpty() && $date < ($weeks->first()['start'] ?? '') ? $weeks->first()['week'] : null;
+        };
+        $weekly = $weeks->mapWithKeys(fn ($w) => [$w['week'] => ['week' => $w['week'], 'start' => $w['start'], 'end' => $w['end'], 'released' => 0.0, 'vouchers' => 0.0, 'cash' => 0.0]])->all();
+        $addWeek = function (?int $week, string $field, float $amount) use (&$weekly) {
+            if ($week !== null && isset($weekly[$week])) {
+                $weekly[$week][$field] += $amount;
+            }
+        };
+        // Recovered per account kind and week (for the Loans & Advances charts)
+        $recoveredByKind = [];
+        $recoveredWeek = function (?int $week, string $kind, float $amount) use (&$recoveredByKind) {
+            if ($week !== null) {
+                $recoveredByKind[$kind][$week] = ($recoveredByKind[$kind][$week] ?? 0) + $amount;
+            }
+        };
+
+        // 1. Released to planters, with interest and late charges, and what was scheduled to be repaid by now
+        if (isset($kinds['ca'])) {
+            $cas = CashAdvance::where('crop_year', $cy)->whereIn('status', ['approved', 'active', 'completed'])
+                ->with('deductions:id,cash_advance_id,week_no')
+                ->get(['id', 'planter_code', 'planter_name', 'amount', 'interest_amount', 'adjustment_amount', 'application_date']);
+            foreach ($cas as $ca) {
+                $byKind['ca']['released'] += (float) $ca->amount;
+                $byKind['ca']['interest'] += (float) $ca->interest_amount + (float) $ca->adjustment_amount;
+                $owe($planter($ca->planter_code, $ca->planter_name), 'ca', (float) $ca->amount + (float) $ca->interest_amount + (float) $ca->adjustment_amount,
+                    false, (float) $ca->interest_amount);
+                $lateCharges += (float) $ca->adjustment_amount;
+                // Released before it is first deducted: the earlier of the application week and the first deduction week
+                $firstDeduction = $ca->deductions->min(fn ($d) => (int) $d->week_no);
+                $appliedWeek = $weekOf($ca->application_date?->toDateString());
+                $releaseWeek = $firstDeduction && (!$appliedWeek || $firstDeduction < $appliedWeek) ? $firstDeduction : $appliedWeek;
+                $addWeek($releaseWeek, 'released', (float) $ca->amount + (float) $ca->interest_amount + (float) $ca->adjustment_amount);
+            }
+            $byKind['ca']['due'] = (float) CashAdvanceDeduction::whereIn('cash_advance_id', $cas->pluck('id'))
+                ->where('due_date', '<=', $asOf)->sum('amount');
+            // Recorded payments: via the voucher (week paid) or cash over the counter
+            foreach (CashAdvancePayment::whereIn('cash_advance_id', $cas->pluck('id'))->with('cashAdvance:id,planter_code,planter_name')->get() as $p) {
+                if ($p->paid_date && $p->paid_date->toDateString() > $asOf) {
+                    continue;
+                }
+                $field = $p->payment_method === 'cash' ? 'cash' : 'vouchers';
+                $week = $field === 'vouchers' && (int) $p->week_no > 0 ? (int) $p->week_no : $weekOf($p->paid_date?->toDateString());
+                if ($this->weekNo !== null && $week !== null && $week > $lastWeek) {
+                    continue;
+                }
+                $byKind['ca'][$field] += (float) $p->amount;
+                $owe($planter($p->cashAdvance->planter_code, $p->cashAdvance->planter_name), 'ca', (float) $p->amount, true);
+                $addWeek($week, $field, (float) $p->amount);
+                $recoveredWeek($week, 'ca', (float) $p->amount);
+            }
+        }
+        if (isset($kinds['loan'])) {
+            $loans = Loan::where('crop_year', $cy)->whereIn('status', ['approved', 'active', 'completed'])
+                ->with('amortizations:id,loan_id,due_date')
+                ->get(['id', 'planter_code', 'planter_name', 'principal_amount', 'total_amount', 'application_date']);
+            foreach ($loans as $loan) {
+                $byKind['loan']['released'] += (float) $loan->principal_amount;
+                $byKind['loan']['interest'] += max(0, (float) $loan->total_amount - (float) $loan->principal_amount);
+                $owe($planter($loan->planter_code, $loan->planter_name), 'loan', (float) $loan->total_amount,
+                    false, max(0, (float) $loan->total_amount - (float) $loan->principal_amount));
+                $firstDue = $weekOf($loan->amortizations->min(fn ($a) => $a->due_date?->toDateString()));
+                $appliedWeek = $weekOf($loan->application_date?->toDateString());
+                $releaseWeek = $firstDue && (!$appliedWeek || $firstDue < $appliedWeek) ? $firstDue : $appliedWeek;
+                $addWeek($releaseWeek, 'released', (float) $loan->total_amount);
+            }
+            $byKind['loan']['due'] = (float) LoanAmortization::whereIn('loan_id', $loans->pluck('id'))->where('due_date', '<=', $asOf . ' 23:59:59')->sum('amount_due');
+            foreach (LoanPayment::whereIn('loan_id', $loans->pluck('id'))->with('loan:id,planter_code,planter_name')->get() as $p) {
+                if ($p->paid_date && $p->paid_date->toDateString() > $asOf) {
+                    continue;
+                }
+                $field = $p->payment_method === 'cash' ? 'cash' : 'vouchers';
+                $week = $weekOf($p->paid_date?->toDateString());
+                $byKind['loan'][$field] += (float) $p->amount;
+                $owe($planter($p->loan->planter_code, $p->loan->planter_name), 'loan', (float) $p->amount, true);
+                $addWeek($week, $field, (float) $p->amount);
+                $recoveredWeek($week, 'loan', (float) $p->amount);
+            }
+        }
+        foreach (['fuel', 'others'] as $type) {
+            if (!isset($kinds[$type])) {
+                continue;
+            }
+            $deductions = PlanterDeduction::where('crop_year', $cy)->where('type', $type)->with('weeks')->get();
+            foreach ($deductions as $d) {
+                $byKind[$type]['released'] += (float) $d->amount;
+                $owe($planter($d->planter_code, $d->planter_name), $type, (float) $d->amount);
+                // Issued for the week it is scheduled (fuel given out that week)
+                foreach ($d->weeks as $dw) {
+                    $addWeek((int) $dw->week_no, 'released', (float) $dw->amount);
+                }
+                $byKind[$type]['due'] += (float) $d->weeks->filter(fn ($w) => (int) $w->week_no <= $lastWeek)->sum('amount');
+            }
+        }
+
+        // 2. The Check Vouchers: what each Week Bought voucher deducts, week by week.
+        //    Fuel / others: that IS the recovery. Cash advances / loans: only a schedule until the payment is recorded.
+        $fields = ['ca' => 'ca_deduction', 'loan' => 'loan_deduction', 'fuel' => 'fuel_deduction', 'others' => 'others_deduction'];
+        foreach ($weeks as $w) {
+            foreach (PlanterProceeds::summaryByBoughtWeek($cy, $w['week']) as $record) {
+                $key = null;
+                foreach ($fields as $kind => $field) {
+                    $amount = round((float) ($record[$field] ?? 0), 2);
+                    if (!isset($kinds[$kind]) || $amount <= 0) {
+                        continue;
+                    }
+                    if ($kind === 'ca' || $kind === 'loan') {
+                        $byKind[$kind]['onVouchers'] += $amount;
+                        continue;
+                    }
+                    $key ??= $planter($record['planter_code'], $record['planter_name']);
+                    $byKind[$kind]['vouchers'] += $amount;
+                    $owe($key, $kind, $amount, true);
+                    $addWeek($w['week'], 'vouchers', $amount);
+                    $recoveredWeek($w['week'], $kind, $amount);
+                }
+            }
+        }
+
+        // Interest collected: each planter-account's interest, in proportion to what was repaid of it
+        $interestCollected = [];
+        foreach ($accounts as $kind => $byPlanter) {
+            $interestCollected[$kind] = 0.0;
+            foreach ($byPlanter as $a) {
+                if ($a['owed'] > 0 && $a['interest'] > 0) {
+                    $interestCollected[$kind] += $a['interest'] * min(1, $a['recovered'] / $a['owed']);
+                }
+            }
+        }
+
+        // 3. Still to collect, and behind schedule (due by now but not yet recovered)
+        $rows = [];
+        foreach ($kinds as $kind => $label) {
+            $s = $byKind[$kind];
+            $owed = $s['released'] + $s['interest'];
+            $recovered = $s['vouchers'] + $s['cash'];
+            $rows[] = [
+                'key' => $kind,
+                'label' => $label,
+                'released' => round($s['released'], 2),
+                'interest' => round($s['interest'], 2),
+                'owed' => round($owed, 2),
+                'vouchers' => round($s['vouchers'], 2),
+                'cash' => round($s['cash'], 2),
+                'recovered' => round($recovered, 2),
+                'outstanding' => round($owed - $recovered, 2),
+                'behind' => round(max(0, $s['due'] - $recovered), 2),
+                'rate' => $owed > 0 ? round($recovered / $owed * 100, 1) : null,
+                'interest_collected' => round($interestCollected[$kind] ?? 0, 2),
+                // On the Check Vouchers but not yet recorded as payments (cash advances / loans only)
+                'unrecorded' => $kind === 'ca' || $kind === 'loan' ? round(max(0, $s['onVouchers'] - $s['vouchers']), 2) : 0.0,
+                'recorded' => $kind === 'ca' || $kind === 'loan',
+                'accounts' => count($accounts[$kind] ?? []),
+                'settled' => count(array_filter($accounts[$kind] ?? [], fn ($a) => $a['owed'] > 0 && $a['recovered'] >= $a['owed'] - 0.01)),
+            ];
+        }
+        $sum = fn ($f) => round(array_sum(array_column($rows, $f)), 2);
+        $total = ['released' => $sum('released'), 'interest' => $sum('interest'), 'owed' => $sum('owed'), 'vouchers' => $sum('vouchers'),
+            'cash' => $sum('cash'), 'recovered' => $sum('recovered'), 'outstanding' => $sum('outstanding'), 'behind' => $sum('behind')];
+        $total['rate'] = $total['owed'] > 0 ? round($total['recovered'] / $total['owed'] * 100, 1) : null;
+        $total['interest_collected'] = $sum('interest_collected');
+        // Interest charged (cash advance interest and loan interest), apart from late charges / adjustments
+        $total['interest_earned'] = round($total['interest'] - $lateCharges, 2);
+        $total['interest_rate'] = $total['interest_earned'] > 0 ? round($total['interest_collected'] / $total['interest_earned'] * 100, 1) : null;
+        $total['late_charges'] = round($lateCharges, 2);
+        $total['accounts'] = (int) array_sum(array_column($rows, 'accounts'));
+        $total['settled'] = (int) array_sum(array_column($rows, 'settled'));
+        $total['unrecorded'] = $sum('unrecorded');
+        // Headline groups: loans & cash advances (by recorded payments) apart from fuel & others, so fuel does not swamp the rate
+        $groups = [];
+        foreach (['accounts' => ['ca', 'loan'], 'deductions' => ['fuel', 'others']] as $g => $keys) {
+            $in = array_values(array_filter($rows, fn ($r) => in_array($r['key'], $keys, true)));
+            if (!$in) {
+                continue;
+            }
+            $gs = fn ($f) => round(array_sum(array_column($in, $f)), 2);
+            $groups[$g] = [
+                'label' => $g === 'accounts' ? 'Loans & Cash Advances' : 'Fuel & Others',
+                'owed' => $gs('owed'), 'recovered' => $gs('recovered'), 'vouchers' => $gs('vouchers'), 'cash' => $gs('cash'),
+                'outstanding' => $gs('outstanding'), 'behind' => $gs('behind'), 'unrecorded' => $gs('unrecorded'),
+                'rate' => $gs('owed') > 0 ? round($gs('recovered') / $gs('owed') * 100, 1) : null,
+            ];
+        }
+
+        // Week by week, with the running balance still to collect
+        $running = 0.0;
+        $weeklyRows = [];
+        foreach ($weekly as $w) {
+            $running += $w['released'] - $w['vouchers'] - $w['cash'];
+            $weeklyRows[] = array_map(fn ($v) => is_float($v) ? round($v, 2) : $v, $w) + ['balance' => round($running, 2)];
+        }
+
+        $owing = collect($planters)
+            ->map(fn ($p) => $p + ['outstanding' => round($p['released'] - $p['recovered'], 2)])
+            ->filter(fn ($p) => abs($p['outstanding']) > 0.004)
+            ->sortByDesc('outstanding')->values();
+
+        return [
+            'scope' => $this->scope(),
+            'asOf' => $asOf,
+            'throughWeek' => $lastWeek ?: null,
+            'kinds' => $rows,
+            'total' => $total,
+            'groups' => $groups,
+            'weekly' => $weeklyRows,
+            'planterCount' => $owing->count(),
+            'planters' => $owing->take(20)->map(fn ($p) => array_map(fn ($v) => is_float($v) ? round($v, 2) : $v, $p))->all(),
+            'overRecovered' => $owing->filter(fn ($p) => $p['outstanding'] < -0.004)->count(),
+            'recoveredByKind' => array_map(fn ($weeks) => array_map(fn ($v) => round($v, 2), $weeks), $recoveredByKind),
+            'analytics' => (function () use ($weeklyRows, $owing, $planters) {
+                $recoveredWeeks = array_filter(array_map(fn ($w) => $w['vouchers'] + $w['cash'], $weeklyRows));
+                $best = collect($weeklyRows)->sortByDesc(fn ($w) => $w['vouchers'] + $w['cash'])->first();
+                $withAccounts = count($planters);
+                return [
+                    'avgWeeklyRecovery' => $recoveredWeeks ? round(array_sum($recoveredWeeks) / count($recoveredWeeks), 2) : 0,
+                    'bestWeek' => $best && ($best['vouchers'] + $best['cash']) > 0 ? ['week' => $best['week'], 'amount' => round($best['vouchers'] + $best['cash'], 2)] : null,
+                    'planters' => $withAccounts,
+                    'plantersOwing' => $owing->filter(fn ($p) => $p['outstanding'] > 0.004)->count(),
+                    'plantersSettled' => $withAccounts - $owing->count(),
+                    'largestDebt' => $owing->first() ? ['planter_name' => $owing->first()['planter_name'], 'amount' => round($owing->first()['outstanding'], 2)] : null,
+                ];
+            })(),
+        ];
     }
 
     // ==================== COLLECTIONS TRACKER ====================
@@ -646,6 +940,223 @@ class DashboardAnalytics
         return $weeks->isEmpty() ? null : [$weeks->min(), $weeks->max()];
     }
 
+    // ==================== TLS DELIVERIES BY LOCATION ====================
+
+    /** Trans codes of the transloading stations (TLS), for uploads whose description is missing */
+    public const TLS_CODES = [6, 8, 25, 36, 38];
+
+    /**
+     * Planter cane delivered through each TLS location (transloading station: 06 Canlamay, 08 Inapoy,
+     * 25 Cauayan, 38 Masaling, …), this crop year against the last, to spot a location whose delivery dropped.
+     * From the TLS hauling tickets: net cane per location, per week and per month (date milled), the trips,
+     * and the planters who delivered. Direct-to-mill trans codes (01, 02, …) are not TLS and are left out.
+     */
+    public function tls(): array
+    {
+        $cy = $this->cropYear;
+        $prevCy = preg_match('/^(\d{4})(\d{4})$/', $cy, $m) ? ((int) $m[1] - 1) . $m[1] : null;
+        $years = array_values(array_filter([$cy, $prevCy]));
+
+        $isTls = function ($q) {
+            $q->where('description', 'like', '%TRANSLOAD%')
+                ->orWhereIn('trans_code', array_merge(
+                    array_map(fn ($c) => (string) $c, self::TLS_CODES),
+                    array_map(fn ($c) => str_pad((string) $c, 2, '0', STR_PAD_LEFT), self::TLS_CODES)
+                ));
+        };
+        $rows = TlsHaulingUpload::whereIn('crop_year', $years)->where($isTls)
+            ->selectRaw('crop_year, week_no, description, trans_code, SUBSTR(date_milled, 1, 10) as milled, COUNT(*) as trips, SUM(net_cane_wt) as tons')
+            ->groupBy('crop_year', 'week_no', 'description', 'trans_code', 'milled')
+            ->get();
+
+        // A location is its station name; the trans code comes from the tickets that carry a clean one
+        $nameOf = function ($description, $code) {
+            $name = strtoupper(trim(preg_replace('/\s*TRANS\s*-?\s*LOADING.*$/i', '', (string) $description)));
+            return $name !== '' ? $name : ('TLS ' . $code);
+        };
+        $codeOf = fn ($code) => preg_match('/^\d{1,3}$/', trim((string) $code)) ? str_pad((string) (int) $code, 2, '0', STR_PAD_LEFT) : null;
+        $monthOf = function (?string $milled) {
+            return preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})#', trim((string) $milled), $d) ? sprintf('%04d-%02d', $d[3], $d[1]) : null;
+        };
+
+        // Weeks whose tickets carry a broken date take the month most of that week's tickets were milled in
+        $weekMonths = [];
+        foreach ($rows as $r) {
+            if ($month = $monthOf($r->milled)) {
+                $k = $r->crop_year . '|' . (int) $r->week_no;
+                $weekMonths[$k][$month] = ($weekMonths[$k][$month] ?? 0) + (int) $r->trips;
+            }
+        }
+        $weekMonths = array_map(function ($counts) {
+            arsort($counts);
+            return array_key_first($counts);
+        }, $weekMonths);
+        // …and a week with no readable date at all takes the month its week starts in (Week No setup)
+        foreach (WeekNo::whereIn('crop_year', $years)->whereNotNull('week_start_date')->get(['crop_year', 'week_no', 'week_start_date']) as $w) {
+            $weekMonths[$w->crop_year . '|' . (int) $w->week_no] ??= substr((string) $w->week_start_date, 0, 7);
+        }
+
+        $locations = [];
+        $weekly = ['cur' => [], 'prev' => []];
+        $monthly = ['cur' => [], 'prev' => []];
+        $codes = [];
+        foreach ($rows as $r) {
+            $which = $r->crop_year === $cy ? 'cur' : 'prev';
+            $code = $codeOf($r->trans_code);
+            $key = $nameOf($r->description, $code);
+            $week = (int) $r->week_no;
+            $tons = (float) $r->tons;
+            $trips = (int) $r->trips;
+            if ($code !== null) {
+                $codes[$key][$code] = ($codes[$key][$code] ?? 0) + $trips;
+            }
+            $locations[$key] = true;
+            $weekly[$which][$key][$week]['tons'] = ($weekly[$which][$key][$week]['tons'] ?? 0) + $tons;
+            $weekly[$which][$key][$week]['trips'] = ($weekly[$which][$key][$week]['trips'] ?? 0) + $trips;
+            $month = $monthOf($r->milled) ?? ($weekMonths[$r->crop_year . '|' . $week] ?? null);
+            if ($month !== null) {
+                $mm = 'm' . substr($month, 5, 2);
+                $monthly[$which][$key][$mm]['tons'] = ($monthly[$which][$key][$mm]['tons'] ?? 0) + $tons;
+                $monthly[$which][$key][$mm]['trips'] = ($monthly[$which][$key][$mm]['trips'] ?? 0) + $trips;
+                $monthly[$which][$key][$mm]['label'] = $month;
+            }
+        }
+
+        // Through the picked week, else the last week with tickets this crop year; last year is cut at the same week
+        $curWeeks = collect($weekly['cur'])->flatMap(fn ($w) => array_keys($w));
+        $throughWeek = $this->weekNo !== null ? (int) $this->weekNo : (int) ($curWeeks->max() ?? 0);
+
+        // Planters per location, this crop year and the same weeks last year
+        $planterRows = TlsHaulingUpload::whereIn('crop_year', $years)->where($isTls)
+            ->selectRaw('crop_year, week_no, description, trans_code, planter_code, MAX(planter_name) as planter_name, SUM(net_cane_wt) as tons')
+            ->groupBy('crop_year', 'week_no', 'description', 'trans_code', 'planter_code')
+            ->get();
+        $planters = ['cur' => [], 'prev' => [], 'prevFull' => []];
+        foreach ($planterRows as $p) {
+            $key = $nameOf($p->description, $codeOf($p->trans_code));
+            $pk = PlanterProfileSync::key($p->planter_code);
+            $set = function (string $which) use (&$planters, $key, $pk, $p) {
+                $planters[$which][$key][$pk] ??= ['planter_code' => (string) $p->planter_code, 'planter_name' => (string) $p->planter_name, 'tons' => 0.0];
+                $planters[$which][$key][$pk]['tons'] += (float) $p->tons;
+            };
+            if ($p->crop_year === $cy) {
+                if ((int) $p->week_no <= $throughWeek) {
+                    $set('cur');
+                }
+            } else {
+                $set('prevFull');
+                if ((int) $p->week_no <= $throughWeek) {
+                    $set('prev');
+                }
+            }
+        }
+
+        $sumWeeks = function (array $byWeek, int $through, string $field) {
+            $total = 0.0;
+            foreach ($byWeek as $w => $v) {
+                if ($w <= $through) {
+                    $total += $v[$field];
+                }
+            }
+            return $total;
+        };
+
+        // Every planter who delivered through any TLS this crop year
+        $anyCur = [];
+        foreach ($planters['cur'] as $byPlanter) {
+            $anyCur += array_fill_keys(array_keys($byPlanter), true);
+        }
+
+        $out = [];
+        foreach (array_keys($locations) as $key) {
+            $cur = $weekly['cur'][$key] ?? [];
+            $prev = $weekly['prev'][$key] ?? [];
+            $tons = $sumWeeks($cur, $throughWeek, 'tons');
+            $prevTons = $sumWeeks($prev, $throughWeek, 'tons');
+            $curPlanters = $planters['cur'][$key] ?? [];
+            $prevPlanters = $planters['prev'][$key] ?? [];
+            // Delivered here last year by this week but nowhere yet this year: who to follow up.
+            // Those who deliver through another TLS this year moved; they are counted apart.
+            $notHere = array_diff_key($prevPlanters, $curPlanters);
+            $lost = array_diff_key($notHere, $anyCur);
+            $moved = array_intersect_key($notHere, $anyCur);
+            uasort($lost, fn ($a, $b) => $b['tons'] <=> $a['tons']);
+            $codeCounts = $codes[$key] ?? [];
+            arsort($codeCounts);
+            $out[] = [
+                'key' => $key,
+                'code' => $codeCounts ? (string) array_key_first($codeCounts) : null,
+                'name' => $key,
+                'tons' => round($tons, 3),
+                'trips' => (int) $sumWeeks($cur, $throughWeek, 'trips'),
+                'planters' => count($curPlanters),
+                'prevTons' => round($prevTons, 3),
+                'prevTrips' => (int) $sumWeeks($prev, $throughWeek, 'trips'),
+                'prevPlanters' => count($prevPlanters),
+                'prevFullTons' => round($sumWeeks($prev, PHP_INT_MAX, 'trips') > 0 ? $sumWeeks($prev, PHP_INT_MAX, 'tons') : 0, 3),
+                'prevFullPlanters' => count($planters['prevFull'][$key] ?? []),
+                'change' => $prevTons > 0 ? round(($tons - $prevTons) / $prevTons * 100, 1) : null,
+                'lostCount' => count($lost),
+                'lostTons' => round(array_sum(array_column($lost, 'tons')), 3),
+                'lost' => array_values(array_map(fn ($p) => ['planter_code' => $p['planter_code'], 'planter_name' => $p['planter_name'], 'tons' => round($p['tons'], 3)], array_slice($lost, 0, 15, true))),
+                'movedCount' => count($moved),
+                'movedTons' => round(array_sum(array_column($moved, 'tons')), 3),
+                'newCount' => count(array_diff_key($curPlanters, $prevPlanters)),
+            ];
+        }
+        usort($out, fn ($a, $b) => strcmp((string) $a['code'], (string) $b['code']) ?: strcmp($a['name'], $b['name']));
+        $totalTons = array_sum(array_column($out, 'tons'));
+        foreach ($out as &$l) {
+            $l['share'] = $totalTons > 0 ? round($l['tons'] / $totalTons * 100, 1) : 0;
+        }
+        unset($l);
+
+        // Weeks and months on the axis (crop season order: months from the season's start)
+        $weeks = collect($weekly)->flatMap(fn ($byLoc) => collect($byLoc)->flatMap(fn ($w) => array_keys($w)))->unique()->sort()->values()->all();
+        $monthKeys = collect($monthly)->flatMap(fn ($byLoc) => collect($byLoc)->flatMap(fn ($m) => array_keys($m)))->unique()->values()->all();
+        $startMonth = 9; // Crop season: September to August
+        usort($monthKeys, fn ($a, $b) => ((int) substr($a, 1) - $startMonth + 12) % 12 <=> ((int) substr($b, 1) - $startMonth + 12) % 12);
+        $round = fn ($byLoc) => array_map(fn ($byKey) => array_map(fn ($v) => ['tons' => round($v['tons'], 3), 'trips' => $v['trips']], $byKey), $byLoc);
+
+        // Plain-language findings for the strategy meeting
+        $insights = [];
+        foreach ($out as $l) {
+            if ($l['change'] !== null && $l['change'] <= -10) {
+                $insights[] = ['tone' => 'down', 'text' => sprintf('%s (TLS %s) is down %s%% against the same weeks last crop year: %s t vs %s t.', $l['name'], $l['code'] ?? '—', abs($l['change']), number_format($l['tons'], 1), number_format($l['prevTons'], 1))];
+            } elseif ($l['change'] !== null && $l['change'] >= 10) {
+                $insights[] = ['tone' => 'up', 'text' => sprintf('%s (TLS %s) is up %s%% against the same weeks last crop year.', $l['name'], $l['code'] ?? '—', $l['change'])];
+            }
+            if ($l['lostCount'] > 0) {
+                $insights[] = ['tone' => 'warn', 'text' => sprintf('%d planter(s) who delivered %s t through %s by week %d last crop year have not delivered to any TLS yet this year.', $l['lostCount'], number_format($l['lostTons'], 1), $l['name'], $throughWeek)];
+            }
+            if ($l['movedCount'] >= 10) {
+                $insights[] = ['tone' => 'info', 'text' => sprintf('%d planter(s) (%s t last year) moved from %s to another TLS this crop year.', $l['movedCount'], number_format($l['movedTons'], 1), $l['name'])];
+            }
+            if ($l['prevTons'] <= 0 && $l['tons'] > 0 && $prevCy) {
+                $insights[] = ['tone' => 'info', 'text' => sprintf('%s (TLS %s) had no deliveries by week %d last crop year (it received %s t over the whole season); this year it already has %s t.', $l['name'], $l['code'] ?? '—', $throughWeek, number_format($l['prevFullTons'], 1), number_format($l['tons'], 1))];
+            }
+        }
+
+        return [
+            'scope' => $this->scope(),
+            'cropYear' => $cy,
+            'prevCropYear' => $prevCy,
+            'throughWeek' => $throughWeek ?: null,
+            'locations' => $out,
+            'totals' => [
+                'tons' => round($totalTons, 3),
+                'prevTons' => round(array_sum(array_column($out, 'prevTons')), 3),
+                'trips' => (int) array_sum(array_column($out, 'trips')),
+                'planters' => (int) array_sum(array_column($out, 'planters')),
+                'prevPlanters' => (int) array_sum(array_column($out, 'prevPlanters')),
+            ],
+            'weeks' => $weeks,
+            'months' => array_map(fn ($mm) => ['key' => $mm, 'label' => date('M', mktime(0, 0, 0, (int) substr($mm, 1), 1))], $monthKeys),
+            'weekly' => ['cur' => $round($weekly['cur']), 'prev' => $round($weekly['prev'])],
+            'monthly' => ['cur' => $round($monthly['cur']), 'prev' => $round($monthly['prev'])],
+            'insights' => $insights,
+        ];
+    }
     /**
      * Each planter's amounts exactly as the Check Voucher prints them
      */
@@ -791,6 +1302,7 @@ class DashboardAnalytics
                 'tls' => array_map(fn ($w) => round($tlsBy[$w] ?? 0, 3), $weeks),
                 'liquidated' => array_map(fn ($w) => round($liqBy[$w] ?? 0, 3), $weeks),
             ],
+            'stations' => $this->safely('hauling.stations', fn () => $this->tlsStations(), null),
             'lessItems' => $lessItems->map(fn ($i) => [
                 'description' => $i->description,
                 'entries' => (int) $i->n,
@@ -806,6 +1318,105 @@ class DashboardAnalytics
         ];
     }
 
+    /**
+     * Gross and net cane weight per transloading station (TLS tickets), by week and month of the crop year
+     * and by crop year, so the stations can be ranked for any period: the most gross cane received first,
+     * with the loss (gross − net) beside it. Not cut by the picked week: the period is picked on the chart.
+     */
+    private function tlsStations(): array
+    {
+        $codes = array_merge(
+            array_map(fn ($c) => (string) $c, self::TLS_CODES),
+            array_map(fn ($c) => str_pad((string) $c, 2, '0', STR_PAD_LEFT), self::TLS_CODES)
+        );
+        $isTls = fn ($q) => $q->where('description', 'like', '%TRANSLOAD%')->orWhereIn('trans_code', $codes);
+        $nameOf = function ($description, $code) {
+            $name = strtoupper(trim(preg_replace('/\s*TRANS\s*-?\s*LOADING.*$/i', '', (string) $description)));
+            return $name !== '' ? $name : ('TLS ' . $code);
+        };
+        $codeOf = fn ($code) => preg_match('/^\d{1,3}$/', trim((string) $code)) ? str_pad((string) (int) $code, 2, '0', STR_PAD_LEFT) : null;
+        $monthOf = fn ($milled) => preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})#', trim((string) $milled), $d) ? sprintf('%04d-%02d', $d[3], $d[1]) : null;
+
+        // Every crop year, for the yearly view
+        $yearRows = TlsHaulingUpload::where($isTls)
+            ->selectRaw('crop_year, description, trans_code, COUNT(*) as n, SUM(gross_cane_weight) as gross, SUM(net_cane_wt) as net')
+            ->groupBy('crop_year', 'description', 'trans_code')->get();
+        // This crop year by week and date milled, for the weekly and monthly views
+        $rows = TlsHaulingUpload::where('crop_year', $this->cropYear)->where($isTls)
+            ->selectRaw('week_no, description, trans_code, SUBSTR(date_milled, 1, 10) as milled, COUNT(*) as n, SUM(gross_cane_weight) as gross, SUM(net_cane_wt) as net')
+            ->groupBy('week_no', 'description', 'trans_code', 'milled')->get();
+
+        // Tickets with a broken date take the month most of their week was milled in, else the week's start month
+        $weekMonths = [];
+        foreach ($rows as $r) {
+            if ($month = $monthOf($r->milled)) {
+                $weekMonths[(int) $r->week_no][$month] = ($weekMonths[(int) $r->week_no][$month] ?? 0) + (int) $r->n;
+            }
+        }
+        $weekMonths = array_map(function ($counts) {
+            arsort($counts);
+            return array_key_first($counts);
+        }, $weekMonths);
+        foreach (WeekNo::where('crop_year', $this->cropYear)->whereNotNull('week_start_date')->get(['week_no', 'week_start_date']) as $w) {
+            $weekMonths[(int) $w->week_no] ??= substr((string) $w->week_start_date, 0, 7);
+        }
+
+        $stations = [];
+        $periods = ['week' => [], 'month' => [], 'year' => []];
+        $add = function (string $period, string $key, string $station, $r) use (&$periods) {
+            $cell = &$periods[$period][$station][$key];
+            $cell ??= ['gross' => 0.0, 'net' => 0.0, 'tickets' => 0];
+            $cell['gross'] += (float) $r->gross;
+            $cell['net'] += (float) $r->net;
+            $cell['tickets'] += (int) $r->n;
+        };
+        $station = function ($r) use (&$stations, $nameOf, $codeOf) {
+            $code = $codeOf($r->trans_code);
+            $name = $nameOf($r->description, $code);
+            $stations[$name] ??= [];
+            if ($code !== null) {
+                $stations[$name][$code] = ($stations[$name][$code] ?? 0) + (int) $r->n;
+            }
+            return $name;
+        };
+        foreach ($yearRows as $r) {
+            $add('year', (string) $r->crop_year, $station($r), $r);
+        }
+        foreach ($rows as $r) {
+            $name = $station($r);
+            $add('week', (string) (int) $r->week_no, $name, $r);
+            if ($month = $monthOf($r->milled) ?? ($weekMonths[(int) $r->week_no] ?? null)) {
+                $add('month', $month, $name, $r);
+            }
+        }
+
+        $keysOf = fn (string $period) => collect($periods[$period])->flatMap(fn ($byKey) => array_map('strval', array_keys($byKey)))->unique()->values()->all();
+        $weekKeys = $keysOf('week');
+        usort($weekKeys, fn ($a, $b) => (int) $a <=> (int) $b);
+        $monthKeys = $keysOf('month');
+        sort($monthKeys);
+        $yearKeys = $keysOf('year');
+        sort($yearKeys);
+        $round = fn (array $byStation) => array_map(fn ($byKey) => array_map(fn ($c) => ['gross' => round($c['gross'], 3), 'net' => round($c['net'], 3), 'tickets' => $c['tickets']], $byKey), $byStation);
+
+        $list = [];
+        foreach ($stations as $name => $codeCounts) {
+            arsort($codeCounts);
+            $list[] = ['name' => $name, 'code' => $codeCounts ? (string) array_key_first($codeCounts) : null];
+        }
+        usort($list, fn ($a, $b) => strcmp((string) $a['code'], (string) $b['code']) ?: strcmp($a['name'], $b['name']));
+
+        return [
+            'stations' => $list,
+            'cropYear' => $this->cropYear,
+            'pickedWeek' => $this->weekNo,
+            'periods' => [
+                'week' => ['keys' => $weekKeys, 'labels' => array_map(fn ($w) => 'Week ' . $w, $weekKeys), 'data' => $round($periods['week'])],
+                'month' => ['keys' => $monthKeys, 'labels' => array_map(fn ($m) => date('M Y', strtotime($m . '-01')), $monthKeys), 'data' => $round($periods['month'])],
+                'year' => ['keys' => $yearKeys, 'labels' => array_map(fn ($y) => strlen($y) === 8 ? substr($y, 0, 4) . '–' . substr($y, 4) : $y, $yearKeys), 'data' => $round($periods['year'])],
+            ],
+        ];
+    }
     // ==================== MODULE SNAPSHOT ====================
 
     /**

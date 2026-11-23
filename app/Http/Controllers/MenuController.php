@@ -870,48 +870,48 @@ private function getLoanCollectionRate()
     return $totalDue > 0 ? round(($totalPaid / $totalDue) * 100, 1) : 0;
 }
 
+/**
+ * Net cane per month of the crop season (September to August), from the Trucking Summary Report
+ * (trucking_allowance.net_cane). Each week goes to the month its middle day falls in, from the
+ * Week No setup; a week without dates is placed from 1 September of the crop year.
+ */
 private function getMonthlyAverageData($cropYear, $weekNo = null)
 {
-    $months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    $monthlyData = array_fill(0, 12, 0);
-    
-    $weekMonthMap = [
-        1 => 0, 2 => 0, 3 => 0, 4 => 0,
-        5 => 1, 6 => 1, 7 => 1, 8 => 1,
-        9 => 2, 10 => 2, 11 => 2, 12 => 2, 13 => 2,
-        14 => 3, 15 => 3, 16 => 3, 17 => 3,
-        18 => 4, 19 => 4, 20 => 4, 21 => 4,
-        22 => 5, 23 => 5, 24 => 5, 25 => 5, 26 => 5,
-        27 => 6, 28 => 6, 29 => 6, 30 => 6,
-        31 => 7, 32 => 7, 33 => 7, 34 => 7, 35 => 7,
-        36 => 8, 37 => 8, 38 => 8, 39 => 8,
-        40 => 9, 41 => 9, 42 => 9, 43 => 9,
-        44 => 10, 45 => 10, 46 => 10, 47 => 10, 48 => 10,
-        49 => 11, 50 => 11, 51 => 11, 52 => 11,
-    ];
-    
-    $query = ConsolidatedUpload::where('crop_year', $cropYear);
-    if ($weekNo) $query->where('week_no', $weekNo);
-    $weeklyData = $query
-        ->select('week_no', DB::raw('SUM(CAST(ta_wt AS DECIMAL(12,3))) as total_ta_wt'))
-        ->groupBy('week_no')
-        ->get();
-    
+    $startYear = preg_match('/^(\d{4})/', (string) $cropYear, $m) ? (int) $m[1] : (int) date('Y');
+    // Crop season months, September to August
+    $monthKeys = [];
+    for ($i = 0; $i < 12; $i++) {
+        $monthKeys[] = date('Y-m', mktime(0, 0, 0, 9 + $i, 1, $startYear));
+    }
+    $totals = array_fill_keys($monthKeys, 0.0);
+
+    // Month of each week, from its start and end dates
+    $weekMonth = [];
+    foreach (\App\Models\WeekNo::where('crop_year', $cropYear)->whereNotNull('week_start_date')->get(['week_no', 'week_start_date', 'week_end_date']) as $w) {
+        $startTs = strtotime((string) $w->week_start_date);
+        $endTs = $w->week_end_date ? strtotime((string) $w->week_end_date) : $startTs + 6 * 86400;
+        $weekMonth[(int) $w->week_no] = date('Y-m', (int) (($startTs + $endTs) / 2));
+    }
+
+    $query = \App\Models\TruckingAllowance::where('crop_year', $cropYear);
+    if ($weekNo) {
+        $query->whereIn('week_no', [(string) (int) $weekNo, str_pad((string) (int) $weekNo, 2, '0', STR_PAD_LEFT)]);
+    }
+    $weeklyData = $query->selectRaw('week_no, SUM(net_cane) as total_net_cane')->groupBy('week_no')->get();
+
     foreach ($weeklyData as $week) {
-        $weekNo = (int) $week->week_no;
-        if (isset($weekMonthMap[$weekNo])) {
-            $monthIndex = $weekMonthMap[$weekNo];
-            $monthlyData[$monthIndex] += (float) $week->total_ta_wt;
+        $w = (int) $week->week_no;
+        $month = $weekMonth[$w] ?? date('Y-m', mktime(0, 0, 0, 9, 1 + ($w - 1) * 7 + 3, $startYear));
+        if (array_key_exists($month, $totals)) {
+            $totals[$month] += (float) $week->total_net_cane;
         }
     }
-    
-    foreach ($monthlyData as $i => $total) {
-        $monthlyData[$i] = round($total, 2);
-    }
-    
-    return ['labels' => $months, 'datasets' => [['data' => $monthlyData]]];
-}
 
+    return [
+        'labels' => array_map(fn ($k) => date('M Y', strtotime($k . '-01')), $monthKeys),
+        'datasets' => [['data' => array_map(fn ($t) => round($t, 3), array_values($totals))]],
+    ];
+}
 private function getActivities($cropYear, $weekNo, $quedanPrice, $quedanType, $molassesPrice, $activePlanters, $totalPlanters, $maxWeek, $quedanTime, $molassesTime)
 {
     $weekLabel = $weekNo ? "Week {$weekNo}" : ($maxWeek > 0 ? "Week {$maxWeek}" : 'N/A');

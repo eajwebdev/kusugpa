@@ -116,4 +116,6 @@
             </section>
         </div>
     </template>
+
+    @include('menu.dashboard.tls')
 </div>

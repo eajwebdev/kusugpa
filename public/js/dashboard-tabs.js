@@ -21,6 +21,12 @@ function dashboardTabs(tabs) {
         requestIds: {},
         charts: {},
         onlyIssues: false,
+        // TLS Deliveries by Location: compare by crop year to date, month or week
+        tlsMode: 'year',
+        // Gross cane per transloading station (Hauling): weekly / monthly / yearly
+        stPeriod: 'week',
+        stPick: '',
+        tlsPick: '',
         moduleFilter: '',
 
         init() {
@@ -51,7 +57,7 @@ function dashboardTabs(tabs) {
 
             this.load('modules');
             this.load('balance');
-            if (this.hasCollections()) this.load('collections');
+            if (this.hasCollections()) this.load('trail');
             if (this.tab !== 'overview') this.load(this.tab);
             this.$nextTick(() => this.revealTab(this.tab));
         },
@@ -99,12 +105,14 @@ function dashboardTabs(tabs) {
         refresh() {
             this.load('modules');
             this.load('balance');
-            if (this.hasCollections()) this.load('collections');
+            if (this.hasCollections()) this.load('trail');
             if (this.tab !== 'overview' && this.tab !== 'balance') this.load(this.tab);
         },
 
         async load(key, force = false) {
             if (!force && this.loading[key] && this.loadedFor[key] === this.scopeKey()) return;
+            // The TLS location comparison sits on the Production tab
+            if (key === 'production') this.load('tls', force);
             const requestId = (this.requestIds[key] || 0) + 1;
             this.requestIds[key] = requestId;
             const scope = this.scopeKey();
@@ -126,6 +134,13 @@ function dashboardTabs(tabs) {
                 this.loadedFor[key] = scope;
                 if (!this.cropYear && body.scope) this.cropYear = body.scope.crop_year;
                 if (key === this.tab) this.$nextTick(() => this.renderTab(key));
+                // The Money Trail charts sit on the Loans & Advances tab
+                if (key === 'trail' && this.tab === 'finance') this.$nextTick(() => this.render_trail(body));
+                if (key === 'tls') {
+                    if (this.week) this.tlsMode = 'week';
+                    this.tlsPick = this.tlsDefaultPick();
+                    if (this.tab === 'production') this.$nextTick(() => this.render_tls());
+                }
             } catch (error) {
                 if (requestId !== this.requestIds[key]) return;
                 this.errors[key] = error.message || 'Could not load this section.';
@@ -212,9 +227,184 @@ function dashboardTabs(tabs) {
                 data: { labels: d.allowances.map(a => a.label), datasets: [this.bar('Amount', d.allowances.map(a => a.amount), t.colors[0], { maxBarThickness: 18 })] },
                 options: this.baseOptions({ horizontal: true, money: true }),
             });
+            this.render_tls();
+        },
+
+        // ==================== TLS DELIVERIES BY LOCATION ====================
+
+        // The month / week shown first: the latest one with deliveries this crop year (or the picked week)
+        tlsDefaultPick() {
+            const d = this.data.tls;
+            if (!d) return '';
+            if (this.tlsMode === 'week') {
+                const w = this.week || d.throughWeek || d.weeks[d.weeks.length - 1];
+                return w ? String(w) : '';
+            }
+            if (this.tlsMode === 'month') {
+                const withData = d.months.filter(m => Object.values(d.monthly.cur).some(byMonth => byMonth[m.key]));
+                const last = withData[withData.length - 1] || d.months[d.months.length - 1];
+                return last ? last.key : '';
+            }
+            return '';
+        },
+
+        tlsPeriodLabel() {
+            const d = this.data.tls;
+            if (!d) return '';
+            if (this.tlsMode === 'month') return (d.months.find(m => m.key === this.tlsPick) || {}).label || '';
+            if (this.tlsMode === 'week') return 'Week ' + this.tlsPick;
+            return 'Weeks 1–' + (d.throughWeek || '—');
+        },
+
+        tlsPeriodNote() {
+            const d = this.data.tls;
+            if (!d) return '';
+            if (this.tlsMode === 'month') {
+                return this.tlsPeriodLabel() + ' of crop year ' + d.cropYear + ' against ' + this.tlsPeriodLabel() + ' of ' + d.prevCropYear
+                    + ' (by date milled). The latest month may still be in progress.';
+            }
+            if (this.tlsMode === 'week') return 'Week ' + this.tlsPick + ' of crop year ' + d.cropYear + ' against week ' + this.tlsPick + ' of ' + d.prevCropYear + '.';
+            return 'Weeks 1–' + (d.throughWeek || '—') + ' of crop year ' + d.cropYear + ' against the same weeks of ' + d.prevCropYear + ', so the comparison is fair mid-season.';
+        },
+
+        // One row per TLS location for the chosen period
+        tlsRows() {
+            const d = this.data.tls;
+            if (!d) return [];
+            let rows;
+            if (this.tlsMode === 'year') {
+                rows = d.locations.map(l => ({ ...l }));
+            } else {
+                const src = this.tlsMode === 'month' ? d.monthly : d.weekly;
+                const k = this.tlsPick;
+                rows = d.locations.map(l => {
+                    const cur = (src.cur[l.key] || {})[k] || { tons: 0, trips: 0 };
+                    const prev = (src.prev[l.key] || {})[k] || { tons: 0, trips: 0 };
+                    return {
+                        key: l.key, name: l.name, code: l.code,
+                        tons: cur.tons, trips: cur.trips, prevTons: prev.tons, prevTrips: prev.trips,
+                        change: prev.tons > 0 ? Math.round((cur.tons - prev.tons) / prev.tons * 1000) / 10 : null,
+                        planters: null, prevPlanters: null, lostCount: 0, lostTons: 0,
+                    };
+                });
+            }
+            const total = rows.reduce((a, r) => a + r.tons, 0);
+            return rows.map(r => ({
+                ...r,
+                share: total > 0 ? Math.round(r.tons / total * 1000) / 10 : 0,
+                status: r.change !== null && r.change <= -10 ? 'down' : r.change !== null && r.change >= 10 ? 'up' : 'steady',
+            }));
+        },
+
+        render_tls() {
+            const d = this.data.tls;
+            if (!d || !document.getElementById('tlsCompareChart')) return;
+            const t = this.theme();
+            const rows = this.tlsRows();
+            const colorOf = (i) => t.colors[i % t.colors.length];
+
+            this.chart('tlsCompareChart', {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.name),
+                    datasets: [
+                        this.bar(d.prevCropYear + ' (last year)', rows.map(r => r.prevTons), t.muted),
+                        this.bar(d.cropYear + ' (this year)', rows.map(r => r.tons), rows.map(r => r.status === 'down' ? '#b42318' : t.colors[0])),
+                    ],
+                },
+                options: this.baseOptions({ legend: true }),
+            });
+
+            const byMonth = this.tlsMode === 'month';
+            const axis = byMonth ? d.months.map(m => m.key) : d.weeks;
+            const src = byMonth ? d.monthly : d.weekly;
+            const datasets = [];
+            d.locations.forEach((l, i) => {
+                datasets.push({
+                    type: 'line', label: l.name, data: axis.map(k => ((src.cur[l.key] || {})[k] || {}).tons ?? null),
+                    borderColor: colorOf(i), backgroundColor: colorOf(i), tension: 0.3, pointRadius: 2.5, borderWidth: 2, spanGaps: false,
+                });
+                datasets.push({
+                    type: 'line', label: l.name + ' (last yr)', data: axis.map(k => ((src.prev[l.key] || {})[k] || {}).tons ?? null),
+                    borderColor: colorOf(i), backgroundColor: colorOf(i), borderDash: [5, 4], borderWidth: 1.25, pointRadius: 0, tension: 0.3,
+                });
+            });
+            const options = this.baseOptions({ legend: true });
+            // Only this year's lines in the legend; last year's dashed lines follow their color
+            options.plugins.legend.labels.filter = (item) => !item.text.endsWith('(last yr)');
+            this.chart('tlsTrendChart', {
+                type: 'line',
+                data: { labels: byMonth ? d.months.map(m => m.label) : d.weeks.map(w => 'Wk ' + w), datasets },
+                options,
+            });
+        },
+
+        // Money Trail analytics: money out vs in per week, how it came back, interest, recovery by account
+        render_trail(d) {
+            if (!d || !document.getElementById('trailFlowChart')) return;
+            const t = this.theme();
+            const w = d.weekly || [];
+            const recovered = w.map(x => Math.round((x.vouchers + x.cash) * 100) / 100);
+            this.chart('trailFlowChart', {
+                type: 'bar',
+                data: {
+                    labels: w.map(x => 'Wk ' + x.week),
+                    datasets: [
+                        this.bar('Released', w.map(x => x.released), t.colors[1]),
+                        this.bar('Recovered', recovered, t.colors[0]),
+                        { type: 'line', label: 'Balance to collect', data: w.map(x => x.balance), borderColor: t.colors[2], backgroundColor: t.colors[2],
+                            borderWidth: 2, pointRadius: 3, tension: 0.3, yAxisID: 'y' },
+                    ],
+                },
+                options: this.baseOptions({ legend: true, money: true }),
+            });
+
+            const tot = d.total;
+            const mix = [tot.vouchers, tot.cash, Math.max(0, tot.outstanding)];
+            this.chart('trailMixChart', {
+                type: 'doughnut',
+                data: {
+                    labels: ['Paid via voucher', 'Cash (over the counter)', 'Still to collect'],
+                    datasets: [{ data: mix, backgroundColor: [t.colors[0], t.colors[1], t.colors[2]], borderColor: t.surface, borderWidth: 2 }],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '64%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: t.ticks, usePointStyle: true, pointStyleWidth: 8, padding: 12, font: { size: 11 } } },
+                        tooltip: { callbacks: { label: (ctx) => ctx.label + ': ₱' + this.fmt(ctx.raw, 2) + ' (' + this.pct(ctx.raw, mix.reduce((a, b) => a + b, 0)) + '%)' } },
+                    },
+                },
+            });
+
+            const withInterest = d.kinds.filter(k => k.interest || k.interest_collected);
+            const interestKinds = withInterest.length ? withInterest : d.kinds;
+            this.chart('trailInterestChart', {
+                type: 'bar',
+                data: {
+                    labels: interestKinds.map(k => k.label),
+                    datasets: [
+                        this.bar('Interest & charges', interestKinds.map(k => k.interest), t.colors[3]),
+                        this.bar('Interest collected', interestKinds.map(k => k.interest_collected), t.colors[0]),
+                    ],
+                },
+                options: this.baseOptions({ legend: true, money: true }),
+            });
+
+            this.chart('trailKindChart', {
+                type: 'bar',
+                data: {
+                    labels: d.kinds.map(k => k.label),
+                    datasets: [
+                        this.bar('Recovered', d.kinds.map(k => k.recovered), t.colors[0], { maxBarThickness: 22 }),
+                        this.bar('Still to collect', d.kinds.map(k => Math.max(0, k.outstanding)), t.colors[2], { maxBarThickness: 22 }),
+                    ],
+                },
+                options: this.baseOptions({ horizontal: true, stacked: true, legend: true, money: true }),
+            });
         },
 
         render_finance(d) {
+            if (this.data.trail) this.$nextTick(() => this.render_trail(this.data.trail));
             const t = this.theme();
             const loan = d.loans ? d.loans.balance : 0;
             const ca = d.cashAdvances ? d.cashAdvances.balance : 0;
@@ -293,6 +483,124 @@ function dashboardTabs(tabs) {
                 type: 'bar',
                 data: { labels: d.weekly.labels, datasets: [this.bar('TLS uploaded (t)', d.weekly.tls, t.colors[0]), this.bar('Liquidated (t)', d.weekly.liquidated, t.colors[1])] },
                 options: this.baseOptions(),
+            });
+
+            this.stPick = this.stPick && (d.stations?.periods[this.stPeriod].keys || []).includes(this.stPick) ? this.stPick : this.stDefaultPick();
+            this.render_stations();
+        },
+
+        // ==================== GROSS CANE PER TRANSLOADING STATION ====================
+
+        stDefaultPick() {
+            const st = this.data.hauling?.stations;
+            if (!st) return '';
+            const keys = st.periods[this.stPeriod].keys;
+            if (this.stPeriod === 'week' && st.pickedWeek && keys.includes(String(st.pickedWeek))) return String(st.pickedWeek);
+            if (this.stPeriod === 'year' && keys.includes(st.cropYear)) return st.cropYear;
+            return keys[keys.length - 1] || '';
+        },
+
+        stCell(name, key) {
+            const st = this.data.hauling?.stations;
+            return ((st?.periods[this.stPeriod].data[name]) || {})[key] || { gross: 0, net: 0, tickets: 0 };
+        },
+
+        stPeriodWord() {
+            return { week: 'week', month: 'month', year: 'crop year' }[this.stPeriod];
+        },
+
+        stLabelOf(key) {
+            const p = this.data.hauling?.stations?.periods[this.stPeriod];
+            if (!p) return '';
+            return p.labels[p.keys.indexOf(key)] || key;
+        },
+
+        stPickLabel() {
+            return this.stLabelOf(this.stPick);
+        },
+
+        stPrevKey() {
+            const keys = this.data.hauling?.stations?.periods[this.stPeriod].keys || [];
+            const i = keys.indexOf(this.stPick);
+            return i > 0 ? keys[i - 1] : null;
+        },
+
+        stPrevLabel() {
+            const k = this.stPrevKey();
+            return k ? this.stLabelOf(k) : '';
+        },
+
+        // Stations for the picked period, the most gross cane first
+        stRows() {
+            const st = this.data.hauling?.stations;
+            if (!st) return [];
+            const prev = this.stPrevKey();
+            const rows = st.stations.map(s => {
+                const c = this.stCell(s.name, this.stPick);
+                const p = prev ? this.stCell(s.name, prev) : null;
+                return {
+                    name: s.name, code: s.code, gross: c.gross, net: c.net, tickets: c.tickets,
+                    lossPct: c.gross > 0 ? Math.round((c.gross - c.net) / c.gross * 10000) / 100 : null,
+                    change: p && p.gross > 0 ? Math.round((c.gross - p.gross) / p.gross * 1000) / 10 : null,
+                };
+            });
+            const total = rows.reduce((a, r) => a + r.gross, 0);
+            return rows.map(r => ({ ...r, share: total > 0 ? Math.round(r.gross / total * 1000) / 10 : 0 }))
+                .sort((a, b) => b.gross - a.gross);
+        },
+
+        // The station with the lowest / highest value of a field in the picked period (stations with cane only)
+        stBest(field, how) {
+            const rows = this.stRows().filter(r => r.gross > 0 && r[field] !== null);
+            if (!rows.length) return null;
+            return rows.reduce((best, r) => (how === 'min' ? r[field] < best[field] : r[field] > best[field]) ? r : best).name;
+        },
+
+        stTopOf(key) {
+            const st = this.data.hauling?.stations;
+            if (!st) return null;
+            let top = null, max = 0;
+            st.stations.forEach(s => { const g = this.stCell(s.name, key).gross; if (g > max) { max = g; top = s.name; } });
+            return top;
+        },
+
+        render_stations() {
+            const st = this.data.hauling?.stations;
+            if (!st || !st.stations.length || !document.getElementById('haulStationChart')) return;
+            const t = this.theme();
+            const rows = this.stRows();
+            const options = this.baseOptions({ legend: true });
+            options.plugins.tooltip.callbacks.label = (ctx) => ctx.dataset.label + ': ' + this.fmt(ctx.raw, 3) + ' t';
+            this.chart('haulStationChart', {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.name),
+                    datasets: [
+                        this.bar('Gross Cane Wt', rows.map(r => r.gross), rows.map((r, i) => i === 0 ? '#087a3d' : t.colors[1])),
+                        this.bar('Net Cane Wt', rows.map(r => r.net), t.muted),
+                    ],
+                },
+                options,
+            });
+
+            const p = st.periods[this.stPeriod];
+            const trendOptions = this.baseOptions({ legend: true });
+            trendOptions.plugins.tooltip.callbacks.label = (ctx) => ctx.dataset.label + ': ' + this.fmt(ctx.raw ?? 0, 3) + ' t';
+            const picked = p.keys.indexOf(this.stPick);
+            this.chart('haulStationWeekChart', {
+                type: this.stPeriod === 'year' ? 'bar' : 'line',
+                data: {
+                    labels: p.labels,
+                    datasets: st.stations.map((s, i) => {
+                        const color = t.colors[i % t.colors.length];
+                        const data = p.keys.map(k => this.stCell(s.name, k).gross || null);
+                        return this.stPeriod === 'year'
+                            ? this.bar(s.name, data, color)
+                            : { label: s.name, data, borderColor: color, backgroundColor: color, borderWidth: 2, tension: 0.3, spanGaps: true,
+                                pointRadius: p.keys.map((k, j) => j === picked ? 6 : 3) };
+                    }),
+                },
+                options: trendOptions,
             });
         },
 

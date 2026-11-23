@@ -4,7 +4,7 @@
 
     <template x-if="data.finance">
         <div class="space-y-4">
-            @include('menu.dashboard.collections', ['withPlanters' => true])
+            @include('menu.dashboard.trail', ['withDetail' => true])
 
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-5">
                 <section class="kp-card lg:col-span-2" aria-labelledby="f-mix-h">

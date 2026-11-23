@@ -168,7 +168,7 @@ function dashboardData() {
             data: {
                 labels: this.monthlyData.labels,
                 datasets: [{
-                    label: 'Monthly Total (tons)',
+                    label: 'Net cane (t)',
                     data: this.monthlyData.datasets[0].data,
                     backgroundColor: monthlyHasData ? 'rgba(183, 132, 31, 0.38)' : 'rgba(229, 231, 235, 0.5)',
                     borderColor: monthlyHasData ? '#b7841f' : '#d1d5db',

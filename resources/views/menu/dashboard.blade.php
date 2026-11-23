@@ -57,7 +57,7 @@
         </div>
 
         @if (collect($tabs)->contains('key', 'finance'))
-            @include('menu.dashboard.collections', ['withPlanters' => false])
+            @include('menu.dashboard.trail', ['withDetail' => false])
         @endif
 
         @include('menu.dashboard.modules')
@@ -161,7 +161,7 @@
             <div class="kp-card-head">
                 <div>
                     <h2 id="monthly-h" class="kp-card-title">Monthly Production Total</h2>
-                    <p class="kp-card-sub">Total net cane per month for <span x-text="stats.currentCropYear"></span></p>
+                    <p class="kp-card-sub">Net cane (t) per month from the Trucking Summary Report · crop year <span x-text="stats.currentCropYear"></span></p>
                 </div>
             </div>
             <div class="relative w-full p-5 kp-dashboard-chart-body">
