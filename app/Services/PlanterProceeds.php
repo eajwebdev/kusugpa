@@ -282,6 +282,14 @@ class PlanterProceeds
         $summaryData[$key]['consolidated_ta_amount'] += $consolidated->ta_amount;
         $summaryData[$key]['consolidated_fuel_amount'] += $consolidated->fuel_issuance_amt;
         $summaryData[$key]['consolidated_total'] += $consolidated->total_summary;
+        // Trucking Allowance Report: what is added (TA + EMI + PAT + CCI FA/FB/FC + Mudpress + Adj)
+        // and what is taken off besides fuel (Rental, Underload); Total = added − rental − underload − fuel
+        $summaryData[$key]['consolidated_gross'] = ($summaryData[$key]['consolidated_gross'] ?? 0)
+            + (float) $consolidated->ta_amount + (float) $consolidated->emi_amount + (float) $consolidated->pat_amount
+            + (float) $consolidated->cci_fa_amt + (float) $consolidated->cci_fb_amt + (float) $consolidated->cci_fc_amt
+            + (float) $consolidated->mudpress_amt + (float) $consolidated->adj_amt;
+        $summaryData[$key]['consolidated_other_less'] = ($summaryData[$key]['consolidated_other_less'] ?? 0)
+            + (float) $consolidated->rental_amt + (float) $consolidated->underload_amt;
 }
 
         foreach ($truckingAllowances as $trucking) {
@@ -591,7 +599,16 @@ class PlanterProceeds
         $consolidated_fuel_amount = $record['consolidated_fuel_amount'] ?? 0;
         $consolidated_total = $record['consolidated_total'] ?? 0;
 
-        $consolidated_display = $consolidated_total >= 0 ? $consolidated_total : $consolidated_ta_amount;
+        // T row: gross = what the Trucking Allowance Report adds (TA + CCI FC + Mudpress + …), before fuel.
+        // Total net deduction = fuel issuance (+ rental / underload), so net = the report's Total and the
+        // fuel is taken off once (the report's Total already has it off).
+        if (array_key_exists('consolidated_gross', $record)) {
+            $consolidated_display = (float) $record['consolidated_gross'];
+            $consolidated_fuel_amount = (float) $consolidated_fuel_amount + (float) ($record['consolidated_other_less'] ?? 0);
+        } else {
+            // Older records without the report columns: the Total plus the fuel taken off in it
+            $consolidated_display = (float) $consolidated_total + (float) $consolidated_fuel_amount;
+        }
         $consolidated_net = $consolidated_display - $consolidated_fuel_amount;
 
         $totalGrossProceeds = $quedanGrossProceeds + $molasses_gross + $consolidated_display;
