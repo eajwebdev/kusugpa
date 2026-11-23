@@ -224,6 +224,10 @@
                                         <button type="button" @click="printBatch(b)" class="kp-btn kp-btn-primary px-2.5 py-1 text-xs">
                                             <i class="fas fa-print mr-1" aria-hidden="true"></i> Print All
                                         </button>
+                                        <button type="button" @click="printRegister(b)" class="kp-btn kp-btn-secondary px-2.5 py-1 text-xs"
+                                            title="One row per voucher with every amount and the totals, to check the vouchers">
+                                            <i class="fas fa-table-list mr-1" aria-hidden="true"></i> Register
+                                        </button>
                                         <button type="button" @click="deleteBatch(b)" title="Delete group"
                                             class="kp-btn kp-btn-secondary px-2.5 py-1 text-xs hover:text-rose-600">
                                             <i class="fas fa-trash" aria-hidden="true"></i>
@@ -256,6 +260,9 @@
                         </div>
                         <button type="button" @click="printBatch(current)" class="kp-btn kp-btn-primary text-xs">
                             <i class="fas fa-print mr-1.5" aria-hidden="true"></i> Print All
+                        </button>
+                        <button type="button" @click="printRegister(current)" class="kp-btn kp-btn-secondary text-xs">
+                            <i class="fas fa-table-list mr-1.5" aria-hidden="true"></i> Register
                         </button>
                         <button type="button" @click="current = null" class="kp-btn kp-btn-secondary text-xs" title="Close">
                             <i class="fas fa-times" aria-hidden="true"></i>
@@ -553,6 +560,12 @@
                     printBatch(b) {
                         if (!b) return;
                         window.KusugpaPdfPreview.open('{{ route('voucher.pdf') }}?batch_id=' + b.id, 'Vouchers - ' + b.generated_at);
+                    },
+
+                    // Voucher Register: one row per voucher of the group with every amount and the totals
+                    printRegister(b) {
+                        if (!b) return;
+                        window.KusugpaPdfPreview.open('{{ route('voucher.register') }}?batch_id=' + b.id, 'Voucher Register - ' + b.generated_at);
                     },
 
                     printOne(v) {

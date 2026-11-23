@@ -86,7 +86,7 @@ class NavigationPermissions
             return null;
         }
 
-        if (in_array($name, ['printVoucher', 'voucher.pdf'], true) || str_starts_with($name, 'voucher.batches.')) {
+        if (in_array($name, ['printVoucher', 'voucher.pdf', 'voucher.register'], true) || str_starts_with($name, 'voucher.batches.')) {
             return 'print-vouchers';
         }
 

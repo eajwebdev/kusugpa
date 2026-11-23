@@ -282,6 +282,8 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     // Print Voucher
     Route::get('/print-voucher', [MenuController::class, 'printVoucher'])->name('printVoucher');
     Route::get('/voucher/pdf-preview', [MenuController::class, 'voucherPDF'])->name('voucher.pdf');
+    // Voucher Register: one row per voucher with every amount and the totals, to check the vouchers
+    Route::get('/voucher/register', [MenuController::class, 'voucherRegister'])->name('voucher.register');
     // Generated voucher groups (a planter is generated once per week until its group is deleted)
     Route::get('/voucher/batches', [VoucherBatchController::class, 'index'])->name('voucher.batches.index');
     Route::post('/voucher/batches', [VoucherBatchController::class, 'store'])->name('voucher.batches.store');

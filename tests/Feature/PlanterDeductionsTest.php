@@ -424,6 +424,24 @@ class PlanterDeductionsTest extends TestCase
         $this->assertEqualsWithDelta(0, PlanterProceeds::summary('20262027', 4, 4)->firstWhere('planter_code', '00123')['loan_deduction'], 0.001);
     }
 
+    public function test_voucher_register_lists_each_voucher_with_its_service_charge_and_totals(): void
+    {
+        $this->buyAtWeek('4');
+        // Trucking with trans code "06" (leading zero) carries the 7.00/ton charge; "01" does not
+        foreach ([['06', 10], ['01', 5]] as [$code, $tons]) {
+            DB::table((new \App\Models\TruckingAllowance)->getTable())->insert(['crop_year' => '20262027', 'week_no' => '4', 'planter_code' => '00123',
+                'planter_name' => 'DELA CRUZ, JUAN', 'trans_code' => $code, 'net_cane' => $tons, 'ta_amount' => 0]);
+        }
+        $batch = $this->postJson(route('voucher.batches.store'), ['crop_year' => '20262027', 'bought_week' => 4])->assertCreated()->json('batch.id');
+
+        $data = $this->captureView('pdf.voucher-register', 'voucher.register', ['batch_id' => $batch]);
+        $row = $data['rows']->firstWhere('code', '00123');
+        // Two quedans of 10 LKg: 20 x 8.00 = 160; 10 tons x 7.00 = 70 (code 06 only)
+        $this->assertEqualsWithDelta(160, $row['svc_sugar'], 0.001);
+        $this->assertEqualsWithDelta(70, $row['svc_addl'], 0.001);
+        $this->assertEqualsWithDelta($data['rows']->sum('net_paid'), $data['totals']['net_paid'], 0.001);
+    }
+
     public function test_voucher_deducts_fuel_and_others_of_its_weeks(): void
     {
         $this->createDeduction('fuel', 300, [3 => 100, 4 => 200])->assertCreated();

@@ -405,7 +405,13 @@ class MenuController extends Controller
 }
 
 
-public function voucherPDF(Request $request)
+/**
+ * The vouchers of a request: a generated group (all, one item or some planters), a Week Bought, or a week range.
+ * Shared by the Check Voucher PDF and the Voucher Register so both list the same vouchers.
+ *
+ * @return array{0: \Illuminate\Support\Collection, 1: \Illuminate\Support\Collection, 2: array}
+ */
+private function voucherRecords(Request $request): array
 {
     $cropYear = $request->input('crop_year');
     $weekFrom = $request->input('week_from');
@@ -453,6 +459,14 @@ public function voucherPDF(Request $request)
         $summaryData = $summaryData->sortBy(fn ($r) => mb_strtoupper(trim((string) $r['planter_name'])))->values();
     }
 
+    return [$summaryData, $receivers, ['crop_year' => $cropYear, 'week_from' => $weekFrom, 'week_to' => $weekTo, 'bought_week' => $boughtWeek, 'planters' => $planterNames, 'batch' => $batch ?? null]];
+}
+
+public function voucherPDF(Request $request)
+{
+    [$summaryData, $receivers, $scope] = $this->voucherRecords($request);
+    ['crop_year' => $cropYear, 'week_from' => $weekFrom, 'week_to' => $weekTo, 'planters' => $planterNames] = $scope;
+
     // One voucher page per planter. Smaller parts avoid production proxy timeouts
     // and memory exhaustion on shared hosting.
     $parts = PdfParts::make($request, $summaryData, 30, 'planters');
@@ -479,6 +493,77 @@ public function voucherPDF(Request $request)
         'receivers' => $receivers,
     ]);
     return $request->boolean('download') ? $pdf->download($parts->filename('voucher')) : $pdf->stream($parts->filename('voucher-preview'));
+}
+
+/**
+ * Voucher Register: one row per Check Voucher of the selection (group, Week Bought or weeks) with every
+ * amount of the voucher (sugar, liens, service charge split into 8.00/LKG and the 7.00/ton trans-code charge,
+ * insurance, tax, molasses, trucking, fuel, accounts applied, net paid) and the totals, to check them row by row
+ */
+public function voucherRegister(Request $request)
+{
+    [$records, , $scope] = $this->voucherRecords($request);
+    $r2 = fn ($v) => round((float) $v, 2);
+
+    $rows = $records->map(function ($record) use ($r2) {
+        $p = PlanterProceeds::compute($record);
+        $additional = $r2($p['trucking_additional_charge']);
+        return [
+            'code' => trim((string) $record['planter_code']),
+            'name' => trim((string) $record['planter_name']),
+            'qdn' => implode(', ', array_filter($record['qdn_nos'] ?? [])),
+            'lkg_gross' => round((float) $p['sugar_lkg'], 3),
+            'lkg_net' => round((float) $p['quedan_a_lkg'] + (float) $p['quedan_b_lkg'] + (float) $p['quedan_d_lkg'], 3),
+            'sugar' => $r2($p['quedanGrossProceeds']),
+            'liens' => $r2($p['quedanTotalLiens'] + $p['molasses_liens']),
+            'svc_sugar' => $r2($p['quedanTotalServiceCharge'] - $additional),
+            'svc_addl' => $additional,
+            'ins_sugar' => $r2($p['quedanTotalInsurance']),
+            'tax_sugar' => $r2($p['quedanTotalTax']),
+            'mol_mt' => round((float) $p['mol_net'], 3),
+            'mol' => $r2($p['molasses_gross']),
+            'svc_mol' => $r2($p['molasses_service']),
+            'ins_mol' => $r2($p['molasses_insurance']),
+            'tax_mol' => $r2($p['molasses_tax']),
+            'trucking' => $r2($p['consolidated_display']),
+            'fuel_issued' => $r2($p['consolidated_fuel_amount']),
+            'net' => $r2($p['totalNetProceeds']),
+            'loan' => $r2($p['loanPayment']),
+            'ca' => $r2($p['caPayment']),
+            'others' => $r2($p['othersPayment']),
+            'fuel_ac' => $r2($p['fuelPayment']),
+            'net_paid' => $r2($p['netProceedsPaid']),
+        ];
+    })->values();
+
+    $sumColumns = ['lkg_gross', 'lkg_net', 'sugar', 'liens', 'svc_sugar', 'svc_addl', 'ins_sugar', 'tax_sugar', 'mol_mt', 'mol', 'svc_mol',
+        'ins_mol', 'tax_mol', 'trucking', 'fuel_issued', 'net', 'loan', 'ca', 'others', 'fuel_ac', 'net_paid'];
+    $totals = collect($sumColumns)->mapWithKeys(fn ($c) => [$c => round($rows->sum($c), in_array($c, ['lkg_gross', 'lkg_net', 'mol_mt'], true) ? 3 : 2)])->all();
+
+    $label = $scope['bought_week']
+        ? 'BOUGHT WEEK ' . $scope['bought_week']
+        : 'WEEK ' . $scope['week_from'] . ($scope['week_to'] != $scope['week_from'] ? ' - ' . $scope['week_to'] : '');
+
+    AuditLog::log('print', 'voucher', 'Generated voucher register', [
+        'crop_year' => $scope['crop_year'],
+        'period' => $label,
+        'batch_id' => $request->input('batch_id'),
+        'vouchers' => $rows->count(),
+    ]);
+
+    $pdf = Pdf::loadView('pdf.voucher-register', [
+        'pages' => $rows->chunk(24)->values(),
+        'rows' => $rows,
+        'totals' => $totals,
+        'cropYear' => $scope['crop_year'],
+        'periodLabel' => $label,
+        'generatedAt' => now()->format('m-d-Y h:i A'),
+        'org' => config('kusugpa'),
+    ])->setPaper('legal', 'landscape');
+
+    $filename = 'voucher-register-' . $scope['crop_year'] . '-' . strtolower(str_replace(' ', '-', $label)) . '.pdf';
+
+    return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
 }
 
  public function dashboardData(Request $request)
