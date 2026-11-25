@@ -166,6 +166,9 @@
                         <p class="text-xs text-[#52705F] dark:text-[#8AA895]">
                             A planter in a group is not generated again for those weeks. Delete the group to generate them again.
                         </p>
+                        <p class="text-xs text-[#52705F] dark:text-[#8AA895]">
+                            <i class="fas fa-print mr-1" aria-hidden="true"></i>Vouchers print only the data onto the pre-printed Metrobank check-voucher form: load the forms (11 in x 23 cm, landscape) and print at <strong>Actual size</strong>, not "Fit".
+                        </p>
                     </div>
                 </div>
                 <span class="text-xs text-[#52705F] dark:text-[#8AA895]"

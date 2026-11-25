@@ -211,6 +211,10 @@ class PlanterDeductionsTest extends TestCase
             $this->get(route($report, $period))->assertOk();
         }
 
+        // The voucher is on the check-voucher form's paper: 11 in (792pt) across, 23 cm (651.969pt) down
+        $pdf = $this->get(route('voucher.pdf', $period))->getContent();
+        $this->assertMatchesRegularExpression('#/MediaBox \[0\.000 0\.000 792\.000 651\.969\]#', $pdf);
+
         $record = PlanterProceeds::summary('20262027', 4, 4)->firstWhere('planter_code', '00777');
         $this->assertEqualsWithDelta(0, $record['sugar_lkg'], 0.001);
         $this->assertEqualsWithDelta(0, $record['quedan_b_lkg'], 0.001);
@@ -711,14 +715,15 @@ class PlanterDeductionsTest extends TestCase
         $all = $this->captureView('pdf.voucher', 'voucher.pdf', ['batch_id' => $batch]);
         $this->assertCount(1, $all['summaryData']);
         $html = view('pdf.voucher', $all)->render();
-        $this->assertSame(1, substr_count($html, 'Edwin Abril'));
+        // Printed in capitals as the payee on the voucher and on the check
+        $this->assertSame(2, substr_count($html, 'EDWIN ABRIL'));
 
         // One voucher of the group prints alone
         $one = $this->captureView('pdf.voucher', 'voucher.pdf', ['batch_id' => $batch, 'item_id' => $item]);
         $this->assertCount(1, $one['summaryData']);
         $this->assertEqualsWithDelta(20, $one['summaryData'][0]['sugar_lkg'], 0.001);
         $html = view('pdf.voucher', $one)->render();
-        $this->assertStringContainsString('Edwin Abril', $html);
+        $this->assertStringContainsString('EDWIN ABRIL', $html);
         $this->assertStringNotContainsString('DELA CRUZ, JUAN', $html);
 
         // A blank name prints the planter again
