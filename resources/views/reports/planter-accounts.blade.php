@@ -125,7 +125,7 @@
                                 <h3 id="quick-ca-title" class="text-sm font-bold text-[#172B20] dark:text-[#EAF5ED] uppercase tracking-wider"><span x-text="quick.kind === 'loan' ? 'Quick Loan' : 'Quick Cash Advance'"></span></h3>
                                 <p class="text-xs mt-1 text-[#52705F] dark:text-[#8AA895]" x-text="quick.kind === 'loan'
                                     ? 'Enter the planter\'s loan balance (e.g. a previous loan) to reconcile. Recorded as approved, no interest, and deducted in full on the selected week\'s Check Voucher as Loan Payment.'
-                                    : 'Recorded as approved and deducted in full on the selected week\'s Check Voucher. Interest is 1% unless you change or waive it.'"></p>
+                                    : 'Recorded as approved and deducted on the selected week\'s Check Voucher (1 week by default; add weeks to spread it). Interest is 1% unless you change or waive it.'"></p>
                             </div>
                             <button type="button" @click="quick.open = false" class="text-[#52705F] hover:text-rose-600" aria-label="Close"><i class="fas fa-times"></i></button>
                         </div>
@@ -169,14 +169,18 @@
                                     <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5"><span x-text="quick.kind === 'loan' ? 'Loan Balance (₱)' : 'Advance Amount (₱)'"></span> <span class="text-rose-600">*</span></label>
                                     <input type="number" step="0.01" min="0.01" x-model="quick.amount" class="kp-input w-full text-right" placeholder="0.00" required>
                                 </div>
-                                <div>
+                                <div x-show="quick.kind === 'loan'">
                                     <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Deduction Week <span class="text-rose-600">*</span></label>
-                                    <select x-model="quick.week_no" :disabled="!quick.crop_year" class="kp-input w-full disabled:opacity-50" required>
+                                    <select x-model="quick.week_no" :disabled="!quick.crop_year" class="kp-input w-full disabled:opacity-50" :required="quick.kind === 'loan'">
                                         <option value="" x-text="quick.crop_year ? 'Select Week' : 'Select crop year first'"></option>
                                         <template x-for="w in quickWeeks" :key="'q' + w">
                                             <option :value="w" x-text="'Week ' + w"></option>
                                         </template>
                                     </select>
+                                </div>
+                                <div x-show="quick.kind !== 'loan'">
+                                    <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Check No.</label>
+                                    <input type="text" x-model="quick.check_no" maxlength="50" class="kp-input w-full" placeholder="Optional · on the CA Receipt">
                                 </div>
                             </div>
 
@@ -216,8 +220,34 @@
                                     </span>
                                 </div>
                                 <div class="flex justify-between font-bold text-[#172B20] dark:text-[#EAF5ED] pt-1 border-t border-[#E3EBE5] dark:border-[#203A2B]">
-                                    <span x-text="'Deducted on Week ' + (quick.week_no || '—')"></span>
-                                    <span class="font-mono" x-text="'₱' + money(quickAmount + quickInterest)"></span>
+                                    <span>Total to deduct</span>
+                                    <span class="font-mono" x-text="'₱' + money(quickRepayable)"></span>
+                                </div>
+                                <!-- Deduction weeks: 1 week by default, more can be added -->
+                                <div class="pt-2 mt-1 border-t border-[#E3EBE5] dark:border-[#203A2B] space-y-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-semibold uppercase tracking-wider text-[11px] text-[#52705F] dark:text-[#8AA895]">Deduction Week(s) <span class="text-rose-600">*</span></span>
+                                        <button type="button" x-show="quick.rows.length > 1" @click="quick.manual = false; splitQuick()" class="text-[11px] font-semibold text-[#005B2A] dark:text-[#52C97E] hover:underline">Split evenly</button>
+                                    </div>
+                                    <template x-for="(row, i) in quick.rows" :key="row.uid">
+                                        <div class="flex items-center gap-2">
+                                            <select x-model="row.week_no" :disabled="!quick.crop_year" class="kp-input py-1 text-xs flex-1 disabled:opacity-50" :aria-label="'Deduction week ' + (i + 1)">
+                                                <option value="" x-text="quick.crop_year ? 'Select Week' : 'Select crop year first'"></option>
+                                                <template x-for="w in quickWeeks" :key="'r' + row.uid + '-' + w">
+                                                    <option :value="w" :selected="String(w) === String(row.week_no)" x-text="'Week ' + w"></option>
+                                                </template>
+                                            </select>
+                                            <input type="number" step="0.01" min="0" :value="quick.rows.length > 1 ? row.amount : quickRepayable.toFixed(2)" :readonly="quick.rows.length === 1"
+                                                @input="row.amount = $event.target.value; quick.manual = true"
+                                                class="kp-input py-1 px-2 text-xs text-right font-mono w-28 read-only:opacity-70" :aria-label="'Amount for deduction week ' + (i + 1)">
+                                            <button type="button" x-show="quick.rows.length > 1" @click="removeQuickWeek(i)" class="text-rose-600 hover:text-rose-800 w-4" aria-label="Remove week"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+                                        </div>
+                                    </template>
+                                    <button type="button" @click="addQuickWeek()" :disabled="!quick.crop_year || quick.rows.length >= quickWeeks.length"
+                                        class="text-[11px] font-semibold text-[#005B2A] dark:text-[#52C97E] hover:underline disabled:opacity-40"><i class="fas fa-plus mr-1" aria-hidden="true"></i>Add Week</button>
+                                    <p x-show="quickDuplicateWeek" class="text-[11px] text-rose-700 dark:text-rose-400">Each week can only be listed once.</p>
+                                    <p x-show="quick.rows.length > 1 && !quickBalanced" class="text-[11px] text-rose-700 dark:text-rose-400"
+                                        x-text="'The weeks add up to ₱' + money(quickAllocated) + '; they must equal ₱' + money(quickRepayable) + '.'"></p>
                                 </div>
                             </div>
 
@@ -269,7 +299,7 @@
 
                     // Quick Cash Advance
                     planters: @json($planters ?? []),
-                    quick: { open: false, crop_year: '', planter: null, search: '', listOpen: false, amount: '', week_no: '', date_created: today, purpose: '', saving: false, interest: '', interestEdited: false, kind: 'ca', loan_type_id: '{{ optional($loanTypes->first())->id }}' },
+                    quick: { open: false, crop_year: '', planter: null, search: '', listOpen: false, amount: '', week_no: '', date_created: today, purpose: '', saving: false, interest: '', interestEdited: false, kind: 'ca', loan_type_id: '{{ optional($loanTypes->first())->id }}', check_no: '', rows: [{ uid: 1, week_no: '', amount: '' }], manual: false, uid: 1 },
                     get quickWeeks() {
                         return weeks.filter(w => w.crop_year === this.quick.crop_year).map(w => w.week_no);
                     },
@@ -284,14 +314,48 @@
                         if (this.quick.interestEdited) return Math.max(0, Math.round((parseFloat(this.quick.interest) || 0) * 100) / 100);
                         return Math.round(this.quickAmount * 1) / 100;
                     },
+                    get quickRepayable() { return Math.round((this.quickAmount + this.quickInterest) * 100) / 100; },
+                    get quickAllocated() { return Math.round(this.quick.rows.reduce((t, r) => t + (parseFloat(r.amount) || 0), 0) * 100) / 100; },
+                    get quickBalanced() { return this.quick.rows.length === 1 || Math.abs(this.quickAllocated - this.quickRepayable) < 0.005; },
+                    get quickDuplicateWeek() {
+                        const picked = this.quick.rows.map(r => String(r.week_no)).filter(Boolean);
+                        return new Set(picked).size !== picked.length;
+                    },
                     get canSaveQuick() {
-                        return this.quick.crop_year && this.quick.planter && this.quickAmount > 0 && this.quick.week_no && this.quick.date_created;
+                        const base = this.quick.crop_year && this.quick.planter && this.quickAmount > 0 && this.quick.date_created;
+                        if (this.quick.kind === 'loan') return base && this.quick.week_no;
+                        return base && this.quick.rows.every(r => r.week_no) && !this.quickDuplicateWeek && this.quickBalanced;
+                    },
+                    // Advance + interest split evenly in centavos over the weeks; the last week takes the remainder
+                    splitQuick() {
+                        const n = this.quick.rows.length;
+                        const cents = Math.round(this.quickRepayable * 100);
+                        const each = Math.floor(cents / n);
+                        this.quick.rows.forEach((r, i) => r.amount = ((i === n - 1 ? cents - each * (n - 1) : each) / 100).toFixed(2));
+                    },
+                    addQuickWeek() {
+                        const used = this.quick.rows.map(r => String(r.week_no));
+                        const last = this.quick.rows[this.quick.rows.length - 1].week_no;
+                        const after = this.quickWeeks.slice(this.quickWeeks.findIndex(w => String(w) === String(last)) + 1);
+                        const next = after.find(w => !used.includes(String(w))) ?? this.quickWeeks.find(w => !used.includes(String(w))) ?? '';
+                        this.quick.rows.push({ uid: ++this.quick.uid, week_no: next, amount: '' });
+                        if (!this.quick.manual) this.splitQuick();
+                    },
+                    removeQuickWeek(i) {
+                        this.quick.rows.splice(i, 1);
+                        if (!this.quick.manual) this.splitQuick();
                     },
                     money(v) {
                         return Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     },
                     openQuick(kind = 'ca') {
-                        this.quick = { ...this.quick, kind, open: true, crop_year: this.filters.crop_year || this.quick.crop_year, planter: null, search: '', amount: '', week_no: '', date_created: today, purpose: '', saving: false, interest: '', interestEdited: false };
+                        this.quick = { ...this.quick, kind, open: true, crop_year: this.filters.crop_year || this.quick.crop_year, planter: null, search: '', amount: '', week_no: '', date_created: today, purpose: '', saving: false, interest: '', interestEdited: false, check_no: '', rows: [{ uid: ++this.quick.uid, week_no: '', amount: '' }], manual: false };
+                        // The amount and interest are split again over the weeks unless the amounts were typed
+                        if (!this.quickWatching) {
+                            this.quickWatching = true;
+                            this.$watch('quickRepayable', () => { if (this.quick.rows.length > 1 && !this.quick.manual) this.splitQuick(); });
+                            this.$watch('quick.crop_year', () => this.quick.rows.forEach(r => r.week_no = ''));
+                        }
                     },
                     pickPlanter(p) {
                         this.quick.planter = p;
@@ -308,12 +372,15 @@
                                 planter_code: this.quick.planter.planter_code,
                                 planter_name: this.quick.planter.planter_name,
                                 amount: this.quickAmount,
-                                week_no: this.quick.week_no,
+                                week_no: isLoan ? this.quick.week_no : this.quick.rows[0].week_no,
                                 date_created: this.quick.date_created,
                             };
                             const body = isLoan
                                 ? { ...common, loan_type_id: this.quick.loan_type_id || null, remarks: this.quick.purpose }
-                                : { ...common, purpose: this.quick.purpose, interest_amount: this.quickInterest };
+                                : {
+                                    ...common, purpose: this.quick.purpose, interest_amount: this.quickInterest, check_no: this.quick.check_no || null,
+                                    schedule: this.quick.rows.map(r => ({ week_no: r.week_no, amount: this.quick.rows.length > 1 ? Math.round((parseFloat(r.amount) || 0) * 100) / 100 : this.quickRepayable })),
+                                };
                             const r = await fetch(isLoan ? '{{ $canQuickLoan ? route('loans.quick') : '' }}' : '{{ $canQuickCA ? route('cash-advances.quick') : '' }}', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },

@@ -31,6 +31,7 @@ function dashboardTabs(tabs) {
 
         init() {
             this.tabUrl = this.$el.dataset.tabUrl;
+            this.stationsReportUrl = this.$el.dataset.stationsReportUrl;
             const fromHash = window.location.hash.replace('#', '');
             if (this.tabs.some(t => t.key === fromHash)) this.tab = fromHash;
 
@@ -530,7 +531,7 @@ function dashboardTabs(tabs) {
             return k ? this.stLabelOf(k) : '';
         },
 
-        // Stations for the picked period, the most gross cane first
+        // Stations for the picked period, the most net cane first
         stRows() {
             const st = this.data.hauling?.stations;
             if (!st) return [];
@@ -541,17 +542,17 @@ function dashboardTabs(tabs) {
                 return {
                     name: s.name, code: s.code, gross: c.gross, net: c.net, tickets: c.tickets,
                     lossPct: c.gross > 0 ? Math.round((c.gross - c.net) / c.gross * 10000) / 100 : null,
-                    change: p && p.gross > 0 ? Math.round((c.gross - p.gross) / p.gross * 1000) / 10 : null,
+                    change: p && p.net > 0 ? Math.round((c.net - p.net) / p.net * 1000) / 10 : null,
                 };
             });
-            const total = rows.reduce((a, r) => a + r.gross, 0);
-            return rows.map(r => ({ ...r, share: total > 0 ? Math.round(r.gross / total * 1000) / 10 : 0 }))
-                .sort((a, b) => b.gross - a.gross);
+            const total = rows.reduce((a, r) => a + r.net, 0);
+            return rows.map(r => ({ ...r, share: total > 0 ? Math.round(r.net / total * 1000) / 10 : 0 }))
+                .sort((a, b) => b.net - a.net);
         },
 
         // The station with the lowest / highest value of a field in the picked period (stations with cane only)
         stBest(field, how) {
-            const rows = this.stRows().filter(r => r.gross > 0 && r[field] !== null);
+            const rows = this.stRows().filter(r => r.net > 0 && r[field] !== null);
             if (!rows.length) return null;
             return rows.reduce((best, r) => (how === 'min' ? r[field] < best[field] : r[field] > best[field]) ? r : best).name;
         },
@@ -560,8 +561,20 @@ function dashboardTabs(tabs) {
             const st = this.data.hauling?.stations;
             if (!st) return null;
             let top = null, max = 0;
-            st.stations.forEach(s => { const g = this.stCell(s.name, key).gross; if (g > max) { max = g; top = s.name; } });
+            st.stations.forEach(s => { const n = this.stCell(s.name, key).net; if (n > max) { max = n; top = s.name; } });
             return top;
+        },
+
+        // Station comparison report (PDF to print, or CSV for Excel) for the picked period type and period
+        stationsReport(format) {
+            const url = new URL(this.stationsReportUrl, window.location.origin);
+            if (this.cropYear) url.searchParams.set('crop_year', this.cropYear);
+            url.searchParams.set('period', this.stPeriod);
+            if (this.stPick) url.searchParams.set('pick', this.stPick);
+            url.searchParams.set('format', format);
+            if (format === 'csv') { window.location.href = url.toString(); return; }
+            if (window.KusugpaPdfPreview) window.KusugpaPdfPreview.open(url.toString(), 'TLS Station Performance · ' + this.stPickLabel());
+            else window.open(url.toString(), '_blank');
         },
 
         render_stations() {
@@ -576,8 +589,8 @@ function dashboardTabs(tabs) {
                 data: {
                     labels: rows.map(r => r.name),
                     datasets: [
-                        this.bar('Gross Cane Wt', rows.map(r => r.gross), rows.map((r, i) => i === 0 ? '#087a3d' : t.colors[1])),
-                        this.bar('Net Cane Wt', rows.map(r => r.net), t.muted),
+                        this.bar('Net Cane Wt', rows.map(r => r.net), rows.map((r, i) => i === 0 ? '#087a3d' : t.colors[1])),
+                        this.bar('Gross Cane Wt', rows.map(r => r.gross), t.muted),
                     ],
                 },
                 options,
@@ -593,7 +606,7 @@ function dashboardTabs(tabs) {
                     labels: p.labels,
                     datasets: st.stations.map((s, i) => {
                         const color = t.colors[i % t.colors.length];
-                        const data = p.keys.map(k => this.stCell(s.name, k).gross || null);
+                        const data = p.keys.map(k => this.stCell(s.name, k).net || null);
                         return this.stPeriod === 'year'
                             ? this.bar(s.name, data, color)
                             : { label: s.name, data, borderColor: color, backgroundColor: color, borderWidth: 2, tension: 0.3, spanGaps: true,

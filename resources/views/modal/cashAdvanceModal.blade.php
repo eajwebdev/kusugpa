@@ -112,6 +112,7 @@
                                         Due Date <i class="fas fa-circle-info ml-0.5" title="Defaults to the week's end date; you can change it." aria-hidden="true"></i>
                                     </th>
                                     <th class="text-left font-semibold px-2 py-2">Amount (₱)</th>
+                                    <th class="px-1 py-2"><span class="sr-only">Remove</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -136,10 +137,19 @@
                                             <input type="number" x-model="row.amount" @input="manualSplit = true" step="any" min="0"
                                                 class="kp-input w-full min-w-[7rem] py-1 text-xs text-right kp-num" placeholder="0.00">
                                         </td>
+                                        <td class="px-1 py-1.5 text-center">
+                                            <button type="button" x-show="schedule.length > 1" @click="removeWeek(i)" class="text-rose-600 hover:text-rose-800"
+                                                :aria-label="'Remove week ' + row.week_no" title="Remove this week"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+                                        </td>
                                     </tr>
                                 </template>
                             </tbody>
                         </table>
+
+                        <button type="button" @click="addWeek()" :disabled="schedule.length >= cropYearWeeks().length"
+                            class="mt-2 kp-btn kp-btn-secondary py-1 px-2.5 text-xs disabled:opacity-50">
+                            <i class="fas fa-plus mr-1.5" aria-hidden="true"></i> Add Week
+                        </button>
 
                         <div class="flex items-center justify-between mt-2 px-3 py-2 rounded-lg"
                             :class="isBalanced() ? 'bg-[#EAF5ED] dark:bg-[#1A3324]' : 'bg-rose-50 dark:bg-rose-950/30'">
@@ -164,6 +174,13 @@
                             Weekly payments total is <span x-text="totalAllocated() < repayable() ? 'short' : 'over'"></span>
                             by ₱<span x-text="formatNumber(Math.abs(repayable() - totalAllocated()))"></span>. It must equal the total to repay (advance + interest) before you can submit.
                         </p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-[#52705F] dark:text-[#8AA895] uppercase tracking-wider mb-1.5">Check No.</label>
+                        <input type="text" name="check_no" x-model="checkNo" maxlength="50" class="kp-input w-full" placeholder="Optional · printed on the CA Receipt">
                     </div>
                 </div>
 
@@ -214,8 +231,10 @@
             selectedPlanter: '',
             planterName: '',
             amount: '',
-            interestRate: {{ $settings['default_interest'] ?? 3 }},
-            termWeeks: 4,
+            // 1% interest and a 1-week term by default; both can be changed, and weeks added
+            interestRate: 1,
+            termWeeks: 1,
+            checkNo: '',
             schedule: [],
             rowUid: 0,
             manualSplit: false,
@@ -277,7 +296,7 @@
             buildSchedule() {
                 const weeks = this.cropYearWeeks();
                 if (weeks.length && this.termWeeks > weeks.length) this.termWeeks = weeks.length;
-                if (!this.termWeeks) this.termWeeks = Math.min(4, weeks.length) || 1;
+                if (!this.termWeeks) this.termWeeks = 1;
 
                 const today = this.today();
                 const current = Math.max(0, weeks.findIndex(w => w.week_end && w.week_end >= today));
@@ -293,6 +312,23 @@
                 }));
                 this.manualSplit = false;
                 this.autoSplit();
+            },
+            // One more week: the next week after the last one listed that is not used yet
+            addWeek() {
+                const weeks = this.cropYearWeeks();
+                const used = this.schedule.map(r => String(r.week_no));
+                const lastIndex = this.schedule.length ? weeks.findIndex(w => String(w.week_no) === String(this.schedule[this.schedule.length - 1].week_no)) : -1;
+                const next = weeks.slice(lastIndex + 1).find(w => !used.includes(String(w.week_no))) || weeks.find(w => !used.includes(String(w.week_no)));
+                if (!next) return;
+                this.schedule.push({ uid: ++this.rowUid, week_no: next.week_no, week_start: next.week_start, week_end: next.week_end, due_date: next.week_end || '', amount: '' });
+                this.termWeeks = this.schedule.length;
+                if (!this.manualSplit) this.autoSplit();
+            },
+            removeWeek(i) {
+                if (this.schedule.length <= 1) return;
+                this.schedule.splice(i, 1);
+                this.termWeeks = this.schedule.length;
+                if (!this.manualSplit) this.autoSplit();
             },
             // A different week brings its own dates; the due date resets to that week's end
             changeWeek(row) {
@@ -374,6 +410,7 @@
                             term_weeks: this.termWeeks,
                             crop_year: this.cropYear,
                             purpose: this.purpose,
+                            check_no: this.checkNo || null,
                             schedule: this.schedule.map(r => ({
                                 week_no: r.week_no,
                                 due_date: r.due_date || null,
@@ -409,8 +446,9 @@
                 this.selectedPlanter = '';
                 this.planterName = '';
                 this.amount = '';
-                this.interestRate = {{ $settings['default_interest'] ?? 3 }};
-                this.termWeeks = 4;
+                this.interestRate = 1;
+                this.termWeeks = 1;
+                this.checkNo = '';
                 this.purpose = '';
                 this.buildSchedule();
             }

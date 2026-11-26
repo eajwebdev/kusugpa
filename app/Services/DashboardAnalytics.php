@@ -1319,11 +1319,92 @@ class DashboardAnalytics
     }
 
     /**
+     * Station comparison report (Hauling tab → Print / Export): the stations ranked by Net Cane Wt for one
+     * week / month / crop year, against the period before, and their net cane in every period of that kind.
+     */
+    public function stationReport(string $period, ?string $pick): array
+    {
+        $st = $this->tlsStations();
+        $p = $st['periods'][$period] ?? $st['periods']['week'];
+        $keys = $p['keys'];
+        $pick = $pick !== null && in_array($pick, $keys, true) ? $pick : (end($keys) ?: null);
+        $at = $pick !== null ? array_search($pick, $keys, true) : false;
+        $prev = $at !== false && $at > 0 ? $keys[$at - 1] : null;
+        $label = fn ($k) => $k === null ? null : ($p['labels'][array_search($k, $keys, true)] ?? $k);
+        $cell = fn ($name, $k) => $k === null ? null : ($p['data'][$name][$k] ?? null);
+
+        $rows = collect($st['stations'])->map(function ($s) use ($cell, $pick, $prev) {
+            $c = $cell($s['name'], $pick) ?? ['gross' => 0, 'net' => 0, 'tickets' => 0];
+            $b = $cell($s['name'], $prev);
+            return [
+                'name' => $s['name'],
+                'code' => $s['code'],
+                'net' => $c['net'],
+                'gross' => $c['gross'],
+                'loss' => round($c['gross'] - $c['net'], 3),
+                'lossPct' => $c['gross'] > 0 ? round(($c['gross'] - $c['net']) / $c['gross'] * 100, 2) : null,
+                'tickets' => $c['tickets'],
+                'avgNet' => $c['tickets'] ? round($c['net'] / $c['tickets'], 3) : null,
+                'prevNet' => $b['net'] ?? null,
+                'change' => ($b['net'] ?? 0) > 0 ? round(($c['net'] - $b['net']) / $b['net'] * 100, 1) : null,
+            ];
+        })->sortByDesc('net')->values();
+        $totalNet = $rows->sum('net');
+        $rows = $rows->map(fn ($r, $i) => $r + ['rank' => $i + 1, 'share' => $totalNet > 0 ? round($r['net'] / $totalNet * 100, 1) : 0])->all();
+
+        $withCane = collect($rows)->filter(fn ($r) => $r['net'] > 0);
+        $findings = [];
+        if ($withCane->isNotEmpty()) {
+            $top = $withCane->first();
+            $findings[] = sprintf('%s (TLS %s) delivered the most net cane: %s t, %s%% of all TLS net cane.', $top['name'], $top['code'] ?? '—', number_format($top['net'], 3), $top['share']);
+            $low = $withCane->last();
+            if ($low['name'] !== $top['name']) {
+                $findings[] = sprintf('%s (TLS %s) delivered the least: %s t (%s%%).', $low['name'], $low['code'] ?? '—', number_format($low['net'], 3), $low['share']);
+            }
+            $lossy = $withCane->filter(fn ($r) => $r['lossPct'] !== null)->sortByDesc('lossPct');
+            if ($lossy->count() > 1) {
+                $findings[] = sprintf('Highest loss (gross − net): %s at %s%%; lowest: %s at %s%%.', $lossy->first()['name'], $lossy->first()['lossPct'], $lossy->last()['name'], $lossy->last()['lossPct']);
+            }
+            foreach ($withCane as $r) {
+                if ($r['change'] !== null && $r['change'] <= -10) {
+                    $findings[] = sprintf('%s dropped %s%% from %s.', $r['name'], abs($r['change']), $label($prev));
+                }
+            }
+        }
+
+        return [
+            'cropYear' => $this->cropYear,
+            'period' => $period,
+            'periodWord' => ['week' => 'Week', 'month' => 'Month', 'year' => 'Crop Year'][$period] ?? 'Week',
+            'pick' => $pick,
+            'pickLabel' => $label($pick),
+            'prevLabel' => $label($prev),
+            'rows' => $rows,
+            'totals' => [
+                'net' => round($totalNet, 3),
+                'gross' => round(collect($rows)->sum('gross'), 3),
+                'tickets' => (int) collect($rows)->sum('tickets'),
+                'prevNet' => round(collect($rows)->sum('prevNet'), 3),
+            ],
+            'findings' => $findings,
+            // Net cane of every station in every period of this kind
+            'matrix' => [
+                'labels' => $p['labels'],
+                'keys' => $keys,
+                'rows' => collect($st['stations'])->map(fn ($s) => [
+                    'name' => $s['name'],
+                    'code' => $s['code'],
+                    'values' => array_map(fn ($k) => $cell($s['name'], $k)['net'] ?? 0, $keys),
+                ])->all(),
+            ],
+        ];
+    }
+    /**
      * Gross and net cane weight per transloading station (TLS tickets), by week and month of the crop year
      * and by crop year, so the stations can be ranked for any period: the most gross cane received first,
      * with the loss (gross − net) beside it. Not cut by the picked week: the period is picked on the chart.
      */
-    private function tlsStations(): array
+    public function tlsStations(): array
     {
         $codes = array_merge(
             array_map(fn ($c) => (string) $c, self::TLS_CODES),

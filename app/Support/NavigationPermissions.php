@@ -175,7 +175,8 @@ class NavigationPermissions
         if (str_starts_with($name, 'cash-advances.settings')) {
             return 'manage-cash-advance-settings';
         }
-        if (in_array($name, ['cash-advances.index', 'cash-advances.show', 'cash-advances.receipt.pdf', 'cash-advances.payments.receipt'], true)) {
+        if (in_array($name, ['cash-advances.index', 'cash-advances.show', 'cash-advances.receipt.pdf', 'cash-advances.payments.receipt',
+            'cash-advances.ledger', 'cash-advances.ledger.data', 'cash-advances.ledger.planter', 'cash-advances.ledger.pdf'], true)) {
             return 'view-cash-advances';
         }
         if (in_array($name, ['cash-advances.create', 'cash-advances.store', 'cash-advances.quick', 'cash-advances.schedule.update',

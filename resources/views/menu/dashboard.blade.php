@@ -8,7 +8,7 @@
 @endpush
 
 @section('content')
-    <div x-data="dashboardTabs(@js($tabs))" data-tab-url="{{ route('dashboard.tab', ['tab' => '__TAB__']) }}" class="space-y-4 kp-fade-in kp-dashboard">
+    <div x-data="dashboardTabs(@js($tabs))" data-tab-url="{{ route('dashboard.tab', ['tab' => '__TAB__']) }}" data-stations-report-url="{{ route('dashboard.stations-report') }}" class="space-y-4 kp-fade-in kp-dashboard">
 
         <!-- Page header -->
         <header class="kp-dashboard-hero">
