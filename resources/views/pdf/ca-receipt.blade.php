@@ -226,8 +226,8 @@
                 <td style="width: 0.03in"></td>
                 <td style="width: 0.87in"><i>Payee:</i></td>
                 <td><i>{{ $ca->planter_name }}</i></td>
-                <td style="width: 0.8in">CV No:</td>
-                <td style="width: 0.98in">{{ $ca->cv_no }}</td>
+                <td style="width: 0.8in">CA No:</td>
+                <td style="width: 0.98in">{{ $ca->ca_number }}</td>
             </tr>
             <tr>
                 <td style="height: 0.24in"></td>

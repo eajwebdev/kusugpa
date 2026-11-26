@@ -20,6 +20,7 @@ use App\Http\Controllers\CertificationController;
 use App\Http\Controllers\TlsReportController;
 use App\Http\Controllers\TruckingAllowanceController;
 use App\Http\Controllers\CashAdvanceController;
+use App\Http\Controllers\CashAdvanceLedgerController;
 use App\Http\Controllers\ProceedsSheetController;
 use App\Http\Controllers\HaulerSignatureSheetController;
 use App\Http\Controllers\PlanterDeductionController;
@@ -134,6 +135,11 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     // Cash Advance Routes - STATIC routes MUST come before wildcard routes
     Route::get('/cash-advances', [CashAdvanceController::class, 'index'])->name('cash-advances.index');
     Route::get('/cash-advances/create', [CashAdvanceController::class, 'create'])->name('cash-advances.create');
+    // Cash Advance Ledger: totals per day / week / month / year, per planter, with who made each advance
+    Route::get('/cash-advances/ledger', [CashAdvanceLedgerController::class, 'index'])->name('cash-advances.ledger');
+    Route::get('/cash-advances/ledger/data', [CashAdvanceLedgerController::class, 'data'])->name('cash-advances.ledger.data');
+    Route::get('/cash-advances/ledger/planter', [CashAdvanceLedgerController::class, 'planter'])->name('cash-advances.ledger.planter');
+    Route::get('/cash-advances/ledger/pdf', [CashAdvanceLedgerController::class, 'pdf'])->name('cash-advances.ledger.pdf');
     Route::get('/cash-advances/settings', [CashAdvanceController::class, 'settings'])->name('cash-advances.settings');
     Route::post('/cash-advances/settings', [CashAdvanceController::class, 'updateSettings'])->name('cash-advances.settings.update');
     Route::post('/cash-advances', [CashAdvanceController::class, 'store'])->name('cash-advances.store');
@@ -224,6 +230,8 @@ Route::middleware(['login_auth', 'navigation.access'])->group(function () {
     // Dashboard API endpoints
     Route::get('/dashboard/data', [MenuController::class, 'dashboardData'])->name('dashboard.data');
     Route::get('/dashboard/weekly', [MenuController::class, 'dashboardWeekly'])->name('dashboard.weekly');
+    // Hauling tab: TLS station comparison report (PDF / CSV)
+    Route::get('/dashboard/stations-report', [DashboardAnalyticsController::class, 'stationsReport'])->name('dashboard.stations-report');
     Route::get('/dashboard/tab/{tab}', [DashboardAnalyticsController::class, 'tab'])
         ->where('tab', 'modules|collections|trail|tls|production|finance|proceeds|hauling|balance')
         ->name('dashboard.tab');

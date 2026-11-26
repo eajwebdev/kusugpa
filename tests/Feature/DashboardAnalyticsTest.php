@@ -265,6 +265,31 @@ class DashboardAnalyticsTest extends TestCase
         $this->assertEqualsWithDelta(10, $t['monthly']['cur']['CANLAMAY']['m10']['tons'], 0.001);
     }
 
+    public function test_station_report_ranks_tls_stations_by_net_cane_and_exports(): void
+    {
+        $ticket = fn ($week, $code, $desc, $gross, $net) => [
+            'crop_year' => self::CY, 'week_no' => (string) $week, 'planter_code' => '00101', 'planter_name' => 'P',
+            'gross_cane_weight' => $gross, 'net_cane_wt' => $net, 'trans_code' => $code, 'description' => $desc, 'date_milled' => '10/20/2026 08:00',
+        ];
+        DB::table('tls_hauling_uploads')->insert([
+            // More gross at Canlamay, but more net at Cauayan: the ranking follows the net
+            $ticket(1, '06', 'CANLAMAY TRANSLOADING', 12, 8),
+            $ticket(1, '25', 'CAUAYAN TRANSLOADING', 10, 9.7),
+            $ticket(2, '06', 'CANLAMAY TRANSLOADING', 5, 4.8),
+        ]);
+        $this->actingAs($this->admin());
+
+        $report = (new DashboardAnalytics(self::CY, null, ['hauling' => true]))->stationReport('week', '1');
+        $this->assertSame(['CAUAYAN', 'CANLAMAY'], array_column($report['rows'], 'name'));
+        $this->assertEqualsWithDelta(17.7, $report['totals']['net'], 0.001);
+        $this->assertEqualsWithDelta(33.33, $report['rows'][1]['lossPct'], 0.01);
+        $this->assertSame([8.0, 4.8], array_map('floatval', collect($report['matrix']['rows'])->firstWhere('name', 'CANLAMAY')['values']));
+
+        $csv = $this->get(route('dashboard.stations-report', ['crop_year' => self::CY, 'period' => 'week', 'pick' => '1', 'format' => 'csv']))->assertOk()->streamedContent();
+        $this->assertStringContainsString('1,CAUAYAN,25,9.7', $csv);
+        $this->get(route('dashboard.stations-report', ['crop_year' => self::CY, 'period' => 'week', 'pick' => '2']))->assertOk()->assertHeader('content-type', 'application/pdf');
+    }
+
     public function test_balanced_uploads_pass_and_padded_weeks_match(): void
     {
         $balance = $this->balance();

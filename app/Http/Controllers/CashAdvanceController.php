@@ -191,6 +191,8 @@ class CashAdvanceController extends Controller
             'term_months' => 'required_without:term_weeks|nullable|integer|min:1|max:12',
             'crop_year' => 'required|string',
             'purpose' => 'nullable|string|max:500',
+            // Check No. of the check released, printed on the CA Receipt
+            'check_no' => 'nullable|string|max:50',
             // Weekly payment schedule; its total does not have to equal the advance amount
             'schedule' => 'array',
             'schedule.*.week_no' => 'required|string|distinct',
@@ -310,32 +312,43 @@ class CashAdvanceController extends Controller
             'planter_code' => 'required|string|max:50',
             'planter_name' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0.01',
-            'week_no' => 'required|string|max:10',
+            'week_no' => 'required_without:schedule|nullable|string|max:10',
             'date_created' => 'required|date',
             'purpose' => 'nullable|string|max:500',
+            'check_no' => 'nullable|string|max:50',
             // 1% by default; the user may change it or waive it (0)
             'interest_amount' => 'nullable|numeric|min:0',
+            // One week by default; more weeks may be added, each with its share of the advance + interest
+            'schedule' => 'nullable|array|min:1',
+            'schedule.*.week_no' => 'required|string|max:10|distinct',
+            'schedule.*.amount' => 'required|numeric|min:0',
         ], [
-            'week_no.required' => 'Select the week the cash advance is deducted.',
+            'week_no.required_without' => 'Select the week the cash advance is deducted.',
+            'schedule.*.week_no.distinct' => 'Each week can only be listed once.',
         ]);
 
-        $week = WeekNo::where('crop_year', $data['crop_year'])->where('week_no', $data['week_no'])->first();
-        if (!$week) {
+        // The weeks it is deducted on (the single Deduction Week when no schedule is sent)
+        $rows = collect($data['schedule'] ?? [['week_no' => $data['week_no'], 'amount' => null]]);
+        $weekRows = WeekNo::where('crop_year', $data['crop_year'])->whereIn('week_no', $rows->pluck('week_no')->map(fn ($w) => (string) $w))->get()->keyBy(fn ($w) => (string) $w->week_no);
+        $missing = $rows->pluck('week_no')->reject(fn ($w) => $weekRows->has((string) $w));
+        if ($missing->isNotEmpty()) {
             throw ValidationException::withMessages([
-                'week_no' => 'Week ' . $data['week_no'] . ' is not set up for crop year ' . $data['crop_year'] . ' in Crop & Week Management.',
+                'week_no' => 'Week ' . $missing->implode(', ') . ' is not set up for crop year ' . $data['crop_year'] . ' in Crop & Week Management.',
             ]);
         }
+        $week = $weekRows[(string) $rows->first()['week_no']];
 
         $ca = new CashAdvance([
             'planter_code' => $data['planter_code'],
             'planter_name' => trim($data['planter_name']),
             'amount' => round((float) $data['amount'], 2),
             'interest_rate' => self::QUICK_INTEREST_RATE,
-            'term_weeks' => 1,
+            'term_weeks' => $rows->count(),
             'term_months' => 1,
             'crop_year' => $data['crop_year'],
             'purpose' => $data['purpose'] ?? null,
             'remarks' => 'Quick Cash Advance (Planter Accnt. Applied)',
+            'check_no' => $data['check_no'] ?? null,
         ]);
         $ca->ca_number = CashAdvance::generateCANumber();
         $ca->application_date = Carbon::parse($data['date_created'])->toDateString();
@@ -351,15 +364,29 @@ class CashAdvanceController extends Controller
             $ca->balance = $ca->total_amount;
         }
 
-        DB::transaction(function () use ($ca, $week, $data) {
+        // Several weeks: their amounts must add up to the advance plus its interest
+        if ($rows->count() > 1) {
+            $allocated = (int) $rows->sum(fn ($r) => (int) round((float) $r['amount'] * 100));
+            $repayable = (int) round($ca->repayable() * 100);
+            if ($allocated !== $repayable) {
+                throw ValidationException::withMessages([
+                    'schedule' => 'The weekly amounts (₱' . number_format($allocated / 100, 2) . ') must add up to the advance plus interest (₱' . number_format($repayable / 100, 2) . ').',
+                ]);
+            }
+        }
+
+        DB::transaction(function () use ($ca, $rows, $weekRows, $data) {
             $ca->save();
-            // One week: the advance plus its interest
-            $ca->deductions()->create([
-                'crop_year' => $ca->crop_year,
-                'week_no' => (string) $week->week_no,
-                'due_date' => $week->week_end_date ? Carbon::parse($week->week_end_date)->toDateString() : null,
-                'amount' => $ca->repayable(),
-            ]);
+            // One week takes the advance plus its interest; several weeks take their own amounts
+            foreach ($rows as $row) {
+                $w = $weekRows[(string) $row['week_no']];
+                $ca->deductions()->create([
+                    'crop_year' => $ca->crop_year,
+                    'week_no' => (string) $w->week_no,
+                    'due_date' => $w->week_end_date ? Carbon::parse($w->week_end_date)->toDateString() : null,
+                    'amount' => $rows->count() > 1 ? round((float) $row['amount'], 2) : $ca->repayable(),
+                ]);
+            }
             // No approval step: recorded as approved from the date it was made
             $this->markApproved($ca, Carbon::parse($data['date_created'])->toDateString());
         });
@@ -368,14 +395,18 @@ class CashAdvanceController extends Controller
             'planter' => $ca->planter_name . ' (' . $ca->planter_code . ')',
             'amount' => $ca->amount,
             'interest' => $ca->interest_amount . ' (' . $ca->interest_rate . '%' . ((float) $ca->interest_amount == 0.0 ? ', waived' : '') . ')',
-            'deducted' => 'Wk ' . $week->week_no . ' = ' . $ca->repayable(),
+            'deducted' => $rows->count() > 1
+                ? $rows->map(fn ($r) => 'Wk ' . $r['week_no'] . ' = ' . round((float) $r['amount'], 2))->implode(', ')
+                : 'Wk ' . $week->week_no . ' = ' . $ca->repayable(),
+            'check_no' => $ca->check_no,
             'date_created' => Carbon::parse($data['date_created'])->toDateString(),
             'approval' => 'quick entry, recorded as approved',
         ]);
 
         return response()->json([
             'message' => 'Cash advance #' . $ca->ca_number . ' saved: ₱' . number_format($ca->repayable(), 2)
-                . ' (₱' . number_format($ca->amount, 2) . ' + ₱' . number_format($ca->interest_amount, 2) . ' interest) comes off ' . $ca->planter_name . '\'s Week ' . $week->week_no . ' voucher.',
+                . ' (₱' . number_format($ca->amount, 2) . ' + ₱' . number_format($ca->interest_amount, 2) . ' interest) comes off ' . $ca->planter_name . '\'s '
+                . ($rows->count() > 1 ? 'Week ' . $rows->pluck('week_no')->implode(', ') . ' vouchers.' : 'Week ' . $week->week_no . ' voucher.'),
             'cash_advance' => $ca->only(['id', 'ca_number', 'planter_code', 'planter_name', 'amount', 'interest_amount', 'total_amount']),
         ], 201);
     }

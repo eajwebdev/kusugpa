@@ -463,6 +463,15 @@
                 </a>
             </li>
             @endif
+            @if ($navUser->hasAnyPermission(['view-cash-advances', 'create-cash-advances', 'approve-cash-advances', 'process-cash-advance-payments']))
+            <li>
+                <a href="{{ route('cash-advances.ledger') }}"
+                    class="group flex items-center gap-x-2 rounded-md py-1.5 px-2 text-sm {{ request()->routeIs('cash-advances.ledger*') ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50' }}">
+                    <i class="fas fa-book w-4 h-4 shrink-0 flex items-center justify-center text-gray-400"></i>
+                    <span>CA Ledger</span>
+                </a>
+            </li>
+            @endif
             @if ($navUser->hasPermission('manage-cash-advance-settings'))
                 <li>
                     <a href="{{ route('cash-advances.settings') }}"

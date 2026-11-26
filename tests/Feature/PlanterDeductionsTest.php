@@ -295,6 +295,66 @@ class PlanterDeductionsTest extends TestCase
         $this->assertEqualsWithDelta(5050, $rows->firstWhere('code', '00123')['ca'], 0.001);
     }
 
+    public function test_quick_cash_advance_can_be_spread_over_more_weeks_with_a_check_no(): void
+    {
+        $quick = ['crop_year' => '20262027', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN',
+            'amount' => 5000, 'date_created' => '2026-10-20', 'check_no' => 'MB-0012345'];
+
+        // The weeks must add up to the advance plus 1% interest (₱5,050)
+        $this->postJson(route('cash-advances.quick'), $quick + ['schedule' => [['week_no' => '3', 'amount' => 2525], ['week_no' => '4', 'amount' => 2000]]])
+            ->assertStatus(422)->assertJsonValidationErrors('schedule');
+
+        $this->postJson(route('cash-advances.quick'), $quick + ['schedule' => [['week_no' => '3', 'amount' => 2525], ['week_no' => '4', 'amount' => 2525]]])
+            ->assertCreated();
+
+        $ca = \App\Models\CashAdvance::first();
+        $this->assertSame('MB-0012345', $ca->check_no);
+        $this->assertSame(2, (int) $ca->term_weeks);
+        $this->assertSame([['week_no' => '3', 'amount' => 2525.0], ['week_no' => '4', 'amount' => 2525.0]], $ca->deductions()->orderBy('week_no')->get()
+            ->map(fn ($d) => ['week_no' => (string) $d->week_no, 'amount' => (float) $d->amount])->all());
+    }
+
+    public function test_cash_advance_ledger_totals_planters_and_prints(): void
+    {
+        $base = ['crop_year' => '20262027', 'planter_name' => 'DELA CRUZ, JUAN', 'week_no' => '4'];
+        $this->postJson(route('cash-advances.quick'), $base + ['planter_code' => '00123', 'amount' => 5000, 'date_created' => '2026-10-20'])->assertCreated();
+        $this->postJson(route('cash-advances.quick'), $base + ['planter_code' => '00123', 'amount' => 3000, 'date_created' => '2026-10-22'])->assertCreated();
+        $this->postJson(route('cash-advances.quick'), array_merge($base, ['planter_code' => '00456', 'planter_name' => 'SANTOS, ANA', 'amount' => 1000, 'date_created' => '2026-11-03']))->assertCreated();
+        // ₱60 paid on the first advance: ₱50 interest first, then ₱10 principal
+        $first = \App\Models\CashAdvance::orderBy('id')->first();
+        $first->payments()->create(['week_no' => '4', 'amount' => 60, 'payment_method' => 'cash', 'paid_date' => '2026-10-25']);
+
+        $d = $this->getJson(route('cash-advances.ledger.data', ['crop_year' => '20262027']))->assertOk()->json();
+
+        $this->assertSame(3, $d['totals']['count']);
+        $this->assertEqualsWithDelta(9090, $d['totals']['total'], 0.001);
+        $this->assertEqualsWithDelta(50, $d['totals']['interest_paid'], 0.001);
+        $this->assertEqualsWithDelta(10, $d['totals']['principal_paid'], 0.001);
+        $this->assertEqualsWithDelta(9030, $d['totals']['balance'], 0.001);
+        // One line per planter: Juan's two advances under one line with their totals
+        $this->assertCount(2, $d['planters']);
+        $juan = collect($d['planters'])->firstWhere('planter_code', '00123');
+        $this->assertCount(2, $juan['rows']);
+        $this->assertSame(2, $juan['subtotal']['count']);
+        $this->assertEqualsWithDelta(8020, $juan['subtotal']['balance'], 0.001);
+        $this->assertNotEmpty($juan['rows'][0]['created_by_name']);
+        // A date range keeps only the advances made in it
+        $oct = $this->getJson(route('cash-advances.ledger.data', ['date_from' => '2026-10-01', 'date_to' => '2026-10-31']))->json();
+        $this->assertSame(2, $oct['totals']['count']);
+
+        // Printing the ticked planters only: Ana alone
+        $ana = $this->getJson(route('cash-advances.ledger.data', ['crop_year' => '20262027', 'planters' => ['456']]))->json();
+        $this->assertSame(['SANTOS, ANA'], array_column($ana['planters'], 'planter_name'));
+        $this->assertEqualsWithDelta(1010, $ana['totals']['balance'], 0.001);
+
+        // A planter's earlier advances
+        $h = $this->getJson(route('cash-advances.ledger.planter', ['planter_code' => '123']))->assertOk()->json();
+        $this->assertCount(2, $h['advances']);
+        $this->assertCount(1, $h['advances'][1]['payments']);
+
+        $this->get(route('cash-advances.ledger.pdf', ['crop_year' => '20262027', 'planters' => ['00456']]))->assertOk()->assertHeader('content-type', 'application/pdf');
+    }
+
     public function test_cash_advance_balance_can_be_changed_with_late_charges_and_waived_interest(): void
     {
         $base = ['crop_year' => '20262027', 'planter_code' => '00123', 'planter_name' => 'DELA CRUZ, JUAN', 'week_no' => '3', 'date_created' => '2026-10-12'];
