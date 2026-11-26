@@ -486,12 +486,19 @@ public function voucherPDF(Request $request)
     // Loan and Cash Advance payments are filled in by PlanterProceeds
     $autoDeduct = LoanSetting::get('auto_deduct', true);
 
+    // Printed on the pre-printed Metrobank check-voucher form: 11 in x 23 cm, landscape (dompdf turns the
+    // portrait sheet given here: 23 cm across, 11 in long)
+    $form = config('kusugpa.voucher_form', []);
+    $cm = fn ($value) => (float) $value * 72 / 2.54;
+    $paper = [0, 0, $cm($form['paper_height_cm'] ?? 23), $cm($form['paper_width_cm'] ?? 27.94)];
     $pdf = Pdf::loadView('pdf.voucher', [
         'summaryData' => $summaryData,
         'autoDeduct' => $autoDeduct,
         // A voucher with an authorized receiver prints that name in place of the planter's
         'receivers' => $receivers,
-    ]);
+        // Voucher and check date: the day the group was generated (today for a voucher outside a group)
+        'voucherDate' => $scope['batch']?->created_at ?? now(),
+    ])->setPaper($paper, 'landscape');
     return $request->boolean('download') ? $pdf->download($parts->filename('voucher')) : $pdf->stream($parts->filename('voucher-preview'));
 }
 
